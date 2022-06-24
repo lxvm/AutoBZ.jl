@@ -3,6 +3,13 @@ uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
 authors = ["Lorenzo X. Van Muñoz <lorenzo@vanmunoz.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
 [compat]
 julia = "1"
 
