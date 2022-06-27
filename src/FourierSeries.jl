@@ -20,18 +20,17 @@ function (f::FourierSeries{N,T})(x) where {N,T}
         C[i] * exp(dot(ϕ, convert(SVector, i)))
     end
 end
-function (f::FourierSeries{1,T})(x::SVector{1}) where {T}
+function (f::FourierSeries{1})(x::SVector{1})
     C = f.coeffs
+    # this function is the 1d version of contract
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
-    ϕ = 2π * im * first(x) / first(f.period)
-    z = exp(ϕ)
-    r = C[0]
+    @inbounds r = C[0]
     if size(C,1) > 1
-        @inbounds r += z*C[1] + conj(z)*C[-1]
-        z′ = z
-        for i in 2:last(axes(C,1))
-            z′ *= z
-            @inbounds r += z′*C[i] + conj(z′)*C[-i]
+        z₀ = exp(2π * im * first(x) / first(f.period))
+        z = one(z₀)
+        for i in 1:last(axes(C,1))
+            z *= z₀
+            @inbounds r += z*C[i] + conj(z)*C[-i]
         end
     end
     r
@@ -48,4 +47,4 @@ struct DOSIntegrand{N,T}
     μ::Float64
 end
 
-(f::DOSIntegrand)(k) = inv(complex(f.ω + f.μ, f.η)*I - f.ϵ(k))
+(f::DOSIntegrand)(k) = hinv(complex(f.ω + f.μ, f.η)*I - f.ϵ(k))
