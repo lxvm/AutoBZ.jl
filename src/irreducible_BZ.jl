@@ -18,6 +18,7 @@ lower(l::CubicLimits{2}) = 0.0
 upper(l::CubicLimits{0}) = 1.0
 upper(l::CubicLimits{1}) = 1.0
 upper(l::CubicLimits{2}) = 1.0
+rescale(::CubicLimits) = 1
 
 """
     TetrahedralLimits{N,T}
@@ -35,13 +36,18 @@ lower(l::TetrahedralLimits{2}) = 0.0
 upper(l::TetrahedralLimits{0}) = 0.5
 upper(l::TetrahedralLimits{1}) = last(l.x)
 upper(l::TetrahedralLimits{2}) = first(l.x)
+rescale(::TetrahedralLimits) = 48
 
-iterated_integration(f::Union{DOSIntegrand{1},FourierSeries{1}}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
-function iterated_integration(f, L::IntegrationLimits; kwargs...)
+function iterated_integration(f, L::IntegrationLimits)
+    int, err = _iterated_integration(f, L)
+    rescale(L)*int, err
+end
+_iterated_integration(f::Union{DOSIntegrand{1},FourierSeries{1}}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
+function _iterated_integration(f, L::IntegrationLimits; kwargs...)
     hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
         g = contract(f, first(x))
         L′ = L
-        first(iterated_integration(g, L′(first(x)); kwargs...))
+        first(_iterated_integration(g, L′(first(x)); kwargs...))
     end
 end
 
