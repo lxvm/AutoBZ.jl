@@ -1,9 +1,13 @@
-export FourierSeries, DOSIntegrand, contract
+export Integrand, FourierSeries, SpectralFunction, DOSIntegrand, contract
+
+abstract type Integrand{N} end
+Base.eltype(f::Integrand) = eltype(typeof(f))
+
 
 """
 Construct a Fourier series whose coefficients are matrix valued (hopefully contiguous in memory) such that the resulting matrix-valued Fourier series is Hermitian.
 """
-struct FourierSeries{N,T<:AbstractArray{<:SArray,N}}
+struct FourierSeries{N,T<:AbstractArray{<:SArray,N}} <: Integrand{N}
     coeffs::T
     period::SVector{N,Float64}
 end
@@ -35,25 +39,39 @@ function (f::FourierSeries{1})(x::SVector{1})
     end
     r
 end
+Base.eltype(::Type{<:FourierSeries}) = SMatrix{3,3,ComplexF64}
 
 """
-    DOSIntegrand(ϵ,ω,η,μ)
-A function that computes the DOS from the constituent parameters.
+    SpectralFunction(ϵ,ω,η,μ)
+A function that calculates the 
 """
-struct DOSIntegrand{N,T}
+struct SpectralFunction{N,T} <: Integrand{N}
     ϵ::FourierSeries{N,T}
     ω::Float64
     η::Float64
     μ::Float64
 end
 
-(f::DOSIntegrand)(k) = hinv(complex(f.ω + f.μ, f.η)*I - f.ϵ(k))
+(f::SpectralFunction)(k) = imag(hinv(complex(f.ω + f.μ, f.η)*I - f.ϵ(k)))/(-pi)
+Base.eltype(::Type{<:SpectralFunction}) = SMatrix{3,3,Float64}
+
+"""
+    DOSIntegrand(::SpectralFunction)
+A function whose integral gives the density of states.
+"""
+struct DOSIntegrand{N,T} <: Integrand{N}
+    A::SpectralFunction{N,T}
+end
+
+(f::DOSIntegrand)(k) = tr(f.A(k))
+Base.eltype(::Type{<:DOSIntegrand}) = Float64
 
 """
 Contract the outermost index of the Fourier Series
 """
 contract(f, x::SVector{1}) = contract(f, first(x))
-contract(f::DOSIntegrand, x) = DOSIntegrand(contract(f.ϵ, x), f.ω, f.η, f.μ)
+contract(f::DOSIntegrand, x) = DOSIntegrand(contract(f.A, x))
+contract(f::SpectralFunction, x) = SpectralFunction(contract(f.ϵ, x), f.ω, f.η, f.μ)
 function contract(f::FourierSeries{N}, x::Number)  where {N}
     C = f.coeffs
     ϕ = 2π*im*x/last(f.period)

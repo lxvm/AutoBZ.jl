@@ -42,7 +42,7 @@ function iterated_integration(f, L::IntegrationLimits)
     int, err = _iterated_integration(f, L)
     rescale(L)*int, err
 end
-_iterated_integration(f::Union{DOSIntegrand{1},FourierSeries{1}}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
+_iterated_integration(f::Integrand{1}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
 function _iterated_integration(f, L::IntegrationLimits; kwargs...)
     hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
         g = contract(f, first(x))
@@ -51,8 +51,9 @@ function _iterated_integration(f, L::IntegrationLimits; kwargs...)
     end
 end
 
+equispace_integration(f, p, ::CubicLimits) = equispace_integration(f, p)
 function equispace_integration(f, p, ::TetrahedralLimits)
-    r = zero(SMatrix{3,3,ComplexF64})
+    r = zero(eltype(f))
     for (x, w) in get_x_w(p)
         r += w*f(x)
     end

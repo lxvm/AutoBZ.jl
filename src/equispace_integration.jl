@@ -5,7 +5,7 @@ export equispace_integration
     points along each dimension
 """
 function equispace_integration(f, p::Int; rtol=sqrt(eps()))
-    r = zero(SMatrix{3,3,ComplexF64})
+    r = zero(eltype(f))
     x = range(0.0, step=inv(p), length=p)
     for k in 1:p
         @inbounds g = contract(f, x[k])
@@ -20,7 +20,7 @@ function equispace_integration(f, p::Int; rtol=sqrt(eps()))
 end
 
 function equispace_integration(f::FourierSeries{3}, p::Int)
-    r = Array{SMatrix{3,3,ComplexF64}}(undef, p^3)
+    r = Array{eltype(f)}(undef, p^3)
     x = range(0.0, step=inv(p), length=p)
     for k in 1:p
         @inbounds g = contract(f, x[k])
