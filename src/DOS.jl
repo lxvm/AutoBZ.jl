@@ -6,6 +6,7 @@ using StaticArrays
 using OffsetArrays
 using HCubature
 using QuadGK
+using FFTW
 
 include("inv.jl")
 include("FourierSeries.jl")

@@ -1,7 +1,7 @@
 """
 Calculate the inverse of a Hermitian matrix using its lower triangle
 """
-function hinv(A::SMatrix{3,3,T}) where {T<:Complex}
+function hinv(A) where {T<:Complex}
     @inbounds x0 = A[5]*A[9] - abs2(A[6])
     @inbounds x1 = A[6]*conj(A[3]) - A[4]*A[9]
     @inbounds x2 = conj(A[2]*A[6]) - A[5]*conj(A[3])
