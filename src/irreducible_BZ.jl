@@ -54,9 +54,26 @@ end
 equispace_integration(f, p, ::CubicLimits) = equispace_integration(f, p)
 function equispace_integration(f, p, ::TetrahedralLimits)
     r = zero(eltype(f))
-    for (x, w) in get_x_w(p)
-        r += w*f(x)
+    x = range(0, step=inv(p), length=p)
+    flag, wsym = cubic_ibz(p)
+    cnt = 0
+    for k in 1:p
+        any(flag[:, :, k]) || continue
+        @inbounds g = contract(f, x[k])
+        for j in 1:p
+            any(flag[:, j, k]) || continue
+            @inbounds h = contract(g, x[j])
+            for i in 1:p
+                if flag[i,j,k]
+                    cnt += 1
+                    @inbounds r += wsym[cnt]*h(SVector(x[i]))
+                end
+            end
+        end
     end
+    # for (x, w) in get_x_w(p)
+    #     r += w*f(x)
+    # end
     r*inv(p)^3
 end
 
@@ -89,7 +106,9 @@ function cubic_ibz(p::Int)
                     (round(Int, ii) - ii) > 1e-12 && throw("Inexact index")
                     (round(Int, jj) - jj) > 1e-12 && throw("Inexact index")
                     (round(Int, kk) - kk) > 1e-12 && throw("Inexact index")
-                    ii, jj, kk = round.(Ref(Int), [ii, jj, kk])
+                    ii = round(Int, ii)
+                    jj = round(Int, jj)
+                    kk = round(Int, kk)
                     any((ii>p, jj>p, kk>p)) && continue
                     all((ii==i,jj==j,kk==k)) && continue
                     @inbounds if flag[ii,jj,kk]
