@@ -38,8 +38,8 @@ upper(l::TetrahedralLimits{1}) = last(l.x)
 upper(l::TetrahedralLimits{2}) = first(l.x)
 rescale(::TetrahedralLimits) = 48
 
-function iterated_integration(f, L::IntegrationLimits)
-    int, err = _iterated_integration(f, L)
+function iterated_integration(f, L::IntegrationLimits; kwargs...)
+    int, err = _iterated_integration(f, L; kwargs...)
     rescale(L)*int, err
 end
 _iterated_integration(f::Integrand{1}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
@@ -51,11 +51,16 @@ function _iterated_integration(f, L::IntegrationLimits; kwargs...)
     end
 end
 
-equispace_integration(f, p, ::CubicLimits) = equispace_integration(f, p)
-function equispace_integration(f, p, ::TetrahedralLimits)
+equispace_integration(f::Integrand, p::Int, ::CubicLimits) = equispace_integration(f, p)
+function equispace_integration(f::Integrand, p::Int, ::TetrahedralLimits)
+    equispace_integration(f, p, cubic_ibz(p)...)
+    # for (x, w) in get_x_w(p)
+    #     r += w*f(x)
+    # end
+end
+function equispace_integration(f::Integrand{3}, p::Int, flag::Array{Bool,3}, wsym::Vector{Int})
     r = zero(eltype(f))
     x = range(0, step=inv(p), length=p)
-    flag, wsym = cubic_ibz(p)
     cnt = 0
     for k in 1:p
         any(flag[:, :, k]) || continue
@@ -71,10 +76,27 @@ function equispace_integration(f, p, ::TetrahedralLimits)
             end
         end
     end
-    # for (x, w) in get_x_w(p)
-    #     r += w*f(x)
-    # end
     r*inv(p)^3
+end
+
+function evaluate_series_ibz!(r, f::FourierSeries{3}, p::Int, flag::Array{Bool,3})
+    x = range(0, step=inv(p), length=p)
+    cnt = 0
+    for k in 1:p
+        any(flag[:, :, k]) || continue
+        @inbounds g = contract(f, x[k])
+        for j in 1:p
+            any(flag[:, j, k]) || continue
+            @inbounds h = contract(g, x[j])
+            for i in 1:p
+                if flag[i,j,k]
+                    cnt += 1
+                    @inbounds r[cnt] = h(SVector(x[i]))
+                end
+            end
+        end
+    end
+    r
 end
 
 get_x_w(p) = ijk_to_x(p, cubic_ibz(p)...)

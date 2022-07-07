@@ -4,7 +4,7 @@ export equispace_integration
     Integrate a function on an equispace grid with the same number of grid
     points along each dimension
 """
-function equispace_integration(f::T, p::Int; rtol=sqrt(eps())) where {T<:Integrand}
+function equispace_integration(f::T, p::Int) where {T<:Integrand}
     r = zero(eltype(T))
     x = range(0.0, step=inv(p), length=p)
     for k in 1:p

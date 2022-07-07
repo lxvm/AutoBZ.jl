@@ -8,10 +8,12 @@ using HCubature
 using QuadGK
 using FFTW
 
-include("inv.jl")
+include("linalg.jl")
 include("FourierSeries.jl")
+include("integrands.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
 include("irreducible_BZ.jl")
+include("sweeps.jl")
 
 end
