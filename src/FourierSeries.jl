@@ -3,31 +3,12 @@ export FourierSeries, HermitianFourierSeries, contract
 """
 Construct a Fourier series whose coefficients are array-valued (hopefully contiguous in memory) such that the resulting matrix-valued Fourier series is Hermitian.
 """
-struct FourierSeries{N,T<:AbstractArray{<:SArray,N}}
+struct FourierSeries{N,T<:AbstractArray{<:StaticArray,N}}
     coeffs::T
     period::SVector{N,Float64}
 end
 
-"""
-Stores an array of Fourier series coefficients which are themselves 3x3
-Hermitian matrices, but storing only the lower triangle in column major order
-[
-    a1 .. ..
-    a2 a4 ..
-    a3 a5 a6
-]
-
-Note: this is implemented as a type alias because it requires the least effort
-to implement, however the right way of doing this would be to define a
-AbstractFourierSeries type whose subtypes are FourierSeries and
-HermitianFourierSeries, which should basically have the same struct layout,
-except the coefficient arrays are interpreted as being the lower/upper triangle
-of a Hermitian matrix. One could define a custom Hermitian matrix type which
-wraps the lower/upper triangle array (so that operations in "linalg.jl" could be
-made type specific), however it might be possible to dispatch on
-HermitianFourierSeries instead, as in "integrands.jl" 
-"""
-const HermitianFourierSeries{N,T} = FourierSeries{N,T} where {N,T<:AbstractArray{<:SVector{6,<:Complex},N}}
+const HermitianFourierSeries{N,T} = FourierSeries{N,T} where {N,T<:AbstractArray{<:SHermitianCompact,N}}
 
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
 

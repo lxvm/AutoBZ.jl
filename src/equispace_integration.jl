@@ -1,8 +1,8 @@
 export equispace_integration
 
 """
-    Integrate a function on an equispace grid with the same number of grid
-    points along each dimension
+Integrate a function on an equispace grid with the same number of grid points
+along each dimension
 """
 function equispace_integration(f::T, p::Int) where {T<:Integrand}
     r = zero(eltype(T))
@@ -71,7 +71,7 @@ function fft_evaluate_series(f::FourierSeries, p::Int)
     X
 end
 
-function populate_fourier_coefficients!(Z::AbstractArray, C::AbstractArray{<:SArray})
+function populate_fourier_coefficients!(Z::AbstractArray, C::AbstractArray{<:StaticArray})
     S1 = size(eltype(C))
     preI = CartesianIndices(S1)
     S2 = size(Z)[(length(S1)+1):end]
