@@ -1,4 +1,4 @@
-export Integrand, SpectralFunction, DOSIntegrand, DipoleMatrix, OpticalConductivityIntegrand
+export Integrand, SpectralFunction, DOSIntegrand, OpticalConductivityIntegrand
 
 """
 Realizations of this type should implement an `eltype`, be callable with
@@ -24,7 +24,7 @@ Base.eltype(::Type{<:SpectralFunction{N,T}}) where {N,T} = Base.promote_op(imag,
 (f::SpectralFunction)(k::AbstractVector) = f(f.ϵ(k))
 contract(f::SpectralFunction, x) = SpectralFunction(contract(f.ϵ, x), f.ω, f.η, f.μ)
 
-_spectral_function(ϵ::AbstractMatrix, ω, η, μ) = imag(hinv(complex(ω+μ, η)*I - ϵ))/(-pi)
+_spectral_function(ϵ::AbstractMatrix, ω, η, μ) = imag(inv(complex(ω+μ, η)*I - ϵ))/(-pi)
 
 """
 DOSIntegrand(::SpectralFunction)
@@ -36,20 +36,9 @@ end
 
 DOSIntegrand(ϵ, ω, η, μ) = DOSIntegrand(SpectralFunction(ϵ, ω, η, μ))
 Base.eltype(::Type{<:DOSIntegrand{N,T}}) where {N,T} = eltype(eltype(SpectralFunction{N,T}))
-(f::DOSIntegrand)(A::AbstractMatrix) = htr(f.A(A))
+(f::DOSIntegrand)(A::AbstractMatrix) = tr(f.A(A))
 (f::DOSIntegrand)(k::AbstractVector) = f(f.A(k))
 contract(f::DOSIntegrand, x) = DOSIntegrand(contract(f.A, x))
-
-struct DipoleMatrix1{N,T<:FourierSeries{N},α} <: Integrand{N}
-    ϵ::T
-    function DipoleMatrix1(ϵ::T, α::Int) where {N,T<:FourierSeries{N}}
-        (1 <= α <= N) || throw("cannot differentiate axis α=$α, choose in 1:$N")
-        new{N,T,α}(ϵ)
-    end
-end
-
-DipoleMatrix = DipoleMatrix1
-Base.eltype(::Type{<:DipoleMatrix{N,T,α}}) where {N,T,α} = eltype(T)
 
 fermi(ω, β) = fermi(promote(ω, β)...)
 fermi(ω::T, β::T) where {T<:Real} = inv(one(T) + exp(β*ω))
