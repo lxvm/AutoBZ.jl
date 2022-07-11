@@ -1,16 +1,3 @@
-function iterated_integration(f, L::IntegrationLimits; kwargs...)
-    int, err = _iterated_integration(f, L; kwargs...)
-    rescale(L)*int, err
-end
-_iterated_integration(f::Integrand{1}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
-function _iterated_integration(f, L::IntegrationLimits; kwargs...)
-    hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
-        g = contract(f, first(x))
-        L′ = L
-        first(_iterated_integration(g, L′(first(x)); kwargs...))
-    end
-end
-
 equispace_integration(f::Integrand, p::Int, ::CubicLimits) = equispace_integration(f, p)
 function equispace_integration(f::Integrand, p::Int, ::TetrahedralLimits)
     equispace_integration(f, p, cubic_ibz(p)...)
