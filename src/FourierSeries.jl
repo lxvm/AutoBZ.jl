@@ -1,4 +1,4 @@
-export FourierSeries, HermitianFourierSeries, contract
+export FourierSeries, HermitianFourierSeries, contract, FourierSeriesDerivative
 
 """
 Construct a Fourier series whose coefficients are array-valued (hopefully contiguous in memory) such that the resulting matrix-valued Fourier series is Hermitian.
@@ -27,7 +27,7 @@ end
 # performance hack for larger tensors that allocates less
 function contract(f::FourierSeries{3}, x::Number)
     N=3
-    C = _contract(f.coeffs, first(x) / last(f.period))
+    C = _contract(f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period))
 end
 function _contract(C::AbstractVector, ϕ::Number)
@@ -72,3 +72,87 @@ function (f::FourierSeries)(x::AbstractVector)
     end
 end
 (f::FourierSeries{1})(x::SVector{1}) = _contract(f.coeffs, first(x)/first(f.period))
+
+
+"""
+Imitating style of  StaticArraysCore
+Could loosen `Int` type restriction to `Number` for fractional or complex derivatives
+"""
+function check_derivative_parameters(::Type{Val{N}}, ::Type{α}) where {N,α}
+    length(α.parameters) == N || throw(ArgumentError("There must be $N derivatives"))
+    all(x->isa(x, Int), α.parameters) || throw(ArgumentError("Derivatives must be a tuple of Ints (e.g. Tuple{1,2,3})"))
+    return nothing
+end
+
+struct FourierSeriesDerivative{N,T<:FourierSeries{N},α<:Tuple}
+    ϵ::T
+    function FourierSeriesDerivative{N,T,α}(ϵ::T) where {N,T<:FourierSeries{N},α<:Tuple}
+        check_derivative_parameters(Val{N},α)
+        new{N,T,α}(ϵ)
+    end
+end
+
+FourierSeriesDerivative{α}(ϵ::T) where {α,N,T<:FourierSeries{N}} = FourierSeriesDerivative{N,T,α}(ϵ)
+Base.eltype(::Type{<:FourierSeriesDerivative{N,T,α}}) where {N,T,α} = eltype(T)
+
+
+function contract(f::FourierSeriesDerivative{N,T,α}, x::Number) where {N,T,α}
+    C = f.ϵ.coeffs
+    ϕ = 2π*im*x/last(f.ϵ.period)
+    a = last(α.parameters)
+    C′ = mapreduce(+, CartesianIndices(C); dims=N) do i
+        C[i]*(exp(last(i.I)*ϕ)*(last(i.I)^a))
+    end
+    ϵ = FourierSeries(reshape(C′, axes(C)[1:N-1]), pop(f.ϵ.period))
+    @inbounds FourierSeriesDerivative{Tuple{α.parameters[1:N-1]...}}(ϵ)
+end
+# performance hack for larger tensors that allocates less
+function contract(f::FourierSeriesDerivative{3,T,α}, x::Number) where {T,α}
+    N=3
+    C = _contract(f.ϵ.coeffs, x / last(f.ϵ.period), last(α.parameters))
+    ϵ = FourierSeries(C, pop(f.ϵ.period))
+    @inbounds FourierSeriesDerivative{Tuple{α.parameters[1:N-1]...}}(ϵ)
+end
+function _contract(C::AbstractVector, ϕ::Number, a)
+    -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
+    @inbounds r = (0^a)*C[0]
+    if size(C,1) > 1
+        z₀ = exp(2π*im*ϕ)
+        z = one(z₀)
+        for i in 1:last(axes(C,1))
+            z *= z₀
+            @inbounds r += (((im*i)^a)*z)*C[i] + (((-im*i)^a)*conj(z))*C[-i]
+        end
+    end
+    r
+end
+function _contract(C::AbstractArray{<:Any,3}, ϕ::Number, a)
+    N = 3 # the function body works for any N>1
+    -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
+    ax = CartesianIndices(axes(C)[1:N-1])
+    @inbounds r = (0^a)*view(C, ax, 0)
+    if size(C,N) > 1
+        z₀ = exp(2π*im*ϕ)
+        z = one(z₀)
+        for i in 1:last(axes(C,N))
+            z *= z₀
+            @inbounds r += (((im*i)^a)*z)*view(C, ax, i) + (((-im*i)^a)*conj(z))*view(C, ax, -i)
+        end
+    end
+    r
+end
+
+"""
+(f::FourierSeriesDerivative)(x)
+
+Evaluate the derivative of the Fourier series at the point ``x``
+"""
+function (f::FourierSeriesDerivative{N,T,α})(x::AbstractVector) where {N,T,α}
+    C = f.ϵ.coeffs
+    ϕ = (2π*im) .* x ./ f.ϵ.period
+    sum(CartesianIndices(C), init=zero(eltype(f))) do i
+        idx = convert(SVector, i)
+        @inbounds C[i] * (exp(dot(ϕ, idx)) * prod((im.*idx) .^ α.parameters))
+    end
+end
+(f::FourierSeriesDerivative{1,T,Tuple{a}})(x::SVector{1}) where{T,a} = _contract(f.ϵ.coeffs, first(x)/first(f.ϵ.period), a)
