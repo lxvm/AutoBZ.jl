@@ -10,6 +10,7 @@ using FFTW
 
 include("linalg.jl")
 include("FourierSeries.jl")
+include("limits.jl")
 include("integrands.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
