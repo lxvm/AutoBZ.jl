@@ -93,7 +93,7 @@ function (f::OpticalConductivityIntegrand)(ω, ϵ, ν₁, ν₂, ν₃)
     ν₁AΩ = ν₁*AΩ
     ν₂AΩ = ν₂*AΩ
     ν₃AΩ = ν₃*AΩ
-    fermi_window(ω, f.Ω, f.β, f.μ) * SMatrix{3,3,ComplexF64,9}(tr.((ν₁Aω*ν₁AΩ, ν₂Aω*ν₁AΩ, ν₃Aω*ν₁AΩ, ν₁Aω*ν₂AΩ, ν₂Aω*ν₂AΩ, ν₃Aω*ν₂AΩ, ν₁Aω*ν₃AΩ, ν₂Aω*ν₃AΩ, ν₃Aω*ν₃AΩ)))
+    -fermi_window(ω, f.Ω, f.β, f.μ) * SMatrix{3,3,ComplexF64,9}(tr.((ν₁Aω*ν₁AΩ, ν₂Aω*ν₁AΩ, ν₃Aω*ν₁AΩ, ν₁Aω*ν₂AΩ, ν₂Aω*ν₂AΩ, ν₃Aω*ν₂AΩ, ν₁Aω*ν₃AΩ, ν₂Aω*ν₃AΩ, ν₃Aω*ν₃AΩ)))
 end
 function (f::OpticalConductivityIntegrand)(kω::SVector{4})
     k = pop(kω)
