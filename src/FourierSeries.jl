@@ -150,7 +150,7 @@ Evaluate the derivative of the Fourier series at the point ``x``
 function (f::FourierSeriesDerivative{N,T,α})(x::AbstractVector) where {N,T,α}
     C = f.ϵ.coeffs
     imk = (2π*im) ./ f.ϵ.period
-    imϕ =  k .* x
+    imϕ =  imk .* x
     sum(CartesianIndices(C), init=zero(eltype(f))) do i
         idx = convert(SVector, i)
         @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ α.parameters))
