@@ -1,6 +1,6 @@
-name = "DOS"
+name = "AutoBZ"
 uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
-authors = ["Lorenzo X. Van Muñoz <lorenzo@vanmunoz.com> and contributors"]
+authors = ["lxvm <lorenzo@vanmunoz.com> and contributors"]
 version = "0.1.0"
 
 [deps]
