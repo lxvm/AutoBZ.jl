@@ -1,11 +1,10 @@
-equispace_integration(f::Integrand, p::Int, ::CubicLimits) = equispace_integration(f, p)
-function equispace_integration(f::Integrand, p::Int, ::TetrahedralLimits)
+function equispace_integration(f, p::Int, ::TetrahedralLimits)
     equispace_integration(f, p, cubic_ibz(p)...)
     # for (x, w) in get_x_w(p)
     #     r += w*f(x)
     # end
 end
-function equispace_integration(f::Integrand{3}, p::Int, flag::Array{Bool,3}, wsym::Vector{Int})
+function equispace_integration(f, p::Int, flag::Array{Bool,3}, wsym::Vector{Int})
     r = zero(eltype(f))
     x = range(0, step=inv(p), length=p)
     cnt = 0
