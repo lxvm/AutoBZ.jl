@@ -4,13 +4,13 @@ export equispace_integration
 Integrate a function on an equispace grid with the same number of grid points
 along each dimension
 """
-function equispace_integration(f::T, p::Int) where {T<:Integrand}
-    r = zero(eltype(T))
+function equispace_integration(T, f, p::Int; callback=thunk)
+    r = zero(T)
     x = range(0.0, step=inv(p), length=p)
     for k in 1:p
-        @inbounds g = contract(f, x[k])
+        @inbounds g = callback(f, x[k])
         for j in 1:p
-            @inbounds h = contract(g, x[j])
+            @inbounds h = callback(g, x[j])
             for i in 1:p
                 @inbounds r += h(SVector(x[i]))
             end
@@ -18,14 +18,16 @@ function equispace_integration(f::T, p::Int) where {T<:Integrand}
     end
     r*inv(p)^3
 end
+# TODO check this is right scaling and length
+equispace_integration(T, f, p::Int, ::CubicLimits) = equispace_integration(T, f, p)
 
-function evaluate_series(f::FourierSeries{3}, p::Int)
-    r = Array{eltype(f)}(undef, p, p, p)
+function evaluate_integrand(T, f, p::Int; callback=thunk)
+    r = Array{T}(undef, p, p, p)
     x = range(0.0, step=inv(p), length=p)
     for k in 1:p
-        @inbounds g = contract(f, x[k])
+        @inbounds g = callback(f, x[k])
         for j in 1:p
-            @inbounds h = contract(g, x[j])
+            @inbounds h = callback(g, x[j])
             for i in 1:p
                 @inbounds r[i,j,k] = h(SVector(x[i]))
             end
@@ -34,6 +36,7 @@ function evaluate_series(f::FourierSeries{3}, p::Int)
     r
 end
 
+#=
 fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))
 function fft_equispace_integration(A::SpectralFunction, p::Int)
     ϵk = fft_evaluate_series(A.ϵ, p)
@@ -86,3 +89,4 @@ Convert positive/negative indices of Fourier coefficients to those suitable for 
 each dimension.
 """
 _to_fftw_index(i::NTuple{N, Int}, j::NTuple{N, Int}) where {N} = mod.(i, j) .+ 1
+=#
