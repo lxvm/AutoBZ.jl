@@ -1,41 +1,40 @@
 export tree_integration, iterated_integration
 
-tree_integration(f, a, b; kwargs...) = hcubature(f, a, b; kwargs...)
+tree_integration(f, a, b; callback=nothing, kwargs...) = hcubature(f, a, b; kwargs...)
 
-iterated_integration(f, a, b; kwargs...) = iterated_integration(f, SVector(a), SVector(b); kwargs...)
-iterated_integration(f, a::SVector{1}, b::SVector{1}; kwargs...) = hcubature(f, a, b; kwargs...)
-function iterated_integration(f, a::SVector, b::SVector; kwargs...)
-    hcubature(SVector(last(a)), SVector(last(b)); kwargs...) do x
-        g = contract(f, x)
-        first(iterated_integration(g, pop(a), pop(b); kwargs...))
-    end
-end
-#=
-iterated_integration(f, a::SVector{1}, b::SVector{1}; kwargs...) = hquadrature(f, first(a), first(b); kwargs...)
-function iterated_integration(f, a::SVector, b::SVector; kwargs...)
-    hquadrature(last(a), last(b); kwargs...) do x
-        g = contract(f, x)
-        first(iterated_integration(g, pop(a), pop(b); kwargs...))
-    end
-end
-
-iterated_integration(f, a::SVector{1}, b::SVector{1}; kwargs...) = quadgk(f, first(a), first(b); kwargs...)
-function iterated_integration(f, a::SVector, b::SVector; kwargs...)
-    quadgk(last(a), last(b); kwargs...) do x
-        g = contract(f, x)
-        first(iterated_integration(g, pop(a), pop(b); kwargs...))
-    end
-end
-=#
+"""
+Accepts a callback
+"""
+iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, L::IntegrationLimits; kwargs...)
     int, err = _iterated_integration(f, L; kwargs...)
     rescale(L)*int, err
 end
-_iterated_integration(f::Integrand{1}, L::IntegrationLimits; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
-function _iterated_integration(f, L::IntegrationLimits; kwargs...)
+
+_iterated_integration(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
+function _iterated_integration(f, L::IntegrationLimits; callback=thunk, kwargs...)
     hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
-        g = contract(f, first(x))
+        g = callback(f, x)
         L′ = L
-        first(_iterated_integration(g, L′(first(x)); kwargs...))
+        first(_iterated_integration(g, L′(x); callback=callback, kwargs...))
     end
 end
+#= replacements with other quadrature routines
+_iterated_integration(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = hquadrature(f, lower(L), upper(L); kwargs...)
+function _iterated_integration(f, L::IntegrationLimits; callback=thunk, kwargs...) where {N}
+    hquadrature(lower(L), upper(L); kwargs...) do x
+        g = callback(f, x)
+        L′ = L
+        first(_iterated_integration(g, L′(x); callback=callback, kwargs...))
+    end
+end
+
+_iterated_integration(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = quadgk(f, lower(L), upper(L); kwargs...)
+function _iterated_integration(f, L::IntegrationLimits; callback=thunk, kwargs...) where {N}
+    quadgk(lower(L), upper(L); kwargs...) do x
+        g = callback(f, x)
+        L′ = L
+        first(_iterated_integration(g, L′(x); callback=callback, kwargs...))
+    end
+end
+=#
