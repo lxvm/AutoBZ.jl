@@ -42,10 +42,10 @@ end
 # performance hack for larger tensors that allocates less
 function contract(f::FourierSeries{3}, x::Number)
     N=3
-    C = _contract(f.coeffs, 2π*x / last(f.period))
+    C = contract_(f.coeffs, 2π*x / last(f.period))
     FourierSeries(C, pop(f.period))
 end
-function _contract(C::AbstractVector, ϕ::Number)
+function contract_(C::AbstractVector, ϕ::Number)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
     @inbounds r = C[0]
     if size(C,1) > 1
@@ -58,7 +58,7 @@ function _contract(C::AbstractVector, ϕ::Number)
     end
     r
 end
-function _contract(C::AbstractArray{<:Any,3}, ϕ::Number)
+function contract_(C::AbstractArray{<:Any,3}, ϕ::Number)
     N = 3 # the function body works for any N>1
     -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
     ax = CartesianIndices(axes(C)[1:N-1])
@@ -86,7 +86,7 @@ function (f::FourierSeries)(x::AbstractVector)
         C[i] * exp(dot(imϕ, convert(SVector, i)))
     end
 end
-(f::FourierSeries{1})(x::SVector{1}) = _contract(f.coeffs, 2π*first(x)/first(f.period))
+(f::FourierSeries{1})(x::SVector{1}) = contract_(f.coeffs, 2π*first(x)/first(f.period))
 
 """
     FourierSeriesDerivative(::FourierSeries, ::SVector)
@@ -117,11 +117,11 @@ end
 # performance hack for larger tensors that allocates less
 function contract(f::FourierSeriesDerivative{3}, x::Number)
     N=3
-    C = _contract(f.ϵ.coeffs, x, 2π/last(f.ϵ.period), last(f.α))
+    C = contract_(f.ϵ.coeffs, x, 2π/last(f.ϵ.period), last(f.α))
     ϵ = FourierSeries(C, pop(f.ϵ.period))
     FourierSeriesDerivative(ϵ, pop(f.α))
 end
-function _contract(C::AbstractVector, x, k, a)
+function contract_(C::AbstractVector, x, k, a)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
     @inbounds r = (0^a)*C[0]
     if size(C,1) > 1
@@ -135,7 +135,7 @@ function _contract(C::AbstractVector, x, k, a)
     end
     r
 end
-function _contract(C::AbstractArray{<:Any,3}, x, k, a)
+function contract_(C::AbstractArray{<:Any,3}, x, k, a)
     N = 3 # the function body works for any N>1
     -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
     ax = CartesianIndices(axes(C)[1:N-1])
@@ -167,4 +167,4 @@ function (f::FourierSeriesDerivative)(x::AbstractVector)
         @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ f.α))
     end
 end
-(f::FourierSeriesDerivative{1})(x::SVector{1}) = _contract(f.ϵ.coeffs, first(x), 2π/first(f.ϵ.period), first(f.a))
+(f::FourierSeriesDerivative{1})(x::SVector{1}) = contract_(f.ϵ.coeffs, first(x), 2π/first(f.ϵ.period), first(f.a))
