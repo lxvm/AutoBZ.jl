@@ -20,35 +20,35 @@ next inner integral, but the default is `thunk` which delays the computation to
 the innermost integral.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, L::IntegrationLimits; kwargs...)
-    int, err = iterated_integration_(f, L; kwargs...)
+function iterated_integration(f, L::IntegrationLimits; callback=thunk, kwargs...)
+    int, err = iterated_integration_(f, L, callback; kwargs...)
     rescale(L)*int, err
 end
 
-iterated_integration_(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits; callback=thunk, kwargs...)
+iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
+function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
     hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
         g = callback(f, x)
         L′ = L
-        first(iterated_integration_(g, L′(x); callback=callback, kwargs...))
+        first(iterated_integration_(g, L′(x), callback; kwargs...))
     end
 end
 #= replacements with other quadrature routines
-iterated_integration_(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = hquadrature(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits; callback=thunk, kwargs...) where {N}
+iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = hquadrature(f, lower(L), upper(L); kwargs...)
+function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...) where {N}
     hquadrature(lower(L), upper(L); kwargs...) do x
         g = callback(f, x)
         L′ = L
-        first(iterated_integration_(g, L′(x); callback=callback, kwargs...))
+        first(iterated_integration_(g, L′(x), callback; kwargs...))
     end
 end
 
-iterated_integration_(f, L::IntegrationLimits{1}; callback=nothing, kwargs...) = quadgk(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits; callback=thunk, kwargs...) where {N}
+iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = quadgk(f, lower(L), upper(L); kwargs...)
+function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...) where {N}
     quadgk(lower(L), upper(L); kwargs...) do x
         g = callback(f, x)
         L′ = L
-        first(iterated_integration_(g, L′(x); callback=callback, kwargs...))
+        first(iterated_integration_(g, L′(x), callback; kwargs...))
     end
 end
 =#
