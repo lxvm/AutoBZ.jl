@@ -1,9 +1,23 @@
 export tree_integration, iterated_integration
 
+"""
+    tree_integration(f, a, b)
+    tree_integration(f, ::CubicLimits)
+
+Calls `HCubature` to perform multi-dimensional integration of `f` over a cube.
+"""
 tree_integration(f, a, b; callback=nothing, kwargs...) = hcubature(f, a, b; kwargs...)
+tree_integration(f, c::CubicLimits; kwargs...) = tree_integration(f, c.l, c.u; kwargs...)
 
 """
-Accepts a callback
+    iterated_integration(f, ::IntegrationLimits)
+
+Calls `HCubature` to perform iterated 1D integration of `f` over a domain
+parametrized by `IntegrationLimits`.
+Accepts a callback function whose arguments are `f` and the evaluation point,
+`x`, as a keyword argument. The callback can return a modified integrand to the
+next inner integral, but the default is `thunk` which delays the computation to
+the innermost integral.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, L::IntegrationLimits; kwargs...)
