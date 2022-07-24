@@ -5,13 +5,14 @@ export FourierSeries, contract, FourierSeriesDerivative
 
 Construct a Fourier series whose coefficients are an array with an element type
 supporting addition and scalar multiplication, and whose periodicity on the
-`i`th axis is given by `period[i]`.
+`i`th axis is given by `period[i]`. If period is a `Number`, 
 """
 struct FourierSeries{N,T<:AbstractArray{<:StaticArray,N}}
     coeffs::T
     period::SVector{N,Float64}
 end
 
+FourierSeries(coeffs::AbstractArray{T,N}, period) where {T,N} = FourierSeries(coeffs, convert(Float64, period)*ones(SVector{N}))
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
 
 """
@@ -87,57 +88,38 @@ function (f::FourierSeries)(x::AbstractVector)
 end
 (f::FourierSeries{1})(x::SVector{1}) = _contract(f.coeffs, 2π*first(x)/first(f.period))
 
-
 """
-    check_derivative_parameters(::Type{Val{N}}, ::Type{α})
-
-Require that `α` be a `Tuple{...}` of `N` `Int`s (like `StaticArraysCore.Size`).
-Note: loosen `Int` type restriction to `Real` for fractional derivatives, or
-remove for arbitary derivatives so long as `z^a` is defined for `z::Complex` and
-`a` in `α`.
-"""
-function check_derivative_parameters(::Type{Val{N}}, ::Type{α}) where {N,α}
-    length(α.parameters) == N || throw(ArgumentError("There must be $N derivatives"))
-    all(x->isa(x, Int), α.parameters) || throw(ArgumentError("Derivatives must be a tuple of Ints (e.g. Tuple{1,2,3})"))
-    return nothing
-end
-
-"""
-    FourierSeriesDerivative{α}(::FourierSeries)
+    FourierSeriesDerivative(::FourierSeries, ::SVector)
 
 Construct a Fourier series derivative from a multi-index `α` of derivatives,
-e.g. `Tuple{1,2,...}` and a `FourierSeries`, whose order of derivative on `i`th
+e.g. `[1,2,...]` and a `FourierSeries`, whose order of derivative on `i`th
 axis is the `i`th element of `α`.
 """
-struct FourierSeriesDerivative{N,T<:FourierSeries{N},α<:Tuple}
+struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta}
     ϵ::T
-    function FourierSeriesDerivative{α}(ϵ::T) where {N,T<:FourierSeries{N},α<:Tuple}
-        check_derivative_parameters(Val{N},α)
-        # @show N T α
-        new{N,typeof(ϵ),α}(ϵ)
-    end
+    α::SVector{N,Ta}
 end
 
-Base.eltype(::Type{<:FourierSeriesDerivative{N,T,α}}) where {N,T,α} = eltype(T)
+Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 
-function contract(f::FourierSeriesDerivative{N,T,α}, x::Number) where {N,T,α}
+function contract(f::FourierSeriesDerivative{N}, x::Number) where {N}
     C = f.ϵ.coeffs
     imk = im*2π/last(f.ϵ.period)
     imϕ = imk*x
-    a = last(α.parameters)
+    a = last(f.α)
     C′ = mapreduce(+, CartesianIndices(C); dims=N) do i
         # @show ((imk*last(i.I))^a)
         C[i]*(exp(last(i.I)*imϕ)*((imk*last(i.I))^a))
     end
     ϵ = FourierSeries(reshape(C′, axes(C)[1:N-1]), pop(f.ϵ.period))
-    @inbounds FourierSeriesDerivative{Tuple{α.parameters[1:N-1]...}}(ϵ)
+    FourierSeriesDerivative(ϵ, pop(f.α))
 end
 # performance hack for larger tensors that allocates less
-function contract(f::FourierSeriesDerivative{3,T,α}, x::Number) where {T,α}
+function contract(f::FourierSeriesDerivative{3}, x::Number)
     N=3
-    C = _contract(f.ϵ.coeffs, x, 2π/last(f.ϵ.period), last(α.parameters))
+    C = _contract(f.ϵ.coeffs, x, 2π/last(f.ϵ.period), last(f.α))
     ϵ = FourierSeries(C, pop(f.ϵ.period))
-    @inbounds FourierSeriesDerivative{Tuple{α.parameters[1:N-1]...}}(ϵ)
+    FourierSeriesDerivative(ϵ, pop(f.α))
 end
 function _contract(C::AbstractVector, x, k, a)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
@@ -175,14 +157,14 @@ end
 
 Evaluate `f` at the point `x`.
 """
-function (f::FourierSeriesDerivative{N,T,α})(x::AbstractVector) where {N,T,α}
+function (f::FourierSeriesDerivative)(x::AbstractVector)
     C = f.ϵ.coeffs
     imk = (2π*im) ./ f.ϵ.period
     imϕ =  imk .* x
     sum(CartesianIndices(C), init=zero(eltype(f))) do i
         idx = convert(SVector, i)
         # @show (imk.*idx) .^ α.parameters
-        @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ α.parameters))
+        @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ f.α))
     end
 end
-(f::FourierSeriesDerivative{1,T,Tuple{a}})(x::SVector{1}) where{T,a} = _contract(f.ϵ.coeffs, first(x), 2π/first(f.ϵ.period), a)
+(f::FourierSeriesDerivative{1})(x::SVector{1}) = _contract(f.ϵ.coeffs, first(x), 2π/first(f.ϵ.period), first(f.a))
