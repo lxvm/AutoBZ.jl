@@ -34,8 +34,12 @@ function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
     end
 end
 #= replacements with other quadrature routines
+# TODO: think about how to make an interface to easily switch between routines
+# TODO: write arbitrary order quadrature routine with a speedup like hcubature
+
+# slower because wraps integrand with (x -> f(x[1])) and calls promote_type
 iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = hquadrature(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...) where {N}
+function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
     hquadrature(lower(L), upper(L); kwargs...) do x
         g = callback(f, x)
         L′ = L
@@ -43,8 +47,11 @@ function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...) whe
     end
 end
 
+# slower or may not even run ... not sure why ... maybe commit below helps
+# https://github.com/JuliaMath/QuadGK.jl/commit/298f76e71be8a36d6e3f16715f601c3d22c2241c
+# https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing
 iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = quadgk(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...) where {N}
+function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
     quadgk(lower(L), upper(L); kwargs...) do x
         g = callback(f, x)
         L′ = L
