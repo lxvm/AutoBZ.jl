@@ -14,7 +14,7 @@ end
 
 Base.eltype(::Type{<:GreensFunction{N,T}}) where {N,T} = Base.promote_op(inv, eltype(T))
 (f::GreensFunction)(ϵ_k::AbstractMatrix) = _Greens_function(ϵ_k, f.ω, f.η, f.μ)
-(f::GreensFunction)(k::AbstractVector) = f(f.ϵ(k))
+(f::GreensFunction)(k::Union{AbstractVector,Number}) = f(f.ϵ(k))
 contract(f::GreensFunction, x::Number) = GreensFunction(contract(f.ϵ, x), f.ω, f.η, f.μ)
 
 _Greens_function(ϵ::AbstractMatrix, ω, η, μ) = inv(complex(ω+μ, η)*I - ϵ)
@@ -33,7 +33,7 @@ end
 SpectralFunction(ϵ, ω, η, μ) = SpectralFunction(GreensFunction(ϵ, ω, η, μ))
 Base.eltype(::Type{<:SpectralFunction{N,T}}) where {N,T} = Base.promote_op(imag, eltype(GreensFunction{N,T}))
 (f::SpectralFunction)(G_k::AbstractMatrix) = _spectral_function(G_k)
-(f::SpectralFunction)(k::AbstractVector) = f(f.G(k))
+(f::SpectralFunction)(k::Union{AbstractVector,Number}) = f(f.G(k))
 contract(f::SpectralFunction, x::Number) = SpectralFunction(contract(f.G, x))
 
 _spectral_function(G::AbstractMatrix) = imag(G)/(-pi)
@@ -51,7 +51,7 @@ end
 DOSIntegrand(ϵ, ω, η, μ) = DOSIntegrand(SpectralFunction(ϵ, ω, η, μ))
 Base.eltype(::Type{<:DOSIntegrand{N,T}}) where {N,T} = eltype(eltype(SpectralFunction{N,T}))
 (f::DOSIntegrand)(A_k::AbstractMatrix) = _DOS_integrand(A_k)
-(f::DOSIntegrand)(k::AbstractVector) = f(f.A(k))
+(f::DOSIntegrand)(k::Union{AbstractVector,Number}) = f(f.A(k))
 contract(f::DOSIntegrand, x::Number) = DOSIntegrand(contract(f.A, x))
 
 _DOS_integrand(A) = tr(A)

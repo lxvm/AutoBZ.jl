@@ -86,7 +86,8 @@ function (f::FourierSeries)(x::AbstractVector)
         C[i] * exp(dot(imϕ, convert(SVector, i)))
     end
 end
-(f::FourierSeries{1})(x::SVector{1}) = contract_(f.coeffs, 2π*first(x)/first(f.period))
+(f::FourierSeries{1})(x::SVector{1}) = f(first(x))
+(f::FourierSeries{1})(x::Number) = contract_(f.coeffs, 2π*x/first(f.period))
 
 """
     FourierSeriesDerivative(::FourierSeries, ::SVector)
@@ -167,4 +168,5 @@ function (f::FourierSeriesDerivative)(x::AbstractVector)
         @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ f.α))
     end
 end
-(f::FourierSeriesDerivative{1})(x::SVector{1}) = contract_(f.ϵ.coeffs, first(x), 2π/first(f.ϵ.period), first(f.a))
+(f::FourierSeriesDerivative{1})(x::SVector{1}) = f(first(x))
+(f::FourierSeriesDerivative{1})(x::Number) = contract_(f.ϵ.coeffs, x, 2π/first(f.ϵ.period), first(f.a))
