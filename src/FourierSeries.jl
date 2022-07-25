@@ -162,7 +162,7 @@ function (dv::FourierSeriesDerivative)(x::AbstractVector)
     C = dv.f.coeffs
     imk = (2π*im) ./ dv.f.period
     imϕ =  imk .* x
-    sum(CartesianIndices(C), init=zero(eltype(f))) do i
+    sum(CartesianIndices(C), init=zero(eltype(dv))) do i
         idx = convert(SVector, i)
         # @show (imk.*idx) .^ dv.a
         @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ dv.a))
