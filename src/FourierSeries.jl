@@ -92,35 +92,35 @@ end
 """
     FourierSeriesDerivative(::FourierSeries, ::SVector)
 
-Construct a Fourier series derivative from a multi-index `α` of derivatives,
+Construct a Fourier series derivative from a multi-index `a` of derivatives,
 e.g. `[1,2,...]` and a `FourierSeries`, whose order of derivative on `i`th
-axis is the `i`th element of `α`.
+axis is the `i`th element of `a`.
 """
 struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta}
-    ϵ::T
-    α::SVector{N,Ta}
+    f::T
+    a::SVector{N,Ta}
 end
 
 Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 
-function contract(f::FourierSeriesDerivative{N}, x::Number) where {N}
-    C = f.ϵ.coeffs
-    imk = im*2π/last(f.ϵ.period)
+function contract(dv::FourierSeriesDerivative{N}, x::Number) where {N}
+    C = dv.f.coeffs
+    imk = im*2π/last(dv.f.period)
     imϕ = imk*x
-    a = last(f.α)
+    a = last(dv.a)
     C′ = mapreduce(+, CartesianIndices(C); dims=N) do i
         # @show ((imk*last(i.I))^a)
         C[i]*(exp(last(i.I)*imϕ)*((imk*last(i.I))^a))
     end
-    ϵ = FourierSeries(reshape(C′, axes(C)[1:N-1]), pop(f.ϵ.period))
-    FourierSeriesDerivative(ϵ, pop(f.α))
+    f = FourierSeries(reshape(C′, axes(C)[1:N-1]), pop(dv.f.period))
+    FourierSeriesDerivative(f, pop(dv.a))
 end
 # performance hack for larger tensors that allocates less
-function contract(f::FourierSeriesDerivative{3}, x::Number)
+function contract(dv::FourierSeriesDerivative{3}, x::Number)
     N=3
-    C = contract_(f.ϵ.coeffs, x, 2π/last(f.ϵ.period), last(f.α))
-    ϵ = FourierSeries(C, pop(f.ϵ.period))
-    FourierSeriesDerivative(ϵ, pop(f.α))
+    C = contract_(dv.f.coeffs, x, 2π/last(dv.f.period), last(dv.a))
+    f = FourierSeries(C, pop(dv.f.period))
+    FourierSeriesDerivative(f, pop(dv.a))
 end
 function contract_(C::AbstractVector, x, k, a)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
@@ -158,15 +158,15 @@ end
 
 Evaluate `f` at the point `x`.
 """
-function (f::FourierSeriesDerivative)(x::AbstractVector)
-    C = f.ϵ.coeffs
-    imk = (2π*im) ./ f.ϵ.period
+function (dv::FourierSeriesDerivative)(x::AbstractVector)
+    C = dv.f.coeffs
+    imk = (2π*im) ./ dv.f.period
     imϕ =  imk .* x
     sum(CartesianIndices(C), init=zero(eltype(f))) do i
         idx = convert(SVector, i)
-        # @show (imk.*idx) .^ α.parameters
-        @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ f.α))
+        # @show (imk.*idx) .^ dv.a
+        @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ dv.a))
     end
 end
-(f::FourierSeriesDerivative{1})(x::SVector{1}) = f(first(x))
-(f::FourierSeriesDerivative{1})(x::Number) = contract_(f.ϵ.coeffs, x, 2π/first(f.ϵ.period), first(f.a))
+(dv::FourierSeriesDerivative{1})(x::SVector{1}) = dv(first(x))
+(dv::FourierSeriesDerivative{1})(x::Number) = contract_(dv.f.coeffs, x, 2π/first(dv.f.period), first(dv.a))
