@@ -92,9 +92,9 @@ struct OpticalConductivityIntegrand{N,T<:FourierSeries{N},T1,T2,T3}
 end
 
 function OpticalConductivityIntegrand(ϵ, Ω, β, η, μ)
-    ν₁ = FourierSeriesDerivative{Tuple{1,0,0}}(ϵ)
-    ν₂ = FourierSeriesDerivative{Tuple{0,1,0}}(ϵ)
-    ν₃ = FourierSeriesDerivative{Tuple{0,0,1}}(ϵ)
+    ν₁ = FourierSeriesDerivative(ϵ, SVector(1,0,0))
+    ν₂ = FourierSeriesDerivative(ϵ, SVector(0,1,0))
+    ν₃ = FourierSeriesDerivative(ϵ, SVector(0,0,1))
     OpticalConductivityIntegrand(ϵ, ν₁, ν₂, ν₃, Ω, β, η, μ)
 end
 Base.eltype(::Type{<:OpticalConductivityIntegrand}) = SMatrix{3,3,ComplexF64,9}
