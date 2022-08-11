@@ -1,4 +1,5 @@
-export IntegrationLimits, lower, upper, rescale, CubicLimits
+export IntegrationLimits, lower, upper, nsym, symmetrize, symmetries,
+    CubicLimits, CompositeLimits
 
 """
     IntegrationLimits{d}
@@ -15,6 +16,8 @@ coordinate this behavior with their integrand.
 Instances should also be static structs.
 """
 abstract type IntegrationLimits{d} end
+
+# Interface for IntegrationLimits types
 
 """
     lower(::IntegrationLimits)
@@ -35,13 +38,22 @@ integration.
 function upper end
 
 """
-rescale(::IntegrationLimits)
+    nsym(::IntegrationLimits)
 
-Return the number of symmetries used to reduce the volume of the integration
-domain. This is called only once when computing the integral to rescale the
-final result.
+Return the number of symmetries that the parametrization has used to reduce the
+volume of the integration domain.
 """
-function rescale end
+function nsym end
+
+"""
+    symmetries(::IntegrationLimits)
+
+Return an iterator over the symmetry transformations that the parametrization
+has used to reduce the volume of the integration domain.
+"""
+function symmetries end
+
+# Generic methods for IntegrationLimits
 
 """
     (::IntegrationLimits)(x::SVector)
@@ -54,9 +66,48 @@ signature `(::T)(::Number)`.
 (l::IntegrationLimits)(::SVector{0}) = l
 
 """
-    CubicLimits{N,T}
+    symmetrize(::IntegrationLimits, x)
+    symmetrize(::IntegrationLimits, xs...)
 
-Store integration limit information for a hypercube.
+Transform `x` by the symmetries of the parametrization used to reduce the
+domain, thus mapping the value of `x` on the parametrization to the full domain.
+When the integrand is a scalar, this is equal to `nsym(l)*x`.
+When the integrand is a vector, this is `sum(S*x for S in symmetries(l))`.
+When the integrand is a matrix, this is `sum(S*x*S' for S in symmetries(l))`.
+"""
+symmetrize(l::IntegrationLimits, xs...) = map(x -> symmetrize(l, x), xs)
+symmetrize(l::IntegrationLimits, x) = symmetrize_(x, nsym(l), symmetries(l))
+symmetrize_(x::Number, nsyms, syms) = nsyms*x
+symmetrize_(x::AbstractArray{<:Any,0}, nsyms, syms) = symmetrize_(only(x), nsyms, syms)
+function symmetrize_(x::AbstractVector, nsyms, syms)
+    r = zero(x)
+    for S in syms
+        r += S * x
+    end
+    r
+end
+function symmetrize_(x::AbstractMatrix, nsyms, syms)
+    r = zero(x)
+    for S in syms
+        r += S * x * S'
+    end
+    r
+end
+
+"""
+    ndims(::IntegrationLimits{d})
+
+Returns `d`. This is a type-based rule.
+"""
+Base.ndims(::T) where {T<:IntegrationLimits} = ndims(T)
+Base.ndims(::Type{<:IntegrationLimits{d}}) where {d} = d
+
+# Implementations of IntegrationLimits
+
+"""
+    CubicLimits(a, b)
+
+Store integration limit information for a hypercube with vertices `a` and `b`.
 """
 struct CubicLimits{d,Tl<:Number,Tu<:Number} <: IntegrationLimits{d}
     l::SVector{d,Tl}
@@ -66,25 +117,30 @@ end
 """
     lower(::CubicLimits)
 
-Returns the lower limit of the outermost variable of integration (this choice is
-made to help preserve memory continguity for tensor contractions).
+Returns the lower limit of the outermost variable of integration.
 """
-lower(l::CubicLimits) = last(l.l)
+lower(c::CubicLimits) = last(c.l)
 
 """
-    lower(::CubicLimits)
+    upper(::CubicLimits)
 
-Returns the lower limit of the outermost variable of integration (this choice is
-made to help preserve memory contiguity for tensor contractions).
+Returns the upper limit of the outermost variable of integration.
 """
-upper(l::CubicLimits) = last(l.u)
+upper(c::CubicLimits) = last(c.u)
 
 """
-    rescale(::CubicLimits)
+    nsym(::CubicLimits)
 
-Returns 1 because the integration region is exactly the cube.
+Returns 1 because the only symmetry applied to the cube is the identity.
 """
-rescale(::CubicLimits) = 1
+nsym(::CubicLimits) = 1
+
+"""
+    symmetries(::CubicLimits)
+
+Return an identity matrix.
+"""
+symmetries(::CubicLimits) = tuple(I)
 
 """
     (::CubicLimits)(x::Number)
@@ -92,4 +148,33 @@ rescale(::CubicLimits) = 1
 Return a CubicLimits of lower dimension with the outermost variable of
 integration removed.
 """
-(l::CubicLimits)(::Number) = CubicLimits(pop(l.l), pop(l.u))
+(c::CubicLimits)(::Number) = CubicLimits(pop(c.l), pop(c.u))
+
+"""
+    CompositeLimits(::Tuple{Vararg{IntegrationLimits}})
+
+Construct a collection of limits which yields the first limit followed by the
+second, and so on.
+"""
+struct CompositeLimits{T<:Tuple{Vararg{IntegrationLimits}},d} <: IntegrationLimits{d}
+    lims::T
+    function CompositeLimits(lims::T) where {T<:Tuple{Vararg{IntegrationLimits}}}
+        new{T, mapreduce(ndims, +, T.parameters; init=0)}(lims)
+    end
+end
+CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
+(l::CompositeLimits)(x::Number) = CompositeLimits(first(l.lims)(x), Base.rest(l.lims, 2)...)
+(l::CompositeLimits{T})(x::Number) where {T<:Tuple{<:IntegrationLimits}} = CompositeLimits(first(l.lims)(x))
+(l::CompositeLimits{T})(::Number) where {T<:Tuple{<:IntegrationLimits{1},Vararg{IntegrationLimits}}} = CompositeLimits(Base.rest(l.lims, 2)...)
+
+lower(l::CompositeLimits) = lower(first(l.lims))
+upper(l::CompositeLimits) = upper(first(l.lims))
+nsym(l::CompositeLimits) = prod(nsym, l.lims)
+function symmetrize(l::CompositeLimits, x)
+    r = x
+    for lim in l.lims
+        r = symmetrize(lim, r)
+    end
+    r
+end
+
