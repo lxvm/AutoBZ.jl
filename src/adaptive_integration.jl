@@ -9,6 +9,9 @@ Calls `HCubature` to perform multi-dimensional integration of `f` over a cube.
 tree_integration(f, a, b; callback=nothing, kwargs...) = hcubature(f, a, b; kwargs...)
 tree_integration(f, c::CubicLimits; kwargs...) = tree_integration(f, c.l, c.u; kwargs...)
 
+"Choose a new set of error tolerances for the next inner integral."
+default_error_callback(atol, rtol) = (atol, rtol)
+
 """
     iterated_integration(f, ::IntegrationLimits)
 
@@ -20,16 +23,18 @@ next inner integral, but the default is `thunk` which delays the computation to
 the innermost integral.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits; callback=thunk, kwargs...)
+function iterated_integration(f, l::IntegrationLimits; callback=thunk, atol=0.0, rtol=sqrt(eps()), error_callback=default_error_callback, kwargs...)
     # TODO: rescale the error tolerances by nsym(l)^-1 for correct answer
-    int, err = iterated_integration_(f, l, callback; kwargs...)
+    int, err = iterated_integration_(f, l, callback, atol/nsym(l), rtol, error_callback; kwargs...)
     symmetrize(l, int, err)
 end
 
-iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = hcubature(f, SVector(lower(l)), SVector(upper(l)); kwargs...)
-function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
-    hcubature(SVector(lower(l)), SVector(upper(l)); kwargs...) do x
-        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
+function iterated_integration_(f, l::IntegrationLimits{1}, callback, atol, rtol, error_callback; kwargs...) 
+    hcubature(f, SVector(lower(l)), SVector(upper(l)); atol=atol, rtol=rtol, kwargs...)
+end
+function iterated_integration_(f, l::IntegrationLimits, callback, atol, rtol, error_callback; kwargs...)
+    hcubature(SVector(lower(l)), SVector(upper(l)); atol=atol, rtol=rtol, kwargs...) do x
+        first(iterated_integration_(callback(f, x), l(x), callback, error_callback(atol, rtol)..., error_callback; kwargs...))
     end
 end
 #= replacements with other quadrature routines
