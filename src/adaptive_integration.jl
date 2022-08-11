@@ -20,17 +20,16 @@ next inner integral, but the default is `thunk` which delays the computation to
 the innermost integral.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, L::IntegrationLimits; callback=thunk, kwargs...)
-    int, err = iterated_integration_(f, L, callback; kwargs...)
-    rescale(L)*int, err
+function iterated_integration(f, l::IntegrationLimits; callback=thunk, kwargs...)
+    # TODO: rescale the error tolerances by nsym(l)^-1 for correct answer
+    int, err = iterated_integration_(f, l, callback; kwargs...)
+    symmetrize(l, int, err)
 end
 
-iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = hcubature(f, SVector(lower(L)), SVector(upper(L)); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
-    hcubature(SVector(lower(L)), SVector(upper(L)); kwargs...) do x
-        g = callback(f, x)
-        L′ = L
-        first(iterated_integration_(g, L′(x), callback; kwargs...))
+iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = hcubature(f, SVector(lower(l)), SVector(upper(l)); kwargs...)
+function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
+    hcubature(SVector(lower(l)), SVector(upper(l)); kwargs...) do x
+        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
     end
 end
 #= replacements with other quadrature routines
@@ -38,24 +37,21 @@ end
 # TODO: write arbitrary order quadrature routine with a speedup like hcubature
 
 # slower because wraps integrand with (x -> f(x[1])) and calls promote_type
-iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = hquadrature(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
-    hquadrature(lower(L), upper(L); kwargs...) do x
-        g = callback(f, x)
-        L′ = L
-        first(iterated_integration_(g, L′(x), callback; kwargs...))
+# is it faster to write f ∘ only ?
+iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = hquadrature(f, lower(l), upper(l); kwargs...)
+function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
+    hquadrature(lower(l), upper(l); kwargs...) do x
+        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
     end
 end
 
 # slower or may not even run ... not sure why ... maybe commit below helps
 # https://github.com/JuliaMath/QuadGK.jl/commit/298f76e71be8a36d6e3f16715f601c3d22c2241c
 # https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing
-iterated_integration_(f, L::IntegrationLimits{1}, callback; kwargs...) = quadgk(f, lower(L), upper(L); kwargs...)
-function iterated_integration_(f, L::IntegrationLimits, callback; kwargs...)
-    quadgk(lower(L), upper(L); kwargs...) do x
-        g = callback(f, x)
-        L′ = L
-        first(iterated_integration_(g, L′(x), callback; kwargs...))
+iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = quadgk(f, lower(l), upper(l); kwargs...)
+function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
+    quadgk(lower(l), upper(l); kwargs...) do x
+        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
     end
 end
 =#
