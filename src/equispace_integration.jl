@@ -1,92 +1,58 @@
 export equispace_integration
 
 """
-Integrate a function on an equispace grid with the same number of grid points
-along each dimension
+    equispace_integration()
+
+Evaluates a function on an equispace grid 
 """
-function equispace_integration(T, f, p::Int; callback=thunk)
-    r = zero(T)
-    x = range(0.0, step=inv(p), length=p)
-    for k in 1:p
-        @inbounds g = callback(f, x[k])
-        for j in 1:p
-            @inbounds h = callback(g, x[j])
-            for i in 1:p
-                @inbounds r += h(SVector(x[i]))
-            end
-        end
-    end
-    r*inv(p)^3
-end
-# TODO check this is right scaling and length
-equispace_integration(T, f, p::Int, ::CubicLimits) = equispace_integration(T, f, p)
-
-function evaluate_integrand(T, f, p::Int; callback=thunk)
-    r = Array{T}(undef, p, p, p)
-    x = range(0.0, step=inv(p), length=p)
-    for k in 1:p
-        @inbounds g = callback(f, x[k])
-        for j in 1:p
-            @inbounds h = callback(g, x[j])
-            for i in 1:p
-                @inbounds r[i,j,k] = h(SVector(x[i]))
-            end
-        end
-    end
-    r
+equispace_integration(f, a, b; kwargs...) = equispace_integration(f, CubicLimits(a, b); kwargs...)
+function equispace_integration(f, l::IntegrationLimits; maxevals=typemax(Int64), eval_pts=generic_eval_pts, eval_int=generic_eval_int, atol=0.0, rtol=1e-3, np_init=np_init_heuristic, np_incr=np_incr_heuristic)
+    np1 = np_init(f, atol, rtol)
+    np2 = np_incr(np1, f, atol, rtol)
+    int, err = equispace_integration_(f, l, eval_pts, eval_int, atol, rtol, maxevals)
+    int, err
+    # symmetrize(l, int, err)
+    # TODO: call integration on a more refined grid and compute error estimate
+    # TODO: return integral and error estimate
+    # TODO: think about how to allow custom function evaluators, e.g. fft
+    # TODO: write a equispace_integration! function that reuses data and keeps
+    # equispace_integration self-contained
+    # TODO: write separate functions for simple equispace integration w/o error
+    # TODO: write an interface for IntegrationLimits using points and weights
+    # TODO: make equispace integration recursive like adaptive for callbacks,
+    # though this might not make sense since grid refinement on the BZ has to
+    # happen for all dimensions at the same time for IBZ to work
 end
 
-#=
-fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))
-function fft_equispace_integration(A::SpectralFunction, p::Int)
-    ϵk = fft_evaluate_series(A.ϵ, p)
-    r = zero(eltype(A))
-    for i in CartesianIndices(size(ϵk)[3:end])
-        r += hinv(complex(A.ω + A.μ, A.η)*I - SMatrix{3,3,ComplexF64}(ϵk[CartesianIndices((3,3)), i]))
-    end
-    imag(r)*inv(p)^3/(-pi)
-end
+function equispace_integration_(f, l, r, eval_pts, eval_int, np_incr, atol, rtol, maxevals)
 
-"""
-Evaluate a FourierSeries by FFT. The indices are assumed to be the frequencies,
-but these get mapped back modulo `p` to the domain of FFT frequencies, so the
-caller is responsible for ensuring that `p` is large enough to capture their
-high frequency behavior.
-"""
-function fft_evaluate_series(f::FourierSeries, p::Int)
-    C = f.coeffs
-    maximum(size(C)) > p && throw("Inexact: Choose more grid points, $p, per dim than Fourier coefficients per dim, $(size(C))")
-    # pad C such that size(C) = (3,3,p,p,p)
-    S1 = size(eltype(C))
-    S2 = Tuple(fill(p, ndims(C)))
-    Z = zeros(ComplexF64, S1..., S2...)
-    populate_fourier_coefficients!(Z, C)
-    # return Z
-    # fft(C) along the dimensions of size p
-    fft!(Z, (length(S1)+1):(length(S1)+length(S2)))
-    # convert back to StaticArray for efficient inversion
-    return Z
-    return reshape(reinterpret(SArray{Tuple{S1...},ComplexF64,length(S1),prod(S1)}, Z), S2)
-    X = Array{SArray{Tuple{S1...},ComplexF64}}(undef,S2)
-    for i in CartesianIndices(S2)
-        X[i] = SArray{Tuple{S1...},ComplexF64}(view(Z, CartesianIndices(S1), i))
-    end
-    X
-end
+    int1 = eval_int(f, np1, r1);
+    int2 = eval_int(f, np2, r2);
+    err = norm(int1 - int2)
+    while err > max(rtol*norm(int1), atol)
+        np2_ = np_incr(np2, f, atol, rtol)
+        np2_ > maxevals && break
+        
+        np1 = np2
+        r1 = r2
+        int1 = int2
+        
+        np2 = np2_
+        r2 = eval_pts(f, np2)
+        int2 = eval_int(f, np2, r2)
 
-function populate_fourier_coefficients!(Z::AbstractArray, C::AbstractArray{<:StaticArray})
-    S1 = size(eltype(C))
-    preI = CartesianIndices(S1)
-    S2 = size(Z)[(length(S1)+1):end]
-    for i in CartesianIndices(C)
-        Z[preI, CartesianIndex(_to_fftw_index(i.I, S2))] = C[i]
+        err = norm(int1 - int2)
     end
 end
 
-"""
-Convert positive/negative indices of Fourier coefficients to those suitable for FFTW.
-`i` is a tuple of +/- indices by dimension, and `j` is a tuple of the size of
-each dimension.
-"""
-_to_fftw_index(i::NTuple{N, Int}, j::NTuple{N, Int}) where {N} = mod.(i, j) .+ 1
-=#
+"""A sensible initial number of grid points for PTR"""
+np_init_heuristic(f, atol, rtol)::Int = 10
+"""Want to choose p so PTR gets another digit of accuracy from the integrand"""
+np_incr_heuristic(np, f, atol, rtol)::Int = np + 50
+
+function generic_eval_pts(f, np)
+    
+end
+function generic_eval_int(f, np, r2)
+
+end
