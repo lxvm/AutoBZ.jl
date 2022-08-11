@@ -8,4 +8,4 @@ abstract type AbstractSelfEnergy end
 struct EtaEnergy{T<:Real} <: AbstractSelfEnergy
     η::T
 end
-(Σ::EtaEnergy)(::Number) = complex(zero(Σ.η), Σ.η)*I
+(Σ::EtaEnergy)(::Number) = complex(zero(Σ.η), -Σ.η)*I
