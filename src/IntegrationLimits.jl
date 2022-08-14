@@ -105,14 +105,21 @@ Base.ndims(::Type{<:IntegrationLimits{d}}) where {d} = d
 # Implementations of IntegrationLimits
 
 """
-    CubicLimits(a, b)
+    CubicLimits(a, [b])
 
 Store integration limit information for a hypercube with vertices `a` and `b`.
+If `b` is not passed as an argument, then the lower limit defaults to `zero(a)`.
 """
-struct CubicLimits{d,Tl<:Number,Tu<:Number} <: IntegrationLimits{d}
-    l::SVector{d,Tl}
-    u::SVector{d,Tu}
+struct CubicLimits{d,T<:Real} <: IntegrationLimits{d}
+    l::SVector{d,T}
+    u::SVector{d,T}
 end
+function CubicLimits(l::SVector{d,Tl}, u::SVector{d,Tu}) where {d,Tl<:Real,Tu<:Real}
+    T = float(promote_type(Tl, Tu))
+    CubicLimits(SVector{d,T}(l), SVector{d,T}(u))
+end
+CubicLimits(l::Tl, u::Tu) where {Tl<:Real,Tu<:Real} = CubicLimits(SVector{1,Tl}(l), SVector{1,Tu}(u))
+CubicLimits(u) = CubicLimits(zero(u), u)
 
 """
     lower(::CubicLimits)
