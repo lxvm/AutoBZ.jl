@@ -1,50 +1,41 @@
 export TetrahedralLimits, fermi_window_limits
 
-struct TetrahedralLimits1{d,N} <: IntegrationLimits{d}
-    s::SVector{d,Float64}
-    x::SVector{N,Float64}
-end
-TetrahedralLimits1(s) = TetrahedralLimits1(s, SVector{0,Float64}())
-(l::TetrahedralLimits1)(x::Number) = TetrahedralLimits1(vcat(x, l.x), pop(l.s))
-
-lower(::TetrahedralLimits1) = 0.0
-upper(l::TetrahedralLimits1{d,0}) where {d} = 0.5last(l.s)
-upper(l::TetrahedralLimits1) = first(l.x)#*last(l.s) need to double check the rescaling
-nsym(::TetrahedralLimits1{d}) where {d} = 2^d * factorial(d)
-
-
 """
-    TetrahedralLimits(d, s)
+    TetrahedralLimits(a::SVector)
+    TetrahedralLimits(a::CubicLimits)
+    TetrahedralLimits(a, p)
 
 A parametrization of the integration limits for a tetrahedron generated from the
-automorphism group of the cube on [0,s]^d
+automorphism group of the hypercube whose corners are `-a*p` and `a*p`. By
+default, `p=0.5` which gives integration over the irreducible Brillouin zone of
+the cube. If the entries of `a` vary then this implies the hypercube is
+rectangular.
 """
-struct TetrahedralLimits{d,N} <: IntegrationLimits{d}
-    x::SVector{N,Float64}
-    s::Float64
-    TetrahedralLimits{d}(x::SVector{N}, s) where {d,N} = new{d,N}(x, s)
+struct TetrahedralLimits{d,T<:AbstractFloat} <: IntegrationLimits{d}
+    a::SVector{d,T}
+    p::T
 end
-TetrahedralLimits(d::Int, s) = TetrahedralLimits{d}(SVector{0,Float64}(), s)
-(t::TetrahedralLimits{d,N})(x::Number) where {d,N} = TetrahedralLimits{d-1}(vcat(x, t.x), t.s)
+TetrahedralLimits(a::SVector{d,T}) where {d,T<:AbstractFloat} = TetrahedralLimits(a, one(T)/2)
+TetrahedralLimits(c::CubicLimits) = TetrahedralLimits(c.u-c.l)
+(t::TetrahedralLimits)(x::Number) = TetrahedralLimits(pop(t.a), x/last(t.a))
 
-lower(::TetrahedralLimits) = 0.0
-upper(t::TetrahedralLimits{d,0}) where {d} = 0.5t.s
-upper(t::TetrahedralLimits) = first(t.x)
-nsym(::TetrahedralLimits{d}) where {d} = 2^d * factorial(d)
-
+lower(t::TetrahedralLimits) = zero(t.p)
+upper(t::TetrahedralLimits) = t.p*last(t.a)
+nsym(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
 symmetries(t::TetrahedralLimits) = cube_automorphisms(ndims(t))
 
 """
-    cubic_symmetries(::Type{Val{d}}, [I=true])
+    cube_automorphisms(d::Integer)
 
 return a generator of the symmetries of the cube in `d` dimensions, optionally
 including the identity.
 """
 cube_automorphisms(d::Integer) = (S*P for S in sign_flip_matrices(d), P in permutation_matrices(d))
-
+n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
 
 sign_flip_tuples(d::Integer) = Iterators.product([(1,-1) for _ in 1:d]...)
 sign_flip_matrices(d::Integer) = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(d))
+n_sign_flips(d::Integer) = 2^d
 
 # More efficient algorithms (than recursion) for large n:
 # Heap's algorithm
@@ -52,6 +43,7 @@ sign_flip_matrices(d::Integer) = (Diagonal(SVector{d,Int}(A)) for A in sign_flip
 permutation_matrices(n::Integer) = (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutation_tuples(Tuple(1:n)))
 permutation_tuples(C::NTuple) = @inbounds((C[i], p...) for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
 permutation_tuples(C::NTuple{1}) = C;
+n_permutations(d::Integer) = factorial(d)
 
 """
     fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20, μ=0.0])
