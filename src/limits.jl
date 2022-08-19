@@ -54,10 +54,10 @@ Choosing `atol` wisely is important to integrating the entire region of
 interest, so i
 """
 function fermi_window_limits(Ω, β; atol=0.0, rtol=1e-20, μ=0.0)
-    Δω = fermi_window_halfwidth(Ω, β, select_fermi_atol(Ω, β, atol, rtol))
+    Δω = fermi_window_halfwidth(Ω, β, select_fermi_atol(β*Ω, atol, rtol))
     CubicLimits(SVector(μ-Ω/2-Δω), SVector(μ-Ω/2+Δω))
 end
-select_fermi_atol(Ω, β, atol, rtol) = ifelse(Ω == zero(Ω) || β == zero(β), max(atol, 0.25rtol), max(atol, tanh(β*Ω/4)/(β*Ω)*rtol))
+select_fermi_atol(x, atol, rtol) = ifelse(x == zero(x), max(atol, 0.25rtol), max(atol, tanh(x/4)/x*rtol))
 """
     fermi_window_halfwidth(Ω, β, atol)
     fermi_window_halfwidth(β, atol)
@@ -71,10 +71,11 @@ window for which the Fermi window function is greater than `atol`. Returns half
 the width of this window.
 """
 function fermi_window_halfwidth(Ω, β, atol)
-    if Ω == zero(Ω) || β == zero(β) || atol == zero(atol)
+    x = β*Ω
+    if x == zero(x) || atol == zero(atol)
         fermi_window_halfwidth(β, atol)
-    elseif tanh(β*Ω/4)/(β*Ω) > atol
-        inv(β)*(log(2cosh(β*Ω/2)*(tanh(β*Ω/2)/(β*Ω*atol) - 1)))
+    elseif tanh(x/4)/x > atol
+        inv(β)*fermi_window_halfwidth_(x, atol)
     else
         error("choose `atol` under tanh(β*Ω/4)/(β*Ω), the maximum of the Fermi window")
     end
@@ -88,3 +89,17 @@ function fermi_window_halfwidth(β, atol)
         error("choose `atol` under 1/4, the maximum of the Fermi window")
     end
 end
+
+fermi_window_halfwidth_(x, atol) = fermi_window_halfwidth_(float(x), atol)
+function fermi_window_halfwidth_(x::AbstractFloat, atol)
+    y = x/2
+    log(2cosh(y)*(tanh(y)/(x*atol) - 1))
+end
+function fermi_window_halfwidth_(x::T, atol) where {T<:Union{Float32,Float64}}
+    y = x/2
+    abs_y = abs(y)
+    y_large = Base.Math.H_LARGE_X(T)-1.0 # subtract 1 so 2cosh(x) won't overflow
+    ifelse(abs_y > y_large, abs_y, log(2cosh(y))) + log(tanh(y)/(x*atol) - 1)
+    # to be exact, add log1p(exp(-2abs_y)) to abs_y, but this is lost to roundoff
+end
+fermi_window_halfwidth_(x::Float16, atol) = Float16(fermi_window_halfwidth_(Float32(x), atol))

@@ -152,15 +152,34 @@ end
 "Evaluates a unitless window function determined by the Fermi distribution"
 fermi_window(ω, Ω, β, μ) = fermi_window(ω-μ, Ω, β)
 fermi_window(ω, Ω, β) = fermi_window(β*ω, β*Ω)
-function fermi_window(x, y)
-    if y == zero(y)
-        return -fermi′(x)
+fermi_window(x, y) = ifelse(y == zero(y), -fermi′(x), fermi_window_(x, y))
+
+fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
+function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
+    half_y = y*T(0.5)
+    (tanh(half_y)/y)/(one(T)+cosh_ratio(x+half_y, half_y))
+end
+
+cosh_ratio(x, y) = cosh(x)/cosh(y)
+function cosh_ratio(x::T, y::T) where {T<:Union{Float32,Float64}}
+    abs_x = abs(x)
+    abs_y = abs(y)
+    arg_large = Base.Math.H_LARGE_X(T)
+    arg_small = EXP_P1_SMALL_X(T)
+    if max(abs_x, abs_y) < arg_large
+        cosh(x)/cosh(y)
+    elseif arg_large <= abs_x && -2*abs_y > arg_small
+        exp(abs_x-abs_y)/(one(T)+exp(-2*abs_y))
+    elseif arg_large <= abs_y && -2*abs_x > arg_small
+        exp(abs_x-abs_y)*(one(T)+exp(-2*abs_x))
     else
-        # equivalent to (fermi(x) - fermi(x+y)) / y
-        # TODO: prevent overflow of cosh(y/2) for y/2>710
-        return tanh(y/2) / (y*(cosh(x+y/2)/cosh(y/2)+1))
+        exp(abs_x-abs_y)
     end
 end
+
+# log(eps(T))
+EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
+EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
 optical_conductivity(H, ν₁, ν₂, ν₃, ω, Ω, β, η, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, ω, Ω, η, μ)
 
