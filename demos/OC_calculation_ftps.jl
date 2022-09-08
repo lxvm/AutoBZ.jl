@@ -25,9 +25,9 @@ sigma_data = Demos.import_self_energy("srvo_sigma_ftps_T0.h5")
 order = 1000 # about one-third of data points
 sigma_cheb_interp = chebregression(sigma_data.ω, sigma_data.Σ, (order,))
 # reduce the domain to mitigate Runge's phenomenon
-len = only(sigma_interp.ub) - only(sigma_interp.lb)
-lb = only(sigma_interp.lb) + 0.05len
-ub = only(sigma_interp.ub) - 0.05len
+len = only(sigma_cheb_interp.ub) - only(sigma_interp.lb)
+lb = only(sigma_cheb_interp.lb) + 0.05len
+ub = only(sigma_cheb_interp.ub) - 0.05len
 
 # construct a Barycentric Lagrange interpolant
 degree = 8
