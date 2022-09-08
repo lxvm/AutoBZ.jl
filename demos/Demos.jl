@@ -133,15 +133,17 @@ function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, r
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info "Ω=$Ω starting ..."
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
         σ = OCIntegrand(H, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
-        @info "Ω=$Ω finished in $(time()-t) (s) wall clock time"
+        ts[i] = time() - t
+        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
-    (OC=ints, OC_err=errs)
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 "Only performs the omega integral"
@@ -151,6 +153,7 @@ function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, at
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
     ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
     ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
     ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
@@ -163,9 +166,10 @@ function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, at
         t = time()
         σ = OCIntegrand(H_,ν₁_, ν₂_, ν₃_, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
-        @info "Ω=$Ω finished in $(time()-t) (s) wall clock time"
+        ts[i] = time() - t
+        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
-    (OC=ints, OC_err=errs)
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 function OCscript_parallel(filename, args...)
@@ -198,7 +202,7 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
         end
     end
     @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
-    (OC=ints, err=errs, t=ts)
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 end # module
