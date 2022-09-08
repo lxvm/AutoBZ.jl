@@ -15,7 +15,7 @@ using LinearAlgebra
 
 using StaticArrays
 using HCubature
-using QuadGK
+# using QuadGK
 
 include("IntegrationLimits.jl")
 include("callback.jl")
@@ -34,7 +34,7 @@ using LinearAlgebra
 
 using StaticArrays
 using OffsetArrays
-using FFTW
+# using FFTW
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration
 import ..AutoBZ: lower, upper, nsym, symmetries
