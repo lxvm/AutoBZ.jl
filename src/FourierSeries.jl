@@ -7,10 +7,11 @@ Construct a Fourier series whose coefficients are an array with an element type
 supporting addition and scalar multiplication, and whose periodicity on the
 `i`th axis is given by `period[i]`. If period is a `Number`, 
 """
-struct FourierSeries{N,T<:AbstractArray{<:StaticArray,N}}
+struct FourierSeries{N,T}
     coeffs::T
     period::SVector{N,Float64}
 end
+
 # Use this struct, which is more performant with `contract` for the 1D case,
 # because the `fill` call can be ignored. This would be a breaking change and
 # may require type checking in constructors (since `@inbounds` calls depend on
@@ -20,10 +21,11 @@ end
 # first(f.coeffs) -> f.coeffs
 # add Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
-struct FourierSeries1{N,T}
-    coeffs::T
-    period::SVector{N,Float64}
-end
+# previously:
+# struct FourierSeries{N,T<:AbstractArray{<:StaticArray,N}}
+#     coeffs::T
+#     period::SVector{N,Float64}
+# end
 
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
