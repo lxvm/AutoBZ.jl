@@ -1,6 +1,6 @@
 #=
-In this script we compute DOS at single point using the interface in AutoBZ.jl
-as well as functions in Demos.jl
+In this script we compute OC at various Ω at a single η, where the temperature
+is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
 using StaticArrays
@@ -19,7 +19,7 @@ H = AutoBZ.Applications.FourierSeries(coeffs, periods)
 # define problem parameters
 μ = 12.3958 # eV
 Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
-η = 0.5
+η = 0.5 # eV
 
 # define constants
 kB = 8.617333262e-5 # eV/K

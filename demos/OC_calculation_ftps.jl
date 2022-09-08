@@ -1,6 +1,6 @@
 #=
-In this script we compute DOS at single point using the interface in AutoBZ.jl
-as well as functions in Demos.jl
+In this script we compute OC at various Ω using frequency-dependent self energy
+data that we interpolate with a high-order Chebyshev regression
 =#
 
 using StaticArrays
