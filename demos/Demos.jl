@@ -188,11 +188,13 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
     t = time()
     Threads.@threads for batch in batches
         for (i, (freq_lim, Ω)) in batch
+            @info "Ω=$Ω started"
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
             σ = OCIntegrand(H, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
             ts[i] = time() - t_
+            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
     end
     @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
