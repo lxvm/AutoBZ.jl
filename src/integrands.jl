@@ -1,20 +1,19 @@
-export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OpticalConductivityIntegrand, FixedKGridGammaIntegrand, FixedKGridOpticalConductivity, EquispaceOpticalConductivity
+export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, FixedKGridGammaIntegrand, FixedKGridOpticalConductivity, EquispaceOpticalConductivity
 
-greens_function(H, ω, Σ, μ) = greens_function(H, ω+μ, Σ)
+greens_function(H, ω, Σ, μ) = greens_function(H, (ω+μ)*I-Σ(ω))
+greens_function(H, ω, Σ::AbstractMatrix, μ) = greens_function(H, (ω+μ)*I-Σ)
 greens_function(H, ω, Σ) = greens_function(H, ω*I-Σ(ω))
 greens_function(H, ω, Σ::AbstractMatrix) = greens_function(H, ω*I-Σ)
-greens_function(H, ω, η::Real) = greens_function(H, complex(ω, η)*I)
 greens_function(H::AbstractMatrix, M) = inv(M-H)
 
 """
     GreensFunction(H,ω,Σ,μ)
     GreensFunction(H,ω,Σ)
-    GreensFunction(H,ω,η::Real)
     GreensFunction(H,M)
 
 A struct that calculates the lattice Green's function from a Hamiltonian.
 ```math
-G(k;H,ω,η,μ) = {((\\omega + \\mu + i \eta) I - H(k))}^{-1}
+G(k;H,ω,η,μ) = {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
 ```
 """
 struct GreensFunction{TH<:FourierSeries,TM}
@@ -89,12 +88,16 @@ Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
 contract(D::DOSIntegrand, x::Number) = DOSIntegrand(contract(D.A, x))
 
 
-
-function gamma_integrand(H, ν₁, ν₂, ν₃, ω, Ω, η, μ)
-    Gω = greens_function(H, ω, η, μ)
-    GΩ = greens_function(H, ω+Ω, η, μ)
+gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
+gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ)
+function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
+    Gω = greens_function(H, Mω)
+    GΩ = greens_function(H, MΩ)
     Aω = spectral_function(Gω)
     AΩ = spectral_function(GΩ)
+    gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
+end
+function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
     ν₁Aω = ν₁*Aω
     ν₂Aω = ν₂*Aω
     ν₃Aω = ν₃*Aω
@@ -105,34 +108,35 @@ function gamma_integrand(H, ν₁, ν₂, ν₃, ω, Ω, η, μ)
 end
 
 """
-GammaIntegrand(H, ν₁, ν₂, ν₃, ω, Ω, β, η, μ)
+    GammaIntegrand(H, Σ, ω, Ω, μ)
+    GammaIntegrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
 
 A function whose integral over the BZ gives the transport distribution.
 ```math
 \\Gamma_{\\alpha\\beta}(k) = \\Tr[\\nu^\\alpha(k) A(k,\\omega) \\nu^\\beta(k) A(k, \\omega+\\Omega)]
 ```
 """
-struct GammaIntegrand{TH<:FourierSeries,T1,T2,T3}
+struct GammaIntegrand{TH,T1,T2,T3,M1,M2}
     H::TH
     ν₁::T1
     ν₂::T2
     ν₃::T3
-    ω::Float64
-    Ω::Float64
-    η::Float64
-    μ::Float64
+    Mω::M1
+    MΩ::M2
 end
 
-function GammaIntegrand(H, ω, Ω, η, μ)
+function GammaIntegrand(H, Σ, ω, Ω, μ)
     ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
     ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
     ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
-    GammaIntegrand(H, ν₁, ν₂, ν₃, ω, Ω, η, μ)
+    Mω = (ω+μ)*I-Σ(ω)
+    MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
+    GammaIntegrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
 end
 Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(f::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, f.ω, f.Ω, f.η, f.μ)
-(f::GammaIntegrand)(k::Union{AbstractVector,Number}) = f(f.H(k), f.ν₁(k), f.ν₂(k), f.ν₃(k))
-contract(f::GammaIntegrand, k::Number) = GammaIntegrand(contract(f.H, k), contract(f.ν₁, k), contract(f.ν₂, k), contract(f.ν₃, k), f.ω, f.Ω, f.η, f.μ)
+(g::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, g.Mω, g.MΩ)
+(g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
+contract(g::GammaIntegrand, k::Number) = GammaIntegrand(contract(g.H, k), contract(g.ν₁, k), contract(g.ν₂, k), contract(g.ν₃, k), g.Mω, g.MΩ)
 
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
@@ -181,41 +185,41 @@ end
 EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
 EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
-optical_conductivity(H, ν₁, ν₂, ν₃, ω, Ω, β, η, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, ω, Ω, η, μ)
+oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
 
 """
-    OpticalConductivityIntegrand(H, ν₁, ν₂, ν₃, Ω, β, η, μ)
+    OCIntegrand(H, ν₁, ν₂, ν₃, Ω, β, η, μ)
 
 A function whose integral over the BZ and the frequency axis gives the optical conductivity
 """
-struct OpticalConductivityIntegrand{TH<:FourierSeries,T1,T2,T3}
+struct OCIntegrand{TH,T1,T2,T3,TS}
     H::TH
     ν₁::T1
     ν₂::T2
     ν₃::T3
+    Σ::TS
     Ω::Float64
     β::Float64
-    η::Float64
     μ::Float64
 end
 
-function OpticalConductivityIntegrand(H, Ω, β, η, μ)
+function OCIntegrand(H, Σ, Ω, β, μ)
     ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
     ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
     ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
-    OpticalConductivityIntegrand(H, ν₁, ν₂, ν₃, Ω, β, η, μ)
+    OCIntegrand(H, ν₁, ν₂, ν₃, Σ, Ω, β, μ)
 end
-Base.eltype(::Type{<:OpticalConductivityIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(f::OpticalConductivityIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k, ω) = optical_conductivity(H_k, ν₁_k, ν₂_k, ν₃_k, ω, f.Ω, f.β, f.η, f.μ)
-function (f::OpticalConductivityIntegrand)(kω::SVector)
+Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
+(f::OCIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k, ω) = oc_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, f.Σ, ω, f.Ω, f.β, f.μ)
+function (f::OCIntegrand)(kω::SVector)
     k = pop(kω)
     ω = last(kω)
     f(f.H(k), f.ν₁(k), f.ν₂(k), f.ν₃(k), ω)
 end
-(f::OpticalConductivityIntegrand)(ω::SVector{1}) = f(only(ω))
-(f::OpticalConductivityIntegrand)(ω::Number) = f(only(f.H.coeffs), only(f.ν₁.f.coeffs), only(f.ν₂.f.coeffs), only(f.ν₃.f.coeffs), ω)
+(f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
+(f::OCIntegrand)(ω::Number) = f(only(f.H.coeffs), only(f.ν₁.f.coeffs), only(f.ν₂.f.coeffs), only(f.ν₃.f.coeffs), ω)
 
-contract(f::OpticalConductivityIntegrand, k::Number) = OpticalConductivityIntegrand(contract(f.H, k), contract(f.ν₁, k), contract(f.ν₂, k), contract(f.ν₃, k), f.Ω, f.β, f.η, f.μ)
+contract(f::OCIntegrand, k::Number) = OCIntegrand(contract(f.H, k), contract(f.ν₁, k), contract(f.ν₂, k), contract(f.ν₃, k), f.Σ, f.Ω, f.β, f.μ)
 
 
 """
@@ -261,7 +265,7 @@ end
 
 
 mutable struct EquispaceOpticalConductivity{TH,T1,T2,T3,VH,V1,V2,V3}
-    σ::OpticalConductivityIntegrand{TH,T1,T2,T3}
+    σ::OCIntegrand{TH,T1,T2,T3}
     Ω::Float64
     β::Float64
     η::Float64
