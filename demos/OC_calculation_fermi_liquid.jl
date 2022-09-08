@@ -1,0 +1,42 @@
+#=
+In this script we compute DOS at single point using the interface in AutoBZ.jl
+as well as functions in Demos.jl
+=#
+
+using StaticArrays
+
+include("../src/AutoBZ.jl")
+
+include("Demos.jl")
+
+# import Fourier coefficients of Wannier Hamiltonian
+coeffs = Demos.loadW90Hamiltonian("epsilon_mn.h5")
+# define the periods of the axes of the Brillouin zone for example material
+periods = fill(round(2π/3.858560, digits=6), SVector{3,Float64})
+# construct the Hamiltonian datatype
+H = AutoBZ.Applications.FourierSeries(coeffs, periods)
+
+# define problem parameters
+μ = 12.3958 # eV
+Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
+η = 0.5
+
+# define constants
+kB = 8.617333262e-5 # eV/K
+
+T₀ = 300
+Z  = 0.5
+c = kB*pi/(Z*T₀)
+
+# derived parameters
+Σ = AutoBZ.Applications.EtaEnergy(η)
+T = sqrt(η/c)
+β = inv(kB*T)
+
+# set error tolerances
+atol = 1e-3
+rtol = 0.0
+
+# run script
+results = Demos.OCscript_parallel("OC_results_fermi_liquid.h5", H, Σ, β, Ωs, μ, atol, rtol)
+# results = Demos.OCscript_parallel_(H, Σ, β, Ωs, μ, atol, rtol)
