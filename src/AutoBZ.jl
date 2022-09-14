@@ -46,6 +46,7 @@ include("limits.jl")
 include("irreducible_BZ.jl")
 include("integrands.jl")
 include("sweeps.jl")
+include("wannier90io.jl")
 
 end
 
