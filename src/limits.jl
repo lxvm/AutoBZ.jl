@@ -21,7 +21,7 @@ TetrahedralLimits(c::CubicLimits) = TetrahedralLimits(c.u-c.l)
 
 lower(t::TetrahedralLimits) = zero(t.p)
 upper(t::TetrahedralLimits) = t.p*last(t.a)
-nsym(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
+nsyms(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
 symmetries(t::TetrahedralLimits) = cube_automorphisms(ndims(t))
 
 """

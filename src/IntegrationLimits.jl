@@ -1,4 +1,4 @@
-export IntegrationLimits, lower, upper, nsym, symmetrize, symmetries,
+export IntegrationLimits, lower, upper, nsyms, symmetrize, symmetries,
     CubicLimits, CompositeLimits
 
 """
@@ -38,12 +38,12 @@ integration.
 function upper end
 
 """
-    nsym(::IntegrationLimits)
+    nsyms(::IntegrationLimits)
 
 Return the number of symmetries that the parametrization has used to reduce the
 volume of the integration domain.
 """
-function nsym end
+function nsyms end
 
 """
     symmetries(::IntegrationLimits)
@@ -71,22 +71,22 @@ signature `(::T)(::Number)`.
 
 Transform `x` by the symmetries of the parametrization used to reduce the
 domain, thus mapping the value of `x` on the parametrization to the full domain.
-When the integrand is a scalar, this is equal to `nsym(l)*x`.
+When the integrand is a scalar, this is equal to `nsyms(l)*x`.
 When the integrand is a vector, this is `sum(S*x for S in symmetries(l))`.
 When the integrand is a matrix, this is `sum(S*x*S' for S in symmetries(l))`.
 """
 symmetrize(l::IntegrationLimits, xs...) = map(x -> symmetrize(l, x), xs)
-symmetrize(l::IntegrationLimits, x) = symmetrize_(x, nsym(l), symmetries(l))
-symmetrize_(x::Number, nsyms, syms) = nsyms*x
-symmetrize_(x::AbstractArray{<:Any,0}, nsyms, syms) = symmetrize_(only(x), nsyms, syms)
-function symmetrize_(x::AbstractVector, nsyms, syms)
+symmetrize(l::IntegrationLimits, x) = symmetrize_(x, nsyms(l), symmetries(l))
+symmetrize_(x::Number, nsym, syms) = nsym*x
+symmetrize_(x::AbstractArray{<:Any,0}, nsym, syms) = symmetrize_(only(x), nsym, syms)
+function symmetrize_(x::AbstractVector, nsym, syms)
     r = zero(x)
     for S in syms
         r += S * x
     end
     r
 end
-function symmetrize_(x::AbstractMatrix, nsyms, syms)
+function symmetrize_(x::AbstractMatrix, nsym, syms)
     r = zero(x)
     for S in syms
         r += S * x * S'
@@ -136,11 +136,11 @@ Returns the upper limit of the outermost variable of integration.
 upper(c::CubicLimits) = last(c.u)
 
 """
-    nsym(::CubicLimits)
+    nsyms(::CubicLimits)
 
 Returns 1 because the only symmetry applied to the cube is the identity.
 """
-nsym(::CubicLimits) = 1
+nsyms(::CubicLimits) = 1
 
 """
     symmetries(::CubicLimits)
@@ -176,7 +176,7 @@ CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
 
 lower(l::CompositeLimits) = lower(first(l.lims))
 upper(l::CompositeLimits) = upper(first(l.lims))
-nsym(l::CompositeLimits) = prod(nsym, l.lims)
+nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
 function symmetrize(l::CompositeLimits, x)
     r = x
     for lim in l.lims
