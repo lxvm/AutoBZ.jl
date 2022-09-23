@@ -24,8 +24,7 @@ the innermost integral.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, l::IntegrationLimits; callback=thunk, atol=0.0, rtol=sqrt(eps()), error_callback=default_error_callback, kwargs...)
-    # TODO: rescale the error tolerances by nsym(l)^-1 for correct answer
-    int, err = iterated_integration_(f, l, callback, atol/nsym(l), rtol, error_callback; kwargs...)
+    int, err = iterated_integration_(f, l, callback, atol/nsyms(l), rtol, error_callback; kwargs...)
     symmetrize(l, int, err)
 end
 

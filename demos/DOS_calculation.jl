@@ -27,7 +27,8 @@ c = AutoBZ.CubicLimits(H.period)
 t = AutoBZ.Applications.TetrahedralLimits(c)
 
 # set error tolerances
-atol = 1e-3
+atol = 1e-5
 rtol = 0.0
 
 int, err = AutoBZ.iterated_integration(D, t; callback=AutoBZ.Applications.contract, atol=atol, rtol=rtol)
+inte, erre, other... = AutoBZ.equispace_integration(D, t; atol=atol, rtol=rtol)

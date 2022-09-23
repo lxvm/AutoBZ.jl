@@ -37,7 +37,7 @@ using OffsetArrays
 # using FFTW
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration
-import ..AutoBZ: lower, upper, nsyms, symmetries
+import ..AutoBZ: box, lower, upper, nsyms, symmetries
 
 # include("linalg.jl")
 include("FourierSeries.jl")

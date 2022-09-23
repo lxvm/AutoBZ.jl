@@ -20,6 +20,13 @@ abstract type IntegrationLimits{d} end
 # Interface for IntegrationLimits types
 
 """
+    box(::IntegrationLimits)
+
+Return the period of the integration domain without the symmetries applied.
+"""
+function box end
+
+"""
     lower(::IntegrationLimits)
 
 Return the lower limit of the next variable of integration. If a vector is
@@ -52,6 +59,15 @@ Return an iterator over the symmetry transformations that the parametrization
 has used to reduce the volume of the integration domain.
 """
 function symmetries end
+
+"""
+    discretize_equispace(::IntegrationLimits, ::Integer)
+
+Return an iterator of 2-tuples containing integration nodes and weights that
+correspond to an equispace integration grid with the symmetry transformations
+applied to it.
+"""
+function discretize_equispace end
 
 # Generic methods for IntegrationLimits
 
@@ -102,6 +118,51 @@ Returns `d`. This is a type-based rule.
 Base.ndims(::T) where {T<:IntegrationLimits} = ndims(T)
 Base.ndims(::Type{<:IntegrationLimits{d}}) where {d} = d
 
+nsyms(l::IntegrationLimits) = length(collect(symmetries(l)))
+
+@generated function discretize_equispace(l::IntegrationLimits{d}, npt) where {d}
+    quote
+    xsym = Matrix{Float64}(undef, $d, nsyms(l))
+    syms = collect(symmetries(l))
+    x = range(-1.0, step=2inv(npt), length=npt)
+    flag = ones(Bool, Base.Cartesian.@ntuple $d _ -> npt)
+    nsym = 0
+    wsym = zeros(Int, npt^$d)
+    Base.Cartesian.@nloops $d i _ -> Base.OneTo(npt) begin
+        (Base.Cartesian.@nref $d flag i) || continue
+        for (j, S) in enumerate(syms)
+            xsym[:, j] = S * (Base.Cartesian.@ncall $d SVector{$d,Float64} k -> x[i_k])
+        end
+        nsym += 1
+        wsym[nsym] = 1
+        for j in 2:nsyms(l)
+            Base.Cartesian.@nexprs $d k -> begin
+                ii_k = 0.5npt * (xsym[k, j] + 1) + 1
+                (round(Int, ii_k) - ii_k) > 1e-12 && throw("Inexact index")
+                ii_k = round(Int, ii_k)
+            end
+            (Base.Cartesian.@nany $d k -> (ii_k > npt)) && continue
+            (Base.Cartesian.@nall $d k -> (ii_k == i_k)) && continue
+            if (Base.Cartesian.@nref $d flag ii)
+                (Base.Cartesian.@nref $d flag ii) = false
+                wsym[nsym] += 1
+            end
+        end
+    end
+    out = Vector{Tuple{SVector{$d,Float64},Int}}(undef, nsym)
+    ps = box(l)
+    n = 0
+    for i in CartesianIndices(flag)
+        if flag[i]
+            n += 1
+            out[n] = ((Base.Cartesian.@ncall $d SVector{$d,Float64} j -> (x[i[j]]+1)*(ps[j][2]-ps[j][1])/2 + ps[j][1]), wsym[n])
+            n >= nsym && break
+        end
+    end
+    return out
+    end
+end
+
 # Implementations of IntegrationLimits
 
 """
@@ -120,6 +181,8 @@ function CubicLimits(l::SVector{d,Tl}, u::SVector{d,Tu}) where {d,Tl<:Real,Tu<:R
 end
 CubicLimits(l::Tl, u::Tu) where {Tl<:Real,Tu<:Real} = CubicLimits(SVector{1,Tl}(l), SVector{1,Tu}(u))
 CubicLimits(u) = CubicLimits(zero(u), u)
+
+box(c::CubicLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, zip(c.l, c.u))
 
 """
     lower(::CubicLimits)
@@ -157,6 +220,10 @@ integration removed.
 """
 (c::CubicLimits)(::Number) = CubicLimits(pop(c.l), pop(c.u))
 
+function discretize_equispace(c::CubicLimits{d,T}, npt) where {d,T}
+    ((SVector{d,T}(x...), true) for x in Iterators.product([range(l, step=(u-l)/npt, length=npt) for (l,u) in box(c)]...))
+end
+
 """
     CompositeLimits(::Tuple{Vararg{IntegrationLimits}})
 
@@ -174,6 +241,7 @@ CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
 (l::CompositeLimits{T})(x::Number) where {T<:Tuple{<:IntegrationLimits}} = CompositeLimits(first(l.lims)(x))
 (l::CompositeLimits{T})(::Number) where {T<:Tuple{<:IntegrationLimits{1},Vararg{IntegrationLimits}}} = CompositeLimits(Base.rest(l.lims, 2)...)
 
+box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
 lower(l::CompositeLimits) = lower(first(l.lims))
 upper(l::CompositeLimits) = upper(first(l.lims))
 nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
@@ -185,3 +253,7 @@ function symmetrize(l::CompositeLimits, x)
     r
 end
 
+# untested
+function discretize_equispace(l::CompositeLimits, npt)
+    ((vcat([map(y -> y[1], x)]...), prod(y -> y[2], x)) for x in Iterators.product(reverse(map(m -> discretize_equispace(m, npt), l.lims)))...)
+end
