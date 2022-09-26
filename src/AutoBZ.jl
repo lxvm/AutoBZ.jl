@@ -36,16 +36,16 @@ using StaticArrays
 using OffsetArrays
 # using FFTW
 
-using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration
+using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration, equispace_integration
 import ..AutoBZ: box, lower, upper, nsyms, symmetries
 
 # include("linalg.jl")
 include("FourierSeries.jl")
+include("band_velocities.jl")
 include("self_energies.jl")
 include("limits.jl")
-include("irreducible_BZ.jl")
 include("integrands.jl")
-include("sweeps.jl")
+include("custom_equispace.jl")
 include("wannier90io.jl")
 
 end

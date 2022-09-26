@@ -12,8 +12,8 @@ Moreover, a function defining an update strategy for `npt` can be passed as
 `npt_update`.
 """
 equispace_integration(f, a, b; kwargs...) = equispace_integration(f, CubicLimits(a, b); kwargs...)
-function equispace_integration(f, l::IntegrationLimits; npt1=0, pre1=0, npt2=0, pre2=0, pre_eval=generic_pre_eval, int_eval=generic_int_eval, atol=0.0, rtol=1e-3, npt_update=generic_npt_update, maxevals=typemax(Int64))
-    if npt1 == pre1 == npt2 == pre2 == 0
+function equispace_integration(f, l::IntegrationLimits; npt1=0, pre1=nothing, npt2=0, pre2=nothing, pre_eval=generic_pre_eval, int_eval=generic_int_eval, atol=0.0, rtol=1e-3, npt_update=generic_npt_update, maxevals=typemax(Int64))
+    if npt1 == npt2 == 0
         npt1 = npt_update(npt1, f, atol, rtol)
         pre1 = pre_eval(f, l, npt1)
         npt2 = npt_update(npt1, f, atol, rtol)

@@ -1,4 +1,4 @@
-export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, FixedKGridGammaIntegrand, FixedKGridOpticalConductivity, EquispaceOpticalConductivity
+export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, FixedKGridGammaIntegrand, FixedKGridOpticalConductivity, EquispaceOCIntegrand
 
 greens_function(H, ω, Σ, μ) = greens_function(H, (ω+μ)*I-Σ(ω))
 greens_function(H, ω, Σ::AbstractMatrix, μ) = greens_function(H, (ω+μ)*I-Σ)
@@ -13,7 +13,7 @@ greens_function(H::AbstractMatrix, M) = inv(M-H)
 
 A struct that calculates the lattice Green's function from a Hamiltonian.
 ```math
-G(k;H,ω,η,μ) = {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
+G(k;H,\\omega,\\Sigma,\\mu) = {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
 ```
 """
 struct GreensFunction{TH<:FourierSeries,TM}
@@ -55,8 +55,7 @@ SpectralFunction(args...) = spectral_function(args...)
 
 Base.eltype(::Type{<:SpectralFunction{TG}}) where {TG} = Base.promote_op(imag, eltype(TG))
 
-(A::SpectralFunction)(k::Union{AbstractVector,Number}) = A(A.G(k))
-(A::SpectralFunction)(G_k::AbstractMatrix) = spectral_function(G_k)
+(A::SpectralFunction)(k) = spectral_function(A.G(k))
 
 contract(A::SpectralFunction, x::Number) = SpectralFunction(contract(A.G, x))
 
@@ -82,8 +81,7 @@ DOSIntegrand(args...) = dos_integrand(args...)
 
 Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
 
-(D::DOSIntegrand)(k::Union{AbstractVector,Number}) = D(D.A(k))
-(D::DOSIntegrand)(A_k::AbstractMatrix) = dos_integrand(A_k)
+(D::DOSIntegrand)(k) = dos_integrand(D.A(k))
 
 contract(D::DOSIntegrand, x::Number) = DOSIntegrand(contract(D.A, x))
 
@@ -104,7 +102,7 @@ function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
     ν₁AΩ = ν₁*AΩ
     ν₂AΩ = ν₂*AΩ
     ν₃AΩ = ν₃*AΩ
-    SMatrix{3,3,ComplexF64,9}(tr.((ν₁Aω*ν₁AΩ, ν₂Aω*ν₁AΩ, ν₃Aω*ν₁AΩ, ν₁Aω*ν₂AΩ, ν₂Aω*ν₂AΩ, ν₃Aω*ν₂AΩ, ν₁Aω*ν₃AΩ, ν₂Aω*ν₃AΩ, ν₃Aω*ν₃AΩ)))
+    SMatrix{3,3,ComplexF64,9}(map(tr, (ν₁Aω*ν₁AΩ, ν₂Aω*ν₁AΩ, ν₃Aω*ν₁AΩ, ν₁Aω*ν₂AΩ, ν₂Aω*ν₂AΩ, ν₃Aω*ν₂AΩ, ν₁Aω*ν₃AΩ, ν₂Aω*ν₃AΩ, ν₃Aω*ν₃AΩ)))
 end
 
 """
@@ -116,27 +114,23 @@ A function whose integral over the BZ gives the transport distribution.
 \\Gamma_{\\alpha\\beta}(k) = \\Tr[\\nu^\\alpha(k) A(k,\\omega) \\nu^\\beta(k) A(k, \\omega+\\Omega)]
 ```
 """
-struct GammaIntegrand{TH,T1,T2,T3,M1,M2}
-    H::TH
-    ν₁::T1
-    ν₂::T2
-    ν₃::T3
+struct GammaIntegrand{T,M1,M2}
+    HV::T
     Mω::M1
     MΩ::M2
 end
 
-function GammaIntegrand(H, Σ, ω, Ω, μ)
-    ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
-    ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
-    ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
+GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ) = GammaIntegrand(BandEnergyVelocity(H), Σ, ω, Ω, μ)
+function GammaIntegrand(HV, Σ, ω, Ω, μ)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
-    GammaIntegrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
+    GammaIntegrand(HV, Mω, MΩ)
 end
 Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (g::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, g.Mω, g.MΩ)
-(g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
-contract(g::GammaIntegrand, k::Number) = GammaIntegrand(contract(g.H, k), contract(g.ν₁, k), contract(g.ν₂, k), contract(g.ν₃, k), g.Mω, g.MΩ)
+(g::GammaIntegrand)(Hν_k::NTuple{4,AbstractMatrix}) = g(Hν_k...)
+# (g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
+contract(g::GammaIntegrand, k::Number) = GammaIntegrand(contract(g.HV, k), g.Mω, g.MΩ)
 
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
@@ -192,101 +186,54 @@ oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω,
 
 A function whose integral over the BZ and the frequency axis gives the optical conductivity
 """
-struct OCIntegrand{TH,T1,T2,T3,TS}
-    H::TH
-    ν₁::T1
-    ν₂::T2
-    ν₃::T3
+struct OCIntegrand{T,TS}
+    HV::T
     Σ::TS
     Ω::Float64
     β::Float64
     μ::Float64
 end
 
-function OCIntegrand(H, Σ, Ω, β, μ)
-    ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
-    ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
-    ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
-    OCIntegrand(H, ν₁, ν₂, ν₃, Σ, Ω, β, μ)
-end
+OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64) = OCIntegrand(BandEnergyVelocity(H), Σ, Ω, β, μ)
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k, ω) = oc_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, f.Σ, ω, f.Ω, f.β, f.μ)
+(f::OCIntegrand)(Hν_k::NTuple{4,AbstractMatrix}, ω) = f(Hν_k..., ω)
+#=
 function (f::OCIntegrand)(kω::SVector)
     k = pop(kω)
     ω = last(kω)
     f(f.H(k), f.ν₁(k), f.ν₂(k), f.ν₃(k), ω)
 end
+=#
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
-(f::OCIntegrand)(ω::Number) = f(only(f.H.coeffs), only(f.ν₁.f.coeffs), only(f.ν₂.f.coeffs), only(f.ν₃.f.coeffs), ω)
+(f::OCIntegrand)(ω::Number) = f(value(f.HV), ω)
 
-contract(f::OCIntegrand, k::Number) = OCIntegrand(contract(f.H, k), contract(f.ν₁, k), contract(f.ν₂, k), contract(f.ν₃, k), f.Σ, f.Ω, f.β, f.μ)
-
-
-"""
-In this struct, H, ν₁, ν₂, ν₃ are these values precomputed on an equispace grid.
-dvol is the volume of the discretized grid cell.
-"""
-struct FixedKGridGammaIntegrand{TH,T1,T2,T3}
-    η::Float64
-    μ::Float64
-    H::TH
-    ν₁::T1
-    ν₂::T2
-    ν₃::T3
-    dvol::Float64
-end
-
-Base.eltype(::Type{<:FixedKGridGammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(f::FixedKGridGammaIntegrand)(ω::Number, Ω::Number) = f.dvol * sum(CartesianIndices(f.H); init=zero(eltype(f))) do i
-    gamma_integrand(f.H[i], f.ν₁[i], f.ν₂[i], f.ν₃[i], ω, Ω, f.η, f.μ)
-end
-
-"""
-In this struct, H, ν₁, ν₂, ν₃ are these values precomputed on an equispace grid.
-dvol is the volume of the discretized grid cell.
-"""
-struct FixedKGridOpticalConductivity{TH,T1,T2,T3}
-    Ω::Float64
-    β::Float64
-    η::Float64
-    μ::Float64
-    H::TH
-    ν₁::T1
-    ν₂::T2
-    ν₃::T3
-    dvol::Float64
-end
-
-Base.eltype(::Type{<:FixedKGridOpticalConductivity}) = SMatrix{3,3,ComplexF64,9}
-(f::FixedKGridOpticalConductivity)(ω::SVector{1}) = f(only(ω))
-(f::FixedKGridOpticalConductivity)(ω::Number) = f.dvol * fermi_window(ω, f.Ω, f.β) * sum(CartesianIndices(f.H); init=zero(eltype(f))) do i
-    gamma_integrand(f.H[i], f.ν₁[i], f.ν₂[i], f.ν₃[i], ω, f.Ω, f.η, f.μ)
-end
+contract(f::OCIntegrand, k::Number) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
 
 
-mutable struct EquispaceOpticalConductivity{TH,T1,T2,T3,VH,V1,V2,V3}
-    σ::OCIntegrand{TH,T1,T2,T3}
-    Ω::Float64
-    β::Float64
-    η::Float64
-    μ::Float64
-    p1::Int
-    p2::Int
-    H1::Vector{VH}
-    ν₁1::Vector{V1}
-    ν₂1::Vector{V2}
-    ν₃1::Vector{V3}
-    H2::Vector{VH}
-    ν₁2::Vector{V1}
-    ν₂2::Vector{V2}
-    ν₃2::Vector{V3}
-    rtol::Float64
+GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
+
+mutable struct EquispaceOCIntegrand{T,TS,TF,TL}
+    σ::OCIntegrand{T,TS}
+    npt1::Int
+    pre1::Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}
+    npt2::Int
+    pre2::Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}
     atol::Float64
+    rtol::Float64
+    npt_update::TF
+    l::TL
 end
+EquispaceOCIntegrand(σ, atol, rtol, npt_update, l) = EquispaceOCIntegrand(σ, 0,Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}(undef, 0,0,0),0,Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}(undef, 0,0,0), atol, rtol, npt_update, l)
 
-Base.eltype(::Type{<:EquispaceOpticalConductivity}) = SMatrix{3,3,ComplexF64,9}
+Base.eltype(::Type{<:EquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
-(f::EquispaceOpticalConductivity)(ω::SVector{1}) = f(only(ω))
-function (f::EquispaceOpticalConductivity)(ω::Number)
-    int1s[i], f.p1, f.r1, wsym1, int2s[i], p2, r2, wsym2 = resolve_integrand(f(H, ω, η, μ), H, p1, r1, wsym1, p2, r2, wsym2, s, η; atol=f.atol, rtol=f.rtol)
+(f::EquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
+function (f::EquispaceOCIntegrand)(ω::Number)
+    int, err, other = equispace_integration(GammaIntegrand(f.σ, ω), f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=pre_eval_contract, int_eval=int_eval_dft, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
+    f.npt1 = other.npt1
+    f.pre1 = other.pre1
+    f.npt2 = other.npt2
+    f.pre2 = other.pre2
+    return f.σ.β * fermi_window(ω, f.σ.Ω, f.σ.β) * int
 end
