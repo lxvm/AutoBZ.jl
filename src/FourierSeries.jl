@@ -1,13 +1,22 @@
 export FourierSeries, contract, FourierSeriesDerivative
 
 """
-    FourierSeries(coeffs, period) where {N}
+Concrete subtypes should implement functors for pointwise evaluation as well as
+`Base.eltype`, `contract`, `value`
+"""
+abstract type AbstractFourierSeries{N} end
+
+function contract end
+function value end
+
+"""
+    FourierSeries(coeffs, period::SVector{N,Float64}) where {N}
 
 Construct a Fourier series whose coefficients are an array with an element type
 supporting addition and scalar multiplication, and whose periodicity on the
 `i`th axis is given by `period[i]`. If period is a `Number`, 
 """
-struct FourierSeries{N,T}
+struct FourierSeries{N,T} <: AbstractFourierSeries{N}
     coeffs::T
     period::SVector{N,Float64}
 end
@@ -29,6 +38,7 @@ end
 
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
+Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
 """
     contract(f, x::SVector)
@@ -68,7 +78,7 @@ end
 # Note that the allocation by `fill` takes as long as running `contract_`
 function contract(f::FourierSeries{1}, x::Number)
     C = contract_(f.coeffs, 2π*x / last(f.period))
-    FourierSeries(fill(C), pop(f.period))
+    FourierSeries(C, pop(f.period)) # for consistency with higher dimensions, C -> fill(C)
 end
 function contract_(C::AbstractVector, ϕ::Number)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
@@ -119,6 +129,9 @@ end
 (f::FourierSeries{1})(x::SVector{1}) = f(only(x))
 (f::FourierSeries{1})(x::Number) = contract_(f.coeffs, 2π*x/only(f.period))
 
+value(f::FourierSeries{0}) = f.coeffs
+period(f::FourierSeries) = f.period
+
 """
     FourierSeriesDerivative(::FourierSeries, ::SVector)
 
@@ -126,12 +139,13 @@ Construct a Fourier series derivative from a multi-index `a` of derivatives,
 e.g. `[1,2,...]` and a `FourierSeries`, whose order of derivative on `i`th
 axis is the `i`th element of `a`.
 """
-struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta}
+struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta} <: AbstractFourierSeries{N}
     f::T
     a::SVector{N,Ta}
 end
 
 Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
+
 function contract(dv::FourierSeriesDerivative{N}, x::Number) where {N}
     C = dv.f.coeffs
     @inbounds imk = im*2π/dv.f.period[N]
@@ -158,7 +172,7 @@ function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where {N}
 end
 function contract(dv::FourierSeriesDerivative{1}, x::Number)
     C = contract_(dv.f.coeffs, x, 2π/last(dv.f.period), last(dv.a))
-    f = FourierSeries(fill(C), pop(dv.f.period))
+    f = FourierSeries(C, pop(dv.f.period)) # for consistency with higher dimensions, C -> fill(C)
     FourierSeriesDerivative(f, pop(dv.a))
 end
 function contract_(C::AbstractVector, x, k, a)
@@ -214,3 +228,6 @@ function (dv::FourierSeriesDerivative)(x::AbstractVector)
 end
 (dv::FourierSeriesDerivative{1})(x::SVector{1}) = dv(only(x))
 (dv::FourierSeriesDerivative{1})(x::Number) = contract_(dv.f.coeffs, x, 2π/only(dv.f.period), only(dv.a))
+
+value(dv::FourierSeriesDerivative{0}) = value(dv.f)
+period(dv::FourierSeriesDerivative) = period(dv.f)
