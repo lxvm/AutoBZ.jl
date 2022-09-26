@@ -120,7 +120,23 @@ Base.ndims(::Type{<:IntegrationLimits{d}}) where {d} = d
 
 nsyms(l::IntegrationLimits) = length(collect(symmetries(l)))
 
-@generated function discretize_equispace(l::IntegrationLimits{d}, npt) where {d}
+function discretize_equispace(l, npt)
+    flag, wsym, nsym = discretize_equispace_(l, npt)
+    T = SVector{ndims(l),Float64}
+    out = Vector{Tuple{T,Int}}(undef, nsym)
+    ps = box(l)
+    n = 0
+    for i in CartesianIndices(flag)
+        if flag[i]
+            n += 1
+            out[n] = (StaticArrays.sacollect(T, (p[2]-p[1])*(j-1)/npt + p[1] for (j, p) in zip(i, ps)), wsym[n])
+            n >= nsym && break
+        end
+    end
+    return out
+end
+
+@generated function discretize_equispace_(l::IntegrationLimits{d}, npt) where {d}
     quote
     xsym = Matrix{Float64}(undef, $d, nsyms(l))
     syms = collect(symmetries(l))
@@ -149,17 +165,7 @@ nsyms(l::IntegrationLimits) = length(collect(symmetries(l)))
             end
         end
     end
-    out = Vector{Tuple{SVector{$d,Float64},Int}}(undef, nsym)
-    ps = box(l)
-    n = 0
-    for i in CartesianIndices(flag)
-        if flag[i]
-            n += 1
-            out[n] = ((Base.Cartesian.@ncall $d SVector{$d,Float64} j -> (x[i[j]]+1)*(ps[j][2]-ps[j][1])/2 + ps[j][1]), wsym[n])
-            n >= nsym && break
-        end
-    end
-    return out
+    return flag, wsym, nsym
     end
 end
 
