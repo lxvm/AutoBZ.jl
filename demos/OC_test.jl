@@ -36,7 +36,9 @@ rtol = 0.0
 int, err = AutoBZ.iterated_integration(σ, AutoBZ.CompositeLimits(t, f); callback=AutoBZ.Applications.contract, atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
-# Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, atol, rtol, AutoBZ.generic_npt_update, t)
-Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, atol, rtol, AutoBZ.generic_npt_update, c)
+# Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, t, atol, rtol; pre_eval=AutoBZ.Applications.pre_eval_fft, npt_update=AutoBZ.generic_npt_update)
+Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, t, atol, rtol; pre_eval=AutoBZ.Applications.pre_eval_contract, npt_update=AutoBZ.generic_npt_update)
+# Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, c, atol, rtol; pre_eval=AutoBZ.Applications.pre_eval_fft, npt_update=AutoBZ.generic_npt_update)
+# Eσ = AutoBZ.Applications.EquispaceOCIntegrand(σ, c, atol, rtol; pre_eval=AutoBZ.Applications.pre_eval_contract, npt_update=AutoBZ.generic_npt_update)
 
 inte, erre = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)

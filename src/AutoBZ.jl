@@ -36,7 +36,7 @@ using StaticArrays
 using OffsetArrays
 # using FFTW
 
-using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration, equispace_integration
+using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration, equispace_integration, discretize_equispace_, generic_npt_update
 import ..AutoBZ: box, lower, upper, nsyms, symmetries
 
 # include("linalg.jl")

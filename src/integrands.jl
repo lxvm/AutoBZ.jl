@@ -213,24 +213,25 @@ contract(f::OCIntegrand, k::Number) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω,
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
-mutable struct EquispaceOCIntegrand{T,TS,TF,TL}
+mutable struct EquispaceOCIntegrand{T,TS,TL,TP,TF}
     σ::OCIntegrand{T,TS}
-    npt1::Int
-    pre1::Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}
-    npt2::Int
-    pre2::Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}
+    l::TL
     atol::Float64
     rtol::Float64
+    pre_eval::TP
     npt_update::TF
-    l::TL
+    npt1::Int
+    pre1::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
+    npt2::Int
+    pre2::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
 end
-EquispaceOCIntegrand(σ, atol, rtol, npt_update, l) = EquispaceOCIntegrand(σ, 0,Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}(undef, 0,0,0),0,Array{NTuple{4, SMatrix{3, 3, ComplexF64, 9}}, 3}(undef, 0,0,0), atol, rtol, npt_update, l)
+EquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=generic_npt_update, npt1=0, pre1=Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}(undef,0), npt2=0,pre2=Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}(undef,0)) = EquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
 
 Base.eltype(::Type{<:EquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 (f::EquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
 function (f::EquispaceOCIntegrand)(ω::Number)
-    int, err, other = equispace_integration(GammaIntegrand(f.σ, ω), f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=pre_eval_contract, int_eval=int_eval_dft, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
+    int, err, other = equispace_integration(GammaIntegrand(f.σ, ω), f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=f.pre_eval, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
     f.npt1 = other.npt1
     f.pre1 = other.pre1
     f.npt2 = other.npt2
