@@ -34,6 +34,7 @@ using LinearAlgebra
 
 using StaticArrays
 using OffsetArrays
+using Combinatorics: permutations
 # using FFTW
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration, equispace_integration, discretize_equispace_, generic_npt_update

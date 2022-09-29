@@ -136,14 +136,14 @@ function discretize_equispace(l, npt)
     return out
 end
 
-@generated function discretize_equispace_(l::IntegrationLimits{d}, npt) where {d}
+@generated function discretize_equispace_(l::T, npt) where {d, T<:IntegrationLimits{d}}
     quote
     xsym = Matrix{Float64}(undef, $d, nsyms(l))
     syms = collect(symmetries(l))
     x = range(-1.0, step=2inv(npt), length=npt)
     flag = ones(Bool, Base.Cartesian.@ntuple $d _ -> npt)
     nsym = 0
-    wsym = zeros(Int, npt^$d)
+    wsym = Vector{Int}(undef, npt^$d)
     Base.Cartesian.@nloops $d i _ -> Base.OneTo(npt) begin
         (Base.Cartesian.@nref $d flag i) || continue
         for (j, S) in enumerate(syms)
@@ -153,14 +153,14 @@ end
         wsym[nsym] = 1
         for j in 2:nsyms(l)
             Base.Cartesian.@nexprs $d k -> begin
-                ii_k = 0.5npt * (xsym[k, j] + 1) + 1
-                (round(Int, ii_k) - ii_k) > 1e-12 && throw("Inexact index")
-                ii_k = round(Int, ii_k)
+                ii_k = 0.5npt * (xsym[k, j] + 1.0) + 1.0
+                iii_k = round(Int, ii_k)
+                (iii_k - ii_k) > 1e-12 && throw("Inexact index")
             end
-            (Base.Cartesian.@nany $d k -> (ii_k > npt)) && continue
-            (Base.Cartesian.@nall $d k -> (ii_k == i_k)) && continue
-            if (Base.Cartesian.@nref $d flag ii)
-                (Base.Cartesian.@nref $d flag ii) = false
+            (Base.Cartesian.@nany $d k -> (iii_k > npt)) && continue
+            (Base.Cartesian.@nall $d k -> (iii_k == i_k)) && continue
+            if (Base.Cartesian.@nref $d flag iii)
+                (Base.Cartesian.@nref $d flag iii) = false
                 wsym[nsym] += 1
             end
         end

@@ -23,7 +23,7 @@ box(t::TetrahedralLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tu
 lower(t::TetrahedralLimits) = zero(t.p)
 upper(t::TetrahedralLimits) = t.p*last(t.a)
 nsyms(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
-symmetries(t::TetrahedralLimits) = cube_automorphisms(ndims(t))
+symmetries(t::TetrahedralLimits) = cube_automorphisms(Val{ndims(t)}())
 
 """
     cube_automorphisms(d::Integer)
@@ -31,20 +31,20 @@ symmetries(t::TetrahedralLimits) = cube_automorphisms(ndims(t))
 return a generator of the symmetries of the cube in `d` dimensions, optionally
 including the identity.
 """
-cube_automorphisms(d::Integer) = (S*P for S in sign_flip_matrices(d), P in permutation_matrices(d))
+cube_automorphisms(n::Val{d}) where {d} = (S*P for S in sign_flip_matrices(n), P in permutation_matrices(n))
 n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
 
-sign_flip_tuples(d::Integer) = Iterators.product([(1,-1) for _ in 1:d]...)
-sign_flip_matrices(d::Integer) = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(d))
+sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)...)
+sign_flip_matrices(n::Val{d}) where {d} = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(n))
 n_sign_flips(d::Integer) = 2^d
 
-# More efficient algorithms (than recursion) for large n:
-# Heap's algorithm
-# Steinhaus–Johnson–Trotter algorithm
-permutation_matrices(n::Integer) = (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutation_tuples(Tuple(1:n)))
-permutation_tuples(C::NTuple) = @inbounds((C[i], p...) for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
+permutation_matrices(t::Val{n}) where {n} = (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutations(ntuple(identity, t)))
+n_permutations(n::Integer) = factorial(n)
+#= less performant code (at least when n=3)
+permutation_matrices(t::Val{n}) where {n} = (SparseArrays.sparse(Base.OneTo(n), p, ones(n), n, n) for p in permutations(ntuple(identity, t)))
+permutation_tuples(C::NTuple{N,T}) where {N,T} = @inbounds((C[i], p...)::NTuple{N,T} for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
 permutation_tuples(C::NTuple{1}) = C;
-n_permutations(d::Integer) = factorial(d)
+=#
 
 """
     fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20, μ=0.0])
