@@ -1,3 +1,5 @@
+export BandEnergyVelocity
+
 BandEnergyVelocity(H::FourierSeries{3}) = BandEnergyVelocity3(H)
 
 struct BandEnergyVelocity3{TH} <: AbstractFourierSeries{3}

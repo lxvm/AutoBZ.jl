@@ -1,3 +1,5 @@
+export pre_eval_contract
+
 function pre_eval_contract(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     f_xs = Vector{Tuple{eltype(f),Int}}(undef, npt^d)
@@ -41,6 +43,7 @@ pre_eval_contract(A::SpectralFunction, l, npt) = pre_eval_contract(A.G, l, npt)
 pre_eval_contract(D::DOSIntegrand, l, npt) = pre_eval_contract(D.A, l, npt)
 
 pre_eval_contract(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
+pre_eval_contract(f::OCIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
 
 function pre_eval_fft(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"

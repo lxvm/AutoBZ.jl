@@ -1,4 +1,4 @@
-export IntegrationLimits, lower, upper, nsyms, symmetrize, symmetries,
+export IntegrationLimits, lower, upper, box, nsyms, symmetrize, symmetries,
     CubicLimits, CompositeLimits
 
 """
