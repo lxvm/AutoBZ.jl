@@ -127,8 +127,6 @@ end
 
 "Performs the full calculation"
 function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
-    c = CubicLimits(H.period)
-    t = TetrahedralLimits(c)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -148,8 +146,6 @@ end
 
 "Only performs the omega integral"
 function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y, z)
-    c = CubicLimits(H.period)
-    t = TetrahedralLimits(c)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -179,8 +175,6 @@ function OCscript_parallel(filename, args...)
 end
 
 function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
-    c = CubicLimits(H.period)
-    t = TetrahedralLimits(c)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -197,6 +191,66 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
             l = CompositeLimits(BZ_lims, freq_lim)
             σ = OCIntegrand(H, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
+            ts[i] = time() - t_
+            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        end
+    end
+    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
+end
+
+function OCscript_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+    BZ_lims = TetrahedralLimits(H.period)
+    freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
+    HV = BandEnergyVelocity(H)
+    @info "pre-evaluating Hamiltonian..."
+    t = time()
+    pre = pre_eval(HV, BZ_lims, npt)
+    @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
+    dvol = prod(x -> x[2]-x[1], box(BZ_lims))/(npt^ndims(BZ_lims)*nsyms(BZ_lims))
+    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
+    for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
+        @info "Ω=$Ω starting ..."
+        t = time()
+        σ = OCIntegrand(HV, Σ, Ω, β, μ)
+        Eσ = EquispaceOCIntegrand(σ, npt, pre, dvol)
+        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
+        ts[i] = time() - t
+        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+    end
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
+end
+
+function OCscript_equispace_parallel(filename, args...)
+    results = OCscript_equispace_parallel_(args...)
+    write_nt_to_h5(results, filename)
+    results
+end
+function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+    BZ_lims = TetrahedralLimits(H.period)
+    freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
+    HV = BandEnergyVelocity(H)
+    @info "pre-evaluating Hamiltonian..."
+    t = time()
+    pre = pre_eval(HV, BZ_lims, npt)
+    @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
+    dvol = prod(x -> x[2]-x[1], box(BZ_lims))/(npt^ndims(BZ_lims)*nsyms(BZ_lims))
+    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
+    nthreads = Threads.nthreads()
+    @info "using $nthreads threads"
+    batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
+    t = time()
+    Threads.@threads for batch in batches
+        for (i, (freq_lim, Ω)) in batch
+            @info "Ω=$Ω starting ..."
+            t_ = time()
+            σ = OCIntegrand(HV, Σ, Ω, β, μ)
+            Eσ = EquispaceOCIntegrand(σ, npt, pre, dvol)
+            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
