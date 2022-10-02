@@ -1,4 +1,4 @@
-export IntegrationLimits, lower, upper, box, nsyms, symmetrize, symmetries,
+export IntegrationLimits, lower, upper, box, vol, nsyms, symmetrize, symmetries,
     CubicLimits, CompositeLimits
 
 """
@@ -22,7 +22,8 @@ abstract type IntegrationLimits{d} end
 """
     box(::IntegrationLimits)
 
-Return the period of the integration domain without the symmetries applied.
+Return an iterator of tuples that for each dimension returns a tuple with the
+lower and upper limits of the integration domain without symmetries applied.
 """
 function box end
 
@@ -109,6 +110,13 @@ function symmetrize_(x::AbstractMatrix, nsym, syms)
     end
     r
 end
+
+"""
+    vol(::IntegrationLimits)
+
+Return the volume of the full domain without the symmetries applied
+"""
+vol(l::IntegrationLimits) = prod(u-l for (l, u) in box(l))
 
 """
     ndims(::IntegrationLimits{d})

@@ -59,6 +59,12 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
     error("not implemented")
 end
 
+function npt_update_sigma(npt, f, atol, rtol)
+end
+
+function npt_update_eta(npt, f, atol, rtol)
+end
+
 #=
 fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))
 function fft_equispace_integration(A::SpectralFunction, p::Int)

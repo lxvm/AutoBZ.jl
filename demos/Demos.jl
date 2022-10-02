@@ -207,7 +207,6 @@ function OCscript_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
     @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
-    dvol = prod(x -> x[2]-x[1], box(BZ_lims))/(npt^ndims(BZ_lims)*nsyms(BZ_lims))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
@@ -215,7 +214,7 @@ function OCscript_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
         @info "Ω=$Ω starting ..."
         t = time()
         σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        Eσ = EquispaceOCIntegrand(σ, npt, pre, dvol)
+        Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
         ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -236,7 +235,6 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
     @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
-    dvol = prod(x -> x[2]-x[1], box(BZ_lims))/(npt^ndims(BZ_lims)*nsyms(BZ_lims))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
@@ -249,7 +247,7 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
             @info "Ω=$Ω starting ..."
             t_ = time()
             σ = OCIntegrand(HV, Σ, Ω, β, μ)
-            Eσ = EquispaceOCIntegrand(σ, npt, pre, dvol)
+            Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
             ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
