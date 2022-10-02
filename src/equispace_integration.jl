@@ -38,9 +38,9 @@ function automatic_equispace_integration(f, l::IntegrationLimits; npt1=0, pre1=n
 end
 
 function automatic_equispace_integration_(f, l, npt1, pre1, npt2, pre2, pre_eval, int_eval, npt_update, atol, rtol, maxevals)
-    vol = vol(l)
-    int1 = int_eval(f, pre1, vol/npt1^ndims(l))
-    int2 = int_eval(f, pre2, vol/npt2^ndims(l))
+    vol_sym = vol(l)/nsyms(l) # rescale by nsym since weights from generic_pre_eval lack this factor
+    int1 = int_eval(f, pre1, vol_sym/npt1^ndims(l))
+    int2 = int_eval(f, pre2, vol_sym/npt2^ndims(l))
     numevals = length(pre1) + length(pre2)
     int1norm = norm(int1)
     err = norm(int1 - int2)
@@ -55,7 +55,7 @@ function automatic_equispace_integration_(f, l, npt1, pre1, npt2, pre2, pre_eval
         # evaluate integral on finer grid
         npt2 = npt_update(npt1, f, atol, rtol)
         pre2 = pre_eval(f, l, npt2)
-        int2 = int_eval(f, pre2, vol/npt2^ndims(l))
+        int2 = int_eval(f, pre2, vol_sym/npt2^ndims(l))
         numevals += length(pre2)
         # self-convergence error estimate
         int1norm = norm(int1)
