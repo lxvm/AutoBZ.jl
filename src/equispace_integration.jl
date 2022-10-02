@@ -8,7 +8,7 @@ points per dimension, optionally using precomputation `pre`
 """
 function equispace_integration(f, l, npt; pre=nothing, pre_eval=generic_pre_eval, int_eval=generic_int_eval)
     pre === nothing && (pre = pre_eval(f, l, npt))
-    equispace_integration_(f, l, vol(l)/npt^ndims(l), pre, int_eval)
+    equispace_integration_(f, l, vol(l)/(npt^ndims(l)*nsyms(l)), pre, int_eval)
 end
 function equispace_integration_(f, l, dvol, pre, int_eval)
     int = int_eval(f, pre, dvol)
