@@ -68,7 +68,7 @@ dos_integrand(A::AbstractMatrix) = tr(A)
 
 A struct whose integral gives the density of states.
 ```math
-D(k;H,ω,η,μ) = \\Tr[A(k;H,ω,η,μ)]
+D(k;H,ω,η,μ) = \\operatorname{\\Tr}[A(k;H,ω,η,μ)]
 ```
 """
 struct DOSIntegrand{TA<:SpectralFunction}
@@ -111,7 +111,7 @@ end
 
 A function whose integral over the BZ gives the transport distribution.
 ```math
-\\Gamma_{\\alpha\\beta}(k) = \\Tr[\\nu^\\alpha(k) A(k,\\omega) \\nu^\\beta(k) A(k, \\omega+\\Omega)]
+\\Gamma_{\\alpha\\beta}(k) = \\operatorname{\\Tr}[\\nu^\\alpha(k) A(k,\\omega) \\nu^\\beta(k) A(k, \\omega+\\Omega)]
 ```
 """
 struct GammaIntegrand{T,M1,M2}
