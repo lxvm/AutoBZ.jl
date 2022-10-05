@@ -1,0 +1,3 @@
+[deps]
+AutoBZ = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
