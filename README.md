@@ -1,3 +1,3 @@
 # AutoBZ
 
-![Documentation](https://github.com/lxvm/AutoBZ.jl/actions/workflows/documentation.yml/badge.svg)
+[![](https://img.shields.io/badge/docs-dev-blue)](https://lxvm.github.io/AutoBZ.jl/dev/)
