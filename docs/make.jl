@@ -9,6 +9,7 @@ makedocs(
             "man/adaptive_integration.md",
             "man/equispace_integration.md",
             "man/integration_limits.md",
+            "man/interfaces.md",
         ],
         "Applications" => [
             "app/integrands.md",

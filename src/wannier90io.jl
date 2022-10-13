@@ -1,3 +1,9 @@
+"""
+    parse_hamiltonian(filename)
+
+Parse an ab-initio Hamiltonian output from Wannier90 into `filename`, extracting
+the fields `(date_time, num_wann, nrpts, degen, irvec, C)`
+"""
 parse_hamiltonian(filename) = open(filename) do file
     date_time = readline(file)
     
@@ -32,6 +38,15 @@ parse_hamiltonian(filename) = open(filename) do file
     date_time, num_wann, nrpts, degen, irvec, C
 end
 
+"""
+    load_hamiltonian(filename; period=1.0)
+
+Load an ab-initio Hamiltonian output from Wannier90 into `filename` as an
+evaluatable `FourierSeries` whose periodicity can be set by the keyword argument
+`period` which defaults to setting the period along each dimension to `1.0`. To
+define different periods for different dimensions, pass an `SVector` as the
+`period`.
+"""
 function load_hamiltonian(filename; period=1.0)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
     s = Int(cbrt(nrpts))
