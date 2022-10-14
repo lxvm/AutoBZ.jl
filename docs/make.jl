@@ -4,7 +4,7 @@ makedocs(
     sitename="AutoBZ.jl",
     modules=[AutoBZ, AutoBZ.Applications],
     pages = [
-        "Home" => "pages/index.md",
+        "Home" => "index.md",
         "Manual" => [
             "pages/man/adaptive_integration.md",
             "pages/man/equispace_integration.md",
