@@ -3,8 +3,8 @@
 ## Wannier90
 
 ```@docs
-AutoBZ.parse_hamiltonian
-AutoBZ.load_hamiltonian
+AutoBZ.Applications.parse_hamiltonian
+AutoBZ.Applications.load_hamiltonian
 ```
 
 ## Python
