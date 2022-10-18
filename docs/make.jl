@@ -1,5 +1,16 @@
 using Documenter, AutoBZ
 
+Documenter.HTML(
+    mathengine = MathJax3(Dict(
+        :loader => Dict("load" => ["[tex]/physics"]),
+        :tex => Dict(
+            "inlineMath" => [["\$","\$"], ["\\(","\\)"]],
+            "tags" => "ams",
+            "packages" => ["base", "ams", "autoload", "physics"],
+        ),
+    )),
+)
+
 makedocs(
     sitename="AutoBZ.jl",
     modules=[AutoBZ, AutoBZ.Applications],
