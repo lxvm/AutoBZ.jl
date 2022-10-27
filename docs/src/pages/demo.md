@@ -67,5 +67,5 @@ struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
 end
 contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), p)
 (w::WannierIntegrand)(x::SVector{1}) = w(only(x))
-(w::WannierIntegrand)(x::Number) = w.f(x, w.s, w.p...)
+(w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)
 ```
