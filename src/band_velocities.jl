@@ -1,5 +1,19 @@
 export BandEnergyVelocity
 
+"""
+    BandEnergyVelocity(H::FourierSeries{3})
+
+This constructor takes a Fourier series representing the Hamiltonian and also
+evaluates the band velocities so that the return value after all the dimensions
+are contracted is a tuple containing `(H, ν₁, ν₂, ν₃)`. The band velocities are
+defined by dipole operators ``\\nu_{\\alpha} = -\\frac{i}{\\hbar}
+\\partial_{k_{\\alpha}} H`` where ``k_{\\alpha}`` is one of three input
+dimensions of ``H`` and ``\\hbar=1``. Note that differentiation changes the
+units to have an additional dimension of length, so if ``H`` has units of
+dimensions of energy, ``\\nu`` has dimensions of energy times length. The caller
+is responsible for transforming the units of the velocity (i.e. ``\\hbar``) if
+they want other units, which can usually be done as a post-processing step.
+"""
 BandEnergyVelocity(H::FourierSeries{3}) = BandEnergyVelocity3(H)
 
 struct BandEnergyVelocity3{TH} <: AbstractFourierSeries{3}
@@ -42,4 +56,4 @@ struct BandEnergyVelocity0{TH,T1,T2,T3} <: AbstractFourierSeries{0}
     ν₃::T3
 end
 Base.eltype(f::BandEnergyVelocity0) = Tuple{map(eltype, (f.H, f.ν₁, f.ν₂, f.ν₃))...}
-value(f::BandEnergyVelocity0) = map(value, (f.H, f.ν₁, f.ν₂, f.ν₃))
+value(f::BandEnergyVelocity0) = (value(f.H), map(ν -> -im*I * ν, map(value, (f.ν₁, f.ν₂, f.ν₃)))...)

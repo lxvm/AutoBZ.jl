@@ -1,70 +1,101 @@
+# Possible TODO for FourierSeries
+# - replace dependence on SVector with NTuple for ease of use by new users
+# - enable reduction over multiple dims simulatneously (?) may not be used
 export FourierSeries, contract, FourierSeriesDerivative
 
 """
-Concrete subtypes should implement functors for pointwise evaluation as well as
-`Base.eltype`, `contract`, `value`
+    AbstractFourierSeries{N}
+
+A supertype for Fourier series that are periodic maps ``\\R^N \\to V`` where
+``V`` is any vector space. Typically these can be represented by `N`-dimensional
+arrays whose elements belong to the vector space. See the manual section on the
+`AbstractFourierSeries` interface.
 """
 abstract type AbstractFourierSeries{N} end
 
+"""
+    period(f::AbstractFourierSeries{N}) where {N}
+
+Return a `NTuple{N}` whose `m`-th element corresponds to the period of `f`
+along its `m`-th input dimension. Typically, these values set the units of
+length for the problem.
+"""
+function period end
+
+"""
+    contract(f::AbstractFourierSeries{N}, x::Number, [dim=N]) where {N}
+
+Return another Fourier series of dimension `N-1` by summing over dimension `dim`
+of `f` with the phase factors evaluated at `x`. If `N=1`, this function should
+return an `AbstractFourierSeries{0}` that stores the evaluated Fourier series,
+but has no more input dimensions to contract.
+
+The default of `dim=N` is motivated by preserving memory locality in Julia's
+column-major array format.
+
+    contract(f::AbstractFourierSeries{N}, x::SVector{M}) where {N,M}
+
+Contract the outermost indices `M` of `f` in order of `last(x)` to `first(x)`.
+If `M>N`, the default behavior is just to try and contract `M` indices, which
+will likely lead to an error.
+"""
 function contract end
+contract(f::AbstractFourierSeries, x::SVector) = contract(contract(f, last(x)), pop(x))
+contract(f::AbstractFourierSeries, ::SVector{0}) = f
+
+"""
+"""
+(f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
+(f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
+
+"""
+    value(::AbstractFourierSeries{0})
+
+Return the evaluated Fourier series whose indices have all been contracted.
+Typically, this value has the same units as the Fourier series coefficients.
+"""
 function value end
 
 """
     FourierSeries(coeffs, period::SVector{N,Float64}) where {N}
 
-Construct a Fourier series whose coefficients are an array with an element type
-supporting addition and scalar multiplication, and whose periodicity on the
-`i`th axis is given by `period[i]`. If period is a `Number`, 
+Construct a Fourier series whose coefficients are given by the coefficient array
+array `coeffs` whose `eltype` should support addition and scalar multiplication,
+and whose periodicity on the `i`th axis is given by `period[i]`. This type
+represents the Fourier series
+```math
+f(\\vec{x}) = \\sum_{\\vec{n} \\in \\mathcal I} C_{\\vec{n}} \\exp(i2\\pi\\vec{k}_{\\vec{n}}\\cdot\\overrightarrow{x})
+```
+where ``i = \\sqrt{-1}`` is the imaginary unit, ``C`` is the array `coeffs`,
+``\\mathcal I`` is `CartesianIndices(C)`, ``\\vec{n}`` is a `CartesianIndex` and
+``\\vec{k}_{\\vec{n}}`` is equal to ``n_j/p_j`` in the
+``j``th position with ``p_j`` the ``j``th element of `period`.
+Because of the choice to use Cartesian indices to set the phase factors,
+typically the indices of `coeffs` should be specified by using an `OffsetArray`.
 """
 struct FourierSeries{N,T} <: AbstractFourierSeries{N}
     coeffs::T
     period::SVector{N,Float64}
 end
 
-# Use this struct, which is more performant with `contract` for the 1D case,
-# because the `fill` call can be ignored. This would be a breaking change and
-# may require type checking in constructors (since `@inbounds` calls depend on
-# this 
+"""
+    FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N}
 
-# likely changes
-# first(f.coeffs) -> f.coeffs
-# add Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
-
-# previously:
-# struct FourierSeries{N,T<:AbstractArray{<:StaticArray,N}}
-#     coeffs::T
-#     period::SVector{N,Float64}
-# end
-
+If period is a `Real`, this constructor will infer the number of
+input dimensions of the Fourier series from the array dimensionality of the
+coefficients, and `period` will become the period of all of the dimensions.
+"""
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
 Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
 """
-    contract(f, x::SVector)
+    contract(f::FourierSeries{N}, x::Number, [dim=N]) where {N}
 
-Contracts the indices of the argument `f` in order of `last(x)` to `first(x)`.
-To be used as a callback in iterated integration for efficient evaluation.
-Any type `T` that wants to implement `contract` needs to define a method with
-signature `contract(::T, ::Number)`.
+Contract index `dim` of the coefficients of `f` at the spatial point `x`.
+The default `dim` is the outermost dimension to preserve memory locality.
 """
-contract(f, x::SVector) = contract(contract(f, last(x)), pop(x))
-contract(f, ::SVector{0}) = f
-
-"""
-    contract(f::FourierSeries, x::Number, [dim::int])
-
-Contract the outermost index of the `f` at point `x`.
-"""
-function contract(f::FourierSeries{N}, x::Number) where {N}
-    C = f.coeffs
-    @inbounds imϕ = 2π*im*x/f.period[N]
-    C′ = mapreduce(+, CartesianIndices(C); dims=N) do i
-        @inbounds C[i]*exp(i.I[N]*imϕ)
-    end
-    FourierSeries(reshape(C′, @inbounds axes(C)[1:N-1]), pop(f.period))
-end
-function contract(f::FourierSeries{N}, x::Number, dim::Int) where {N}
+function contract(f::FourierSeries{N}, x::Number; dim::Int=N) where {N}
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = f.coeffs
     @inbounds imϕ = 2π*im*x/f.period[dim]
@@ -75,10 +106,11 @@ function contract(f::FourierSeries{N}, x::Number, dim::Int) where {N}
     FourierSeries(reshape(C′, @inbounds axes(C)[idx]), @inbounds f.period[idx])
 end
 # evaluation by recurrence is faster for 1D Fourier series evaluation
-# Note that the allocation by `fill` takes as long as running `contract_`
 function contract(f::FourierSeries{1}, x::Number)
     C = contract_(f.coeffs, 2π*x / last(f.period))
-    FourierSeries(C, pop(f.period)) # for consistency with higher dimensions, C -> fill(C)
+    FourierSeries(C, pop(f.period)) # for consistency with N>1 edit C -> fill(C)
+    # however, allocating a 0-dimensional array slows things down so I have
+    # treat FourierSeries{0} as a special case since I store the value in coeffs
 end
 function contract_(C::AbstractVector, ϕ::Number)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
@@ -133,11 +165,34 @@ value(f::FourierSeries{0}) = f.coeffs
 period(f::FourierSeries) = f.period
 
 """
-    FourierSeriesDerivative(::FourierSeries, ::SVector)
+    FourierSeriesDerivative(f::FourierSeries{N}, a::SVector{N}) where {N}
 
-Construct a Fourier series derivative from a multi-index `a` of derivatives,
-e.g. `[1,2,...]` and a `FourierSeries`, whose order of derivative on `i`th
-axis is the `i`th element of `a`.
+Represent the differential of Fourier series `f` by a multi-index `a` of
+derivatives, e.g. `[1,2,...]`, whose .
+
+
+Construct a Fourier series whose coefficients are given by the coefficient array
+array `coeffs` whose `eltype` should support addition and scalar multiplication,
+and whose periodicity on the `i`th axis is given by `period[i]`. This type
+represents the Fourier series
+```math
+\\left( \\prod_{j=1}^N \\partial_{x_j}^{a_j} \\right) f(\\vec{x}) = \\sum_{\\vec{n} \\in \\mathcal I} \\left( \\prod_{j=1}^N (i 2\\pi k_j)^{a_j} \\right) C_{\\vec{n}} \\exp(i2\\pi\\vec{k}_{\\vec{n}}\\cdot\\overrightarrow{x})
+```
+where ``\\partial_{x_j}^{a_j}`` represents the ``a_j``th derivative of ``x_j``,
+``i = \\sqrt{-1}`` is the imaginary unit, ``C`` is the array `coeffs`,
+``\\mathcal I`` is `CartesianIndices(C)`, ``\\vec{n}`` is a `CartesianIndex` and
+``\\vec{k}_{\\vec{n}}`` is equal to ``n_j/p_j`` in the ``j``th position with
+``p_j`` the ``j``th element of `period`. Because of the choice to use Cartesian
+indices to set the phase factors, typically the indices of `coeffs` should be
+specified by using an `OffsetArray`. Also, note that termwise differentiation of
+the Fourier series results in additional factors of ``i2\\pi`` which should be
+anticipated for the use case. Also, note that this type can be used to represent
+fractional differentiation or integration by suitably choosing the ``a_j``s.
+
+This is a 'lazy' representation of the derivative because instead of
+differentiating by computing all of the Fourier coefficients of the derivative
+upon constructing the object, the evaluator waits until it contracts the
+differentiated dimension to evaluate the new coefficients.
 """
 struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta} <: AbstractFourierSeries{N}
     f::T
@@ -146,17 +201,12 @@ end
 
 Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 
-function contract(dv::FourierSeriesDerivative{N}, x::Number) where {N}
-    C = dv.f.coeffs
-    @inbounds imk = im*2π/dv.f.period[N]
-    imϕ = imk*x
-    @inbounds a = dv.a[N]
-    C′ = mapreduce(+, CartesianIndices(C); dims=N) do i
-        @inbounds C[i]*(exp(i.I[N]*imϕ)*((imk*i.I[N])^a))
-    end
-    f = FourierSeries(reshape(C′, @inbounds axes(C)[1:N-1]), pop(dv.f.period))
-    FourierSeriesDerivative(f, pop(dv.a))
-end
+"""
+    contract(f::FourierSeriesDerivative{N}, x::Number, [dim=N]) where {N}
+
+Contract index `dim` of the coefficients of `f` at the spatial point `x`.
+The default `dim` is the outermost dimension to preserve memory locality.
+"""
 function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where {N}
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = dv.f.coeffs
@@ -170,6 +220,7 @@ function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where {N}
     f = FourierSeries(reshape(C′, @inbounds axes(C)[idx]), dv.f.period[idx])
     FourierSeriesDerivative(f, @inbounds dv.a[idx])
 end
+# 1D recurrence is still faster
 function contract(dv::FourierSeriesDerivative{1}, x::Number)
     C = contract_(dv.f.coeffs, x, 2π/last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period)) # for consistency with higher dimensions, C -> fill(C)

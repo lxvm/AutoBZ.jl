@@ -22,6 +22,7 @@ makedocs(
             "pages/man/integration_limits.md",
             ],
         "Applications" => [
+            "pages/app/fourier.md",
             "pages/app/integrands.md",
             "pages/app/interfaces.md",
         ],
