@@ -1,7 +1,7 @@
 # Possible TODO for FourierSeries
 # - replace dependence on SVector with NTuple for ease of use by new users
 # - enable reduction over multiple dims simulatneously (?) may not be used
-export FourierSeries, contract, FourierSeriesDerivative
+export FourierSeries, contract, FourierSeriesDerivative, ManyFourierSeries
 
 """
     AbstractFourierSeries{N}
@@ -282,3 +282,17 @@ end
 
 value(dv::FourierSeriesDerivative{0}) = value(dv.f)
 period(dv::FourierSeriesDerivative) = period(dv.f)
+
+"""
+
+"""
+struct OffsetFourierSeries{N,T<:AbstractFourierSeries{N}} <: AbstractFourierSeries{N}
+    f::T
+    q::SVector{N,Float64}
+end
+
+"""
+"""
+struct ManyFourierSeries{N,T<:Tuple{Vararg{AbstractFourierSeries{N}}}} <: AbstractFourierSeries{N}
+    fs::T
+end

@@ -50,7 +50,7 @@ iterated_integration(D, t; callback=contract, atol=atol, rtol=rtol)
 You will find a working example of this model in the `DOS_example.jl` demo that
 computes DOS over a range of frequencies for this model
 
-## Custom integrand
+## Custom adaptive integrand
 
 For integrands that can be evaluated by Wannier interpolation, the following
 data are necessary to define an integrand:
@@ -69,6 +69,7 @@ contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), p)
 (w::WannierIntegrand)(x::SVector{1}) = w(only(x))
 (w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)
 ```
+This integrand will be compatible with adaptive integration routines like `iterated_integration`.
 
 ### Tight binding
 
@@ -79,3 +80,22 @@ using LinearAlgebra
 dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
 D = WannierIntegrad(dos, H, (ω, μ, η))
 ```
+
+### Integrand with `ManyFourierSeries`
+
+If an integrand requires evaluation of the Hamiltonian at various ``k``-points
+simultaneously, the ``ManyFourierSeries`` type can be used to do this
+```julia
+T = 1.0 # K
+kB = 8.617333262e-5 # eV/K
+Γ = fill(0, SVector{3,Float64})
+f = ManyFourierSeries(H, OffsetFourierSeries(H, q))
+integrand_(f, T, kB) = tr(f[1] - f[2])/(kB*T)
+integrand = WannierIntegrand(integrand_, f, (T, kB))
+```
+
+## Custom equispace integrand
+
+### Fixed BZ grid
+
+### Automatic BZ grid
