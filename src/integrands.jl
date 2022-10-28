@@ -31,7 +31,7 @@ Base.eltype(::Type{<:GreensFunction{TH}}) where {TH} = Base.promote_op(inv, elty
 (g::GreensFunction)(k::Union{AbstractVector,Number}) = g(g.H(k))
 (g::GreensFunction)(H_k::AbstractMatrix) = greens_function(H_k, g.M)
 
-contract(g::GreensFunction, x::Number) = GreensFunction(contract(g.H, x), g.M)
+contract(g::GreensFunction, x) = GreensFunction(contract(g.H, x), g.M)
 
 
 spectral_function(args...) = spectral_function(greens_function(args...))
@@ -57,7 +57,7 @@ Base.eltype(::Type{<:SpectralFunction{TG}}) where {TG} = Base.promote_op(imag, e
 
 (A::SpectralFunction)(k) = spectral_function(A.G(k))
 
-contract(A::SpectralFunction, x::Number) = SpectralFunction(contract(A.G, x))
+contract(A::SpectralFunction, x) = SpectralFunction(contract(A.G, x))
 
 
 dos_integrand(args...) = dos_integrand(spectral_function(args...))
@@ -83,7 +83,7 @@ Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
 
 (D::DOSIntegrand)(k) = dos_integrand(D.A(k))
 
-contract(D::DOSIntegrand, x::Number) = DOSIntegrand(contract(D.A, x))
+contract(D::DOSIntegrand, x) = DOSIntegrand(contract(D.A, x))
 
 
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
@@ -130,7 +130,7 @@ Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (g::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, g.Mω, g.MΩ)
 (g::GammaIntegrand)(Hν_k::NTuple{4,AbstractMatrix}) = g(Hν_k...)
 # (g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
-contract(g::GammaIntegrand, k::Number) = GammaIntegrand(contract(g.HV, k), g.Mω, g.MΩ)
+contract(g::GammaIntegrand, k) = GammaIntegrand(contract(g.HV, k), g.Mω, g.MΩ)
 
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
@@ -202,7 +202,7 @@ Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = f(value(f.HV), ω)
 
-contract(f::OCIntegrand, k::Number) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
+contract(f::OCIntegrand, k) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
 
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)

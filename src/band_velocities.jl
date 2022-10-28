@@ -23,7 +23,7 @@ end
 Base.eltype(f::BandEnergyVelocity3) = Tuple{ntuple(_ -> eltype(f.H), Val{4}())...}
 period(f::BandEnergyVelocity3) = period(f.H)
 
-function contract(f::BandEnergyVelocity3, z)
+function contract(f::BandEnergyVelocity3, z::Number)
     ν₃ = FourierSeriesDerivative(f.H, SVector(0,0,1))
     BandEnergyVelocity2(contract(f.H, z), contract(ν₃, z))
 end
@@ -33,7 +33,7 @@ struct BandEnergyVelocity2{TH,T3} <: AbstractFourierSeries{2}
     ν₃::T3
 end
 
-function contract(f::BandEnergyVelocity2, y)
+function contract(f::BandEnergyVelocity2, y::Number)
     ν₂ = FourierSeriesDerivative(f.H, SVector(0,1))
     BandEnergyVelocity1(contract(f.H, y), contract(ν₂, y), contract(f.ν₃, y))
 end
@@ -44,7 +44,7 @@ struct BandEnergyVelocity1{TH,T2,T3} <: AbstractFourierSeries{1}
     ν₃::T3
 end
 
-function contract(f::BandEnergyVelocity1, x)
+function contract(f::BandEnergyVelocity1, x::Number)
     ν₁ = FourierSeriesDerivative(f.H, SVector(1))
     BandEnergyVelocity0(contract(f.H, x), contract(ν₁, x), contract(f.ν₂, x), contract(f.ν₃, x))
 end
