@@ -69,3 +69,13 @@ contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), p)
 (w::WannierIntegrand)(x::SVector{1}) = w(only(x))
 (w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)
 ```
+
+### Tight binding
+
+For example, we can replicate the preceding tight-binding example by defining an
+integrand with the custom integrand type
+```julia
+using LinearAlgebra
+dos(H_k::AbstractMatrix, ω, μ, η) = -tr(inv(complex(ω+μ, η)*I-H_k))/pi
+D = WannierIntegrad(dos, H, (ω, μ, η))
+```
