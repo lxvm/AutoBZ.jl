@@ -76,6 +76,6 @@ For example, we can replicate the preceding tight-binding example by defining an
 integrand with the custom integrand type
 ```julia
 using LinearAlgebra
-dos(H_k::AbstractMatrix, ω, μ, η) = -tr(inv(complex(ω+μ, η)*I-H_k))/pi
+dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
 D = WannierIntegrad(dos, H, (ω, μ, η))
 ```
