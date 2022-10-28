@@ -12,7 +12,7 @@ C = zeros(SMatrix{1,1,ComplexF64,1}, ntuple(_ -&gt; 3, n))
 for i in 1:n, j in (-1, 1)
     C[CartesianIndex(ntuple(k -&gt; k == i ? 2+j : 2, n))] = SMatrix{1,1,ComplexF64,1}(0.5)
 end
-H = FourierSeries(OffsetArray(C, ax...), a)</code></pre><p>Then we can define the integration problem to compute DOS</p><pre><code class="language-julia hljs">ω = 1.0*n # frequency
+H = FourierSeries(OffsetArray(C, ax...), a)</code></pre><p>Then we can define the integration problem to compute DOS, defined by the integral</p><p class="math-container">\[\operatorname{DOS}(\omega) = \int_{\text{BZ}} d\vec{k} \operatorname{Tr}[\Im\{\omega+\mu-H(\vec{k})+i\eta\}]\]</p><p>where <span>$\mu$</span> is the chemical potential and <span>$\eta$</span> is a constant scattering rate.</p><pre><code class="language-julia hljs">ω = 1.0*n # frequency
 η = 0.1 # broadening
 μ = 0.0 # chemical potential
 Σ = EtaEnergy(η) # self energy
@@ -35,9 +35,50 @@ contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), p)
 (w::WannierIntegrand)(x::SVector{1}) = w(only(x))
 (w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)</code></pre><p>This integrand will be compatible with adaptive integration routines like <code>iterated_integration</code>.</p><h3 id="Tight-binding"><a class="docs-heading-anchor" href="#Tight-binding">Tight binding</a><a id="Tight-binding-1"></a><a class="docs-heading-anchor-permalink" href="#Tight-binding" title="Permalink"></a></h3><p>For example, we can replicate the preceding tight-binding example by defining an integrand with the custom integrand type</p><pre><code class="language-julia hljs">using LinearAlgebra
 dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
-D = WannierIntegrad(dos, H, (ω, μ, η))</code></pre><h3 id="Integrand-with-ManyFourierSeries"><a class="docs-heading-anchor" href="#Integrand-with-ManyFourierSeries">Integrand with <code>ManyFourierSeries</code></a><a id="Integrand-with-ManyFourierSeries-1"></a><a class="docs-heading-anchor-permalink" href="#Integrand-with-ManyFourierSeries" title="Permalink"></a></h3><p>If an integrand requires evaluation of the Hamiltonian at various <span>$k$</span>-points simultaneously, the <span>$ManyFourierSeries$</span> type can be used to do this</p><pre><code class="language-julia hljs">T = 1.0 # K
+D = WannierIntegrad(dos, H, (ω, μ, η))</code></pre><h3 id="Graphene-example-with-ManyOffsetsFourierSeries"><a class="docs-heading-anchor" href="#Graphene-example-with-ManyOffsetsFourierSeries">Graphene example with <code>ManyOffsetsFourierSeries</code></a><a id="Graphene-example-with-ManyOffsetsFourierSeries-1"></a><a class="docs-heading-anchor-permalink" href="#Graphene-example-with-ManyOffsetsFourierSeries" title="Permalink"></a></h3><p>Let&#39;s study an example motivated by graphene whose Hamiltonian is given by a tight-binding model on the hexagonal lattice with lattice constant <span>$a$</span> and hopping amplitude <span>$t$</span>. Applying Bloch&#39;s theorem to each triangular sublattice brings the Hamiltonian into block-diagonal form, where each block is of the form</p><p class="math-container">\[-t
+\begin{pmatrix}
+0 &amp; f(k)
+\\ f^*(k) &amp; 0
+\end{pmatrix}\]</p><p>where <span>$f(k) = e^{ik\cdot\delta_1} + e^{ik\cdot\delta_2} + e^{ik\cdot\delta_3}$</span> and <span>$\delta_1 = a\hat{x}, \delta_2 = a(-1/2\hat{x}+\sqrt{3}/2\hat{y}), \delta_3 = a(-1/2\hat{x}-\sqrt{3}/2\hat{y})$</span>. To exactly construct this Fourier series, we will have to rotate basis so that these vectors are precisely integer linear combinations of the new lattice vectors. Note that by defining <span>$\hat{a}_1 = (\delta_1 - \delta_3)/3a = (\hat{x} + 1/\sqrt{3}\hat{y})/2, \hat{a}_2 = (\delta_1 - \delta_2)/3a = (\hat{x} - 1/\sqrt{3}\hat{y})/2$</span> we can write <span>$\delta_1 = a(\hat{a}_1 + \hat{a}_2), \delta_2 = a(\hat{a}_1 - 2\hat{a}_2), \delta_3 = a(-2\hat{a}_1 + \hat{a}_2)$</span>. Therefore our coordinate transformation matrix, <span>$T^{-1}$</span> from Cartesian coordinates to the triangular lattice is</p><p class="math-container">\[T = \frac{1}{2}
+\begin{pmatrix}
+1 &amp; 1/\sqrt{3}
+\\ 1 &amp; -1/\sqrt{3}
+\end{pmatrix}
+\qquad
+T^{-1} =
+\begin{pmatrix}
+1 &amp; 1
+\\ \sqrt{3} &amp; -\sqrt{3}
+\end{pmatrix}\]</p><p>and note <span>$|\operatorname{det}(T)| = 1/2\sqrt{3}$</span>. Now the corresponding reciprocal lattice vectors are constructed by the relation <span>$\hat{b}_i = \epsilon_{ij} (\hat{z} \times \hat{a}_j)$</span> and rescaling so that <span>$\hat{b}_i \cdot \hat{a}_j = 2\pi\delta_{ij}$</span>. This yields <span>$\hat{b}_1 = 2\pi(\hat{x}+\sqrt{3}\hat{y}) = 4\pi(\hat{a}_1 - 2\hat{a_2}), \hat{b}_2 = 2\pi(\hat{x}-\sqrt{3}\hat{y}) = 4\pi(2\hat{a}_1 - \hat{a_2})$</span>. We would now interpret <span>$k$</span> in this basis, and need to observe that if <span>$a$</span> is the lattice constant of the hexagonal lattice, then <span>$\sqrt{3}a$</span> is the lattice constant of the triangular lattice, and <span>$2\pi/\sqrt{3}a$</span> is the lattice constant of the reciprocal lattice. However, we will have to rescale by factors of <span>$|\operatorname{det}{T}|$</span> because of our coordinate transformations.</p><p>Having chosen this suitable basis for <span>$k$</span> and <span>$x$</span>, we can now express the <span>$k$</span>-dependence of the block Hamiltonian as</p><p class="math-container">\[f(k) = e^{ik\cdot\delta_1} + e^{ik\cdot\delta_2} + e^{ik\cdot\delta_3}
+= e^{iak\cdot(\hat{a}_1 + \hat{a}_2)} + e^{iak\cdot(\hat{a}_1 - 2\hat{a}_2)} + e^{iak\cdot(-2\hat{a}_1 + \hat{a}_2)}\]</p><p>which is amenable to a Fourier series representation.</p><p>Suppose that the integral we want to calculate is</p><p class="math-container">\[g(\vec{q}) = \int_{\text{BZ}} dk_x dk_y \frac{\lambda(\xi(\vec{k})) - \lambda(\xi(\vec{k}-\vec{q}))}{\xi(\vec{k}) - \xi(\vec{k}-\vec{q})}\]</p><p>where <span>$\xi(\vec{k}) = \operatorname{det}(H(\vec{k}))$</span> and <span>$\lambda(\omega) = \partial_T f(\omega)$</span> is the temperature derivative of the Fermi distribution. Since the integrand requires evaluation of the Hamiltonian at various <span>$k$</span>-points simultaneously, the <code>ManyOffsetsFourierSeries</code> type can be used to do this. Moreover, <code>AutoBZ.Applications</code> has functions to evaluate Fermi functions and their derivatives. Putting everything together leads us to the code example below</p><pre><code class="language-julia hljs">using StaticArrays
+using OffsetArrays
+
+using AutoBZ
+using AutoBZ.Applications
+
+a = 1.0
+C = zeros(SMatrix{2,2,ComplexF64,4}, (5,5))
+C[1,1]   = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
+C[-1,-1] = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
+C[1,-2]  = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
+C[-1,2]  = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
+C[-2,1]  = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
+C[2,-1]  = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
+H = FourierSeries(OffsetArray(C, -2:2, -2:2), a)
+
+T = 1.0 # K
 kB = 8.617333262e-5 # eV/K
-Γ = fill(0, SVector{3,Float64})
-f = ManyFourierSeries(H, OffsetFourierSeries(H, q))
-integrand_(f, T, kB) = tr(f[1] - f[2])/(kB*T)
-integrand = WannierIntegrand(integrand_, f, (T, kB))</code></pre><h2 id="Custom-equispace-integrand"><a class="docs-heading-anchor" href="#Custom-equispace-integrand">Custom equispace integrand</a><a id="Custom-equispace-integrand-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-equispace-integrand" title="Permalink"></a></h2><h3 id="Fixed-BZ-grid"><a class="docs-heading-anchor" href="#Fixed-BZ-grid">Fixed BZ grid</a><a id="Fixed-BZ-grid-1"></a><a class="docs-heading-anchor-permalink" href="#Fixed-BZ-grid" title="Permalink"></a></h3><h3 id="Automatic-BZ-grid"><a class="docs-heading-anchor" href="#Automatic-BZ-grid">Automatic BZ grid</a><a id="Automatic-BZ-grid-1"></a><a class="docs-heading-anchor-permalink" href="#Automatic-BZ-grid" title="Permalink"></a></h3></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../app/interfaces/">« Interfaces</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Friday 28 October 2022 19:56">Friday 28 October 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+q = SVector{3,Float64}(1.2, 2.8, 8.1) # arbitrary
+f = ManyOffsetsFourierSeries(H, q)
+
+lambda(x, T, kB) = -AutoBZ.Applications.fermi′(inv(kB*T), x)/(kB*T^2)
+integrand_(f, T, kB) = (lambda(det(f[1]), T, kB) - lambda(det(f[2]), T, kB))/(det(f[1])-det(f[2]))
+integrand = WannierIntegrand(integrand_, f, (T, kB))
+
+c = CubicLimits(H.period)
+
+# set error tolerances
+atol = 1e-3
+rtol = 0.0
+
+iterated_integration(D, c; callback=contract, atol=atol, rtol=rtol)</code></pre><h2 id="Custom-equispace-integrand"><a class="docs-heading-anchor" href="#Custom-equispace-integrand">Custom equispace integrand</a><a id="Custom-equispace-integrand-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-equispace-integrand" title="Permalink"></a></h2><h3 id="Fixed-BZ-grid"><a class="docs-heading-anchor" href="#Fixed-BZ-grid">Fixed BZ grid</a><a id="Fixed-BZ-grid-1"></a><a class="docs-heading-anchor-permalink" href="#Fixed-BZ-grid" title="Permalink"></a></h3><h3 id="Automatic-BZ-grid"><a class="docs-heading-anchor" href="#Automatic-BZ-grid">Automatic BZ grid</a><a id="Automatic-BZ-grid-1"></a><a class="docs-heading-anchor-permalink" href="#Automatic-BZ-grid" title="Permalink"></a></h3></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../app/interfaces/">« Interfaces</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Friday 28 October 2022 22:53">Friday 28 October 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
