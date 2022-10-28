@@ -1,7 +1,8 @@
 # Possible TODO for FourierSeries
 # - replace dependence on SVector with NTuple for ease of use by new users
 # - enable reduction over multiple dims simulatneously (?) may not be used
-export FourierSeries, contract, FourierSeriesDerivative, ManyFourierSeries
+export AbstractFourierSeries, period, contract, value
+export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
 
 """
     AbstractFourierSeries{N}
@@ -98,16 +99,16 @@ The default `dim` is the outermost dimension to preserve memory locality.
 function contract(f::FourierSeries{N}, x::Number; dim::Int=N) where {N}
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = f.coeffs
-    @inbounds imϕ = 2π*im*x/f.period[dim]
+    @inbounds ϕ = x/f.period[dim]
     C′ = mapreduce(+, CartesianIndices(C); dims=dim) do i
-        @inbounds C[i]*exp(i.I[dim]*imϕ)
+        @inbounds C[i]*cispi(2*i.I[dim]*ϕ)
     end
-    idx = sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
+    idx = StaticArrays.sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
     FourierSeries(reshape(C′, @inbounds axes(C)[idx]), @inbounds f.period[idx])
 end
 # evaluation by recurrence is faster for 1D Fourier series evaluation
 function contract(f::FourierSeries{1}, x::Number)
-    C = contract_(f.coeffs, 2π*x / last(f.period))
+    C = contract_(f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period)) # for consistency with N>1 edit C -> fill(C)
     # however, allocating a 0-dimensional array slows things down so I have
     # treat FourierSeries{0} as a special case since I store the value in coeffs
@@ -116,7 +117,7 @@ function contract_(C::AbstractVector, ϕ::Number)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
     @inbounds r = C[0]
     if size(C,1) > 1
-        z₀ = exp(im*ϕ)
+        z₀ = cispi(2ϕ)
         z = one(z₀)
         for i in 1:last(axes(C,1))
             z *= z₀
@@ -127,7 +128,7 @@ function contract_(C::AbstractVector, ϕ::Number)
 end
 #= N-D implementation of recurrence, which is slower so disabled
 function contract(f::FourierSeries{N,T}, x::Number) where {N,T}
-    C = contract_(f.coeffs, 2π*x / last(f.period))
+    C = contract_(f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period))
 end
 function contract_(C::AbstractArray{<:Any,N}, ϕ::Number) where {N}
@@ -135,7 +136,7 @@ function contract_(C::AbstractArray{<:Any,N}, ϕ::Number) where {N}
     ax = CartesianIndices(axes(C)[1:N-1])
     @inbounds r = view(C, ax, 0)
     if size(C,N) > 1
-        z₀ = exp(im*ϕ)
+        z₀ = cispi(2ϕ)
         z = one(z₀)
         for i in 1:last(axes(C,N))
             z *= z₀
@@ -151,15 +152,15 @@ end
 
 Evaluate `f` at the point `x`.
 """
-function (f::FourierSeries)(x::AbstractVector)
+function (f::FourierSeries{N})(x::SVector{N}) where {N}
     C = f.coeffs
-    imϕ = (2π*im) .* x ./ f.period
+    ϕ = x ./ f.period
     sum(CartesianIndices(C), init=zero(eltype(f))) do i
-        C[i] * exp(dot(imϕ, convert(SVector, i)))
+        C[i] * cispi(2*dot(ϕ, convert(SVector, i)))
     end
 end
 (f::FourierSeries{1})(x::SVector{1}) = f(only(x))
-(f::FourierSeries{1})(x::Number) = contract_(f.coeffs, 2π*x/only(f.period))
+(f::FourierSeries{1})(x::Number) = contract_(f.coeffs, x/only(f.period))
 
 value(f::FourierSeries{0}) = f.coeffs
 period(f::FourierSeries) = f.period
@@ -168,13 +169,8 @@ period(f::FourierSeries) = f.period
     FourierSeriesDerivative(f::FourierSeries{N}, a::SVector{N}) where {N}
 
 Represent the differential of Fourier series `f` by a multi-index `a` of
-derivatives, e.g. `[1,2,...]`, whose .
-
-
-Construct a Fourier series whose coefficients are given by the coefficient array
-array `coeffs` whose `eltype` should support addition and scalar multiplication,
-and whose periodicity on the `i`th axis is given by `period[i]`. This type
-represents the Fourier series
+derivatives, e.g. `[1,2,...]`, whose `i`th entry represents the order of
+differentiation on the `i`th input dimension of `f`. Mathematically, this means
 ```math
 \\left( \\prod_{j=1}^N \\partial_{x_j}^{a_j} \\right) f(\\vec{x}) = \\sum_{\\vec{n} \\in \\mathcal I} \\left( \\prod_{j=1}^N (i 2\\pi k_j)^{a_j} \\right) C_{\\vec{n}} \\exp(i2\\pi\\vec{k}_{\\vec{n}}\\cdot\\overrightarrow{x})
 ```
@@ -207,31 +203,31 @@ Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
 """
-function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where {N}
+function contract(dv::FourierSeriesDerivative{N}, x::Number; dim::Int=N) where {N}
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = dv.f.coeffs
-    @inbounds imk = im*2π/dv.f.period[dim]
-    imϕ = imk*x
+    @inbounds imk = im*2*pi/dv.f.period[dim]
+    @inbounds ϕ = x/dv.f.period[dim]
     @inbounds a = dv.a[dim]
     C′ = mapreduce(+, CartesianIndices(C); dims=dim) do i
-        @inbounds C[i]*(exp(i.I[dim]*imϕ)*((imk*i.I[dim])^a))
+        @inbounds C[i]*(cispi(2*i.I[dim]*ϕ)*((imk*i.I[dim])^a))
     end
-    idx = sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
+    idx = StaticArrays.sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
     f = FourierSeries(reshape(C′, @inbounds axes(C)[idx]), dv.f.period[idx])
     FourierSeriesDerivative(f, @inbounds dv.a[idx])
 end
 # 1D recurrence is still faster
 function contract(dv::FourierSeriesDerivative{1}, x::Number)
-    C = contract_(dv.f.coeffs, x, 2π/last(dv.f.period), last(dv.a))
+    C = contract_(dv.f.coeffs, x, last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period)) # for consistency with higher dimensions, C -> fill(C)
     FourierSeriesDerivative(f, pop(dv.a))
 end
-function contract_(C::AbstractVector, x, k, a)
+function contract_(C::AbstractVector, x, a₀, a)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
     @inbounds r = (0^a)*C[0]
     if size(C,1) > 1
-        imk = im*k
-        z₀ = exp(imk*x)
+        imk = im*2*pi/a₀
+        z₀ = cispi(2*x/a₀)
         z = one(z₀)
         for i in 1:last(axes(C,1))
             z *= z₀
@@ -242,17 +238,17 @@ function contract_(C::AbstractVector, x, k, a)
 end
 #= N-D implementation of recurrence, which is slower so disabled
 function contract(dv::FourierSeriesDerivative, x::Number)
-    C = contract_(dv.f.coeffs, x, 2π/last(dv.f.period), last(dv.a))
+    C = contract_(dv.f.coeffs, x, last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period))
     FourierSeriesDerivative(f, pop(dv.a))
 end
-function contract_(C::AbstractArray{<:Any,N}, x, k, a) where {N}
+function contract_(C::AbstractArray{<:Any,N}, x, a₀, a) where {N}
     -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
     ax = CartesianIndices(axes(C)[1:N-1])
     @inbounds r = (0^a)*view(C, ax, 0)
     if size(C,N) > 1
-        imk = im*k
-        z₀ = exp(imk*x)
+        imk = im*2*pi/a₀
+        z₀ = cispi(2*x/a₀)
         z = one(z₀)
         for i in 1:last(axes(C,N))
             z *= z₀
@@ -268,31 +264,78 @@ end
 
 Evaluate `f` at the point `x`.
 """
-function (dv::FourierSeriesDerivative)(x::AbstractVector)
+function (dv::FourierSeriesDerivative{N})(x::SVector{N}) where {N}
     C = dv.f.coeffs
-    imk = (2π*im) ./ dv.f.period
-    imϕ = imk .* x
+    imk = (im*2*pi) ./ dv.f.period
+    ϕ = x ./ dv.f.period
     sum(CartesianIndices(C), init=zero(eltype(dv))) do i
         idx = convert(SVector, i)
-        @inbounds C[i] * (exp(dot(imϕ, idx)) * prod((imk.*idx) .^ dv.a))
+        @inbounds C[i] * (cispi(2*dot(ϕ, idx)) * prod((imk.*idx) .^ dv.a))
     end
 end
 (dv::FourierSeriesDerivative{1})(x::SVector{1}) = dv(only(x))
-(dv::FourierSeriesDerivative{1})(x::Number) = contract_(dv.f.coeffs, x, 2π/only(dv.f.period), only(dv.a))
+(dv::FourierSeriesDerivative{1})(x::Number) = contract_(dv.f.coeffs, x, only(dv.f.period), only(dv.a))
 
 value(dv::FourierSeriesDerivative{0}) = value(dv.f)
 period(dv::FourierSeriesDerivative) = period(dv.f)
 
 """
+    OffsetFourierSeries(f::AbstractFourierSeries{N}, q::SVector{N,Float64}) where {N}
 
+Represent a Fourier series whose argument is offset by the vector ``\\vec{q}``
+and evaluates it as ``f(\\vec{x}-\\vec{q})``.
 """
 struct OffsetFourierSeries{N,T<:AbstractFourierSeries{N}} <: AbstractFourierSeries{N}
     f::T
     q::SVector{N,Float64}
 end
+contract(f::OffsetFourierSeries, x::Number) = OffsetFourierSeries(contract(f.f, x-last(f.q)), pop(f.q))
+period(f::OffsetFourierSeries) = period(f.f)
+value(f::OffsetFourierSeries{0}) = value(f.f)
+Base.eltype(::Type{OffsetFourierSeries{N,T}}) where {N,T} = eltype(T)
 
 """
+    ManyFourierSeries(fs::AbstractFourierSeries{N}...) where {N}
+
+Represents a tuple of Fourier series of the same dimension and periodicity and
+contracts them all simultaneously.
 """
 struct ManyFourierSeries{N,T<:Tuple{Vararg{AbstractFourierSeries{N}}}} <: AbstractFourierSeries{N}
     fs::T
+    period::SVector{N}
 end
+function ManyFourierSeries(fs::AbstractFourierSeries{N}...) where {N}
+    @assert all(map(==(period(fs[1])), map(period, last(Base.tail(fs))))) "all periods should match"
+    ManyFourierSeries(fs, period(fs[1]))
+end
+contract(fs::ManyFourierSeries, x::Number) = ManyFourierSeries(map(f -> contract(f, x), fs.fs), pop(fs.period))
+period(fs::ManyFourierSeries) = fs.period
+value(fs::ManyFourierSeries{0}) = map(value, fs.fs)
+Base.eltype(::Type{ManyFourierSeries{N,T}}) where {N,T} = map(eltype, T.parameters)
+
+"""
+    ManyOffsetsFourierSeries(f, qs..., [origin=true])
+
+Represent a Fourier series evaluated at many different points, and contract them
+all simultaneously, returning them in the order the `qs` were passed, i.e.
+`(f(x-qs[1]), f(x-qs[2]), ...)`
+The `origin` keyword decides whether or not to evaluate ``f`` without an offset,
+and if `origin` is true, the value of ``f`` evaluated without an offset will be
+returned in the first position of the output.
+"""
+struct ManyOffsetsFourierSeries{N,T<:AbstractFourierSeries{N},Q} <: AbstractFourierSeries{N}
+    f::T
+    qs::NTuple{Q,SVector{N,Float64}}
+end
+
+function ManyOffsetsFourierSeries(f::AbstractFourierSeries{N}, qs...; origin=true) where {N}
+    qs_ = ifelse(origin, (fill(0.0, SVector{N,Float64}),), ())
+    ManyOffsetsFourierSeries(f, (qs_..., qs...))
+end
+function contract(f::ManyOffsetsFourierSeries, x::Number)
+    fs = map(q -> OffsetFourierSeries(contract(f.f, x-last(q)), pop(q)), f.qs)
+    ManyFourierSeries(fs, pop(period(f)))
+end
+period(f::ManyOffsetsFourierSeries) = period(f.f)
+value(f::ManyOffsetsFourierSeries{0}) = value(f.f)
+Base.eltype(::Type{ManyOffsetsFourierSeries{N,T,Q}}) where {N,T,Q} = ntuple(_ -> eltype(T), Val{Q}())

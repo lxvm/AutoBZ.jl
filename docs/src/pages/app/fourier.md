@@ -38,7 +38,9 @@ interface and should cover most use cases.
 ```@docs
 AutoBZ.Applications.FourierSeries
 AutoBZ.Applications.FourierSeriesDerivative
+AutoBZ.Applications.OffsetFourierSeries
 AutoBZ.Applications.ManyFourierSeries
+AutoBZ.Applications.ManyOffsetsFourierSeries
 AutoBZ.Applications.BandEnergyVelocity
 ```
 
