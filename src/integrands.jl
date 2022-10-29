@@ -1,3 +1,25 @@
+export WannierIntegrand
+
+"""
+    WannierIntegrand(f, s::AbstractFourierSeries, p)
+
+A type generically representing an integrand `f` whose entire dependence on the
+variables of integration is in a Fourier series `s`, and which may also accept
+some input parameters `p`, which are preferrably contained in a tuple. The
+caller must be aware that their function, `f`, will be called at many evaluation
+points, `x`, in the following way: `f(s(x), p...)`. Therefore the caller is
+expected to know the type of `s(x)` (hint: `eltype(s)`) and the layout of the
+parameters in the tuple `p`.
+"""
+struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
+    f::TF
+    s::TS
+    p::TP
+end
+contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), w.p)
+(w::WannierIntegrand)(x) = w.f(w.s(x), w.p...)
+
+# pre-defined integrands
 export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, EquispaceOCIntegrand, AutoEquispaceOCIntegrand
 
 greens_function(H, ω, Σ, μ) = greens_function(H, (ω+μ)*I-Σ(ω))
@@ -13,7 +35,7 @@ greens_function(H::AbstractMatrix, M) = inv(M-H)
 
 A struct that calculates the lattice Green's function from a Hamiltonian.
 ```math
-G(k;H,\\omega,\\Sigma,\\mu) = {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
+G(\\omega) = \\int_{\\text{BZ}} dk {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
 ```
 """
 struct GreensFunction{TH<:FourierSeries,TM}
@@ -40,9 +62,9 @@ spectral_function(G::AbstractMatrix) = imag(G)/(-pi)
 """
     SpectralFunction(::GreensFunction)
 
-A struct that calculates the imaginary part of the Green's function.
+A type that whose integral gives the imaginary part of the Green's function.
 ```math
-A(k;H,ω,η,μ) = {\\pi}^{-1} \\Im[G(k;H,ω,η,μ)]
+A(ω) = {\\pi}^{-1} \\Im[G(ω)]
 ```
 """
 struct SpectralFunction{TG<:GreensFunction}
@@ -66,9 +88,9 @@ dos_integrand(A::AbstractMatrix) = tr(A)
 """
     DOSIntegrand(::SpectralFunction)
 
-A struct whose integral gives the density of states.
+A type whose integral gives the density of states.
 ```math
-D(k;H,ω,η,μ) = \\operatorname{Tr}[A(k;H,ω,η,μ)]
+D(ω) = \\operatorname{Tr}[A(ω)]
 ```
 """
 struct DOSIntegrand{TA<:SpectralFunction}
@@ -109,9 +131,9 @@ end
     GammaIntegrand(H, Σ, ω, Ω, μ)
     GammaIntegrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
 
-A function whose integral over the BZ gives the transport distribution.
+A type whose integral over the BZ gives the transport distribution.
 ```math
-\\Gamma_{\\alpha\\beta}(k) = \\operatorname{Tr}[\\nu^\\alpha(k) A(k,\\omega) \\nu^\\beta(k) A(k, \\omega+\\Omega)]
+\\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
 ```
 """
 struct GammaIntegrand{T,M1,M2}
@@ -184,7 +206,11 @@ oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω,
 """
     OCIntegrand(H, ν₁, ν₂, ν₃, Ω, β, η, μ)
 
-A function whose integral over the BZ and the frequency axis gives the optical conductivity
+A function whose integral over the BZ and the frequency axis gives the optical
+conductivity. Mathematically, this computes
+```math
+\\sigma_{\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
+```
 """
 struct OCIntegrand{T,TS}
     HV::T
@@ -207,6 +233,16 @@ contract(f::OCIntegrand, k) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
+"""
+    EquispaceOCIntegrand(σ::OCIntegrand, l, npt, pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}})
+    EquispaceOCIntegrand(σ, l, npt, [pre_eval=pre_eval_contract])
+
+This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
+and with equispace integration over the Brillouin zone with a fixed number of
+grid points `npt`. The argument `l` should be an `IntegrationLimits` for just
+the Brillouin zone. This type should be called by an adaptive integration
+routine whose limits of integration are only the frequency variable.
+"""
 struct EquispaceOCIntegrand{T,TS,TL}
     σ::OCIntegrand{T,TS}
     l::TL
@@ -226,7 +262,29 @@ end
 
 Base.eltype(::Type{<:EquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
-mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TF}
+"""
+    AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
+    AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}[], npt2=0,pre2=Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}[])
+
+This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
+and with equispace integration over the Brillouin zone with a number of grid
+points necessary to meet the maximum of the tolerances given by `atol` and
+`rtol`. The argument `l` should be an `IntegrationLimits` for just the Brillouin
+zone. This type should be called by an adaptive integration routine whose limits
+of integration are only the frequency variable.
+
+The keyword arguments, which are just passed to
+[`automatic_equispace_integration`](@ref), fall into two categories:
+1. Integrand evaluators: `pre_eval` and `npt_update`
+2. Stored precomputations
+    - `pre1`: a `Vector` containing tuples of the evaluated Hamiltonian + band
+      velocities and integration weights
+    - `npt1`: an integer that should be equivalent to `length(pre1)`
+    - `pre2`: a `Vector` containing tuples of the evaluated Hamiltonian + band
+      velocities and integration weights on a more refined grid than `pre1`
+    - `npt2`: an integer that should be equivalent to `length(pre)`
+"""
+mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TF,TH}
     σ::OCIntegrand{T,TS}
     l::TL
     atol::Float64
@@ -234,11 +292,11 @@ mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TF}
     pre_eval::TP
     npt_update::TF
     npt1::Int
-    pre1::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
+    pre1::Vector{Tuple{TH,Int}}
     npt2::Int
-    pre2::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
+    pre2::Vector{Tuple{TH,Int}}
 end
-AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=npt_update_sigma, npt1=0, pre1=Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}(undef,0), npt2=0,pre2=Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}(undef,0)) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
+AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
 
 Base.eltype(::Type{<:AutoEquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 

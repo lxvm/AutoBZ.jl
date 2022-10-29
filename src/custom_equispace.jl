@@ -38,6 +38,8 @@ function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3
     return pre
 end
 
+pre_eval_contract(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
+
 pre_eval_contract(G::GreensFunction, l, npt) = pre_eval_contract(G.H, l, npt)
 pre_eval_contract(A::SpectralFunction, l, npt) = pre_eval_contract(A.G, l, npt)
 pre_eval_contract(D::DOSIntegrand, l, npt) = pre_eval_contract(D.A, l, npt)
