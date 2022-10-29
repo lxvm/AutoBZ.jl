@@ -78,19 +78,18 @@ where ``i = \\sqrt{-1}`` is the imaginary unit, ``C`` is the array `coeffs`,
 ``j``th position with ``p_j`` the ``j``th element of `period`.
 Because of the choice to use Cartesian indices to set the phase factors,
 typically the indices of `coeffs` should be specified by using an `OffsetArray`.
-"""
-struct FourierSeries{N,T} <: AbstractFourierSeries{N}
-    coeffs::T
-    period::SVector{N,Float64}
-end
 
-"""
     FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N}
 
 If period is a `Real`, this constructor will infer the number of
 input dimensions of the Fourier series from the array dimensionality of the
 coefficients, and `period` will become the period of all of the dimensions.
 """
+struct FourierSeries{N,T} <: AbstractFourierSeries{N}
+    coeffs::T
+    period::SVector{N,Float64}
+end
+
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
 Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
 Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
@@ -152,11 +151,6 @@ function contract_(C::AbstractArray{<:Any,N}, ϕ::Number) where {N}
 end
 =#
 
-"""
-    (f::FourierSeries)(x)
-
-Evaluate `f` at the point `x`.
-"""
 function (f::FourierSeries{N})(x::SVector{N}) where {N}
     C = f.coeffs
     ϕ = x ./ f.period
