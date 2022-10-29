@@ -328,7 +328,7 @@ struct ManyOffsetsFourierSeries{N,T<:AbstractFourierSeries{N},Q} <: AbstractFour
     qs::NTuple{Q,SVector{N,Float64}}
 end
 
-function ManyOffsetsFourierSeries(f::AbstractFourierSeries{N}, qs...; origin=true) where {N}
+function ManyOffsetsFourierSeries(f::AbstractFourierSeries{N}, qs::SVector{N,Float64}...; origin=true) where {N}
     qs_ = ifelse(origin, (fill(0.0, SVector{N,Float64}),), ())
     ManyOffsetsFourierSeries(f, (qs_..., qs...))
 end
