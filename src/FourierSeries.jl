@@ -45,17 +45,22 @@ contract(f::AbstractFourierSeries, x::SVector) = contract(contract(f, last(x)), 
 contract(f::AbstractFourierSeries, ::SVector{0}) = f
 
 """
-"""
-(f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
-(f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
-
-"""
-    value(::AbstractFourierSeries{0})
+value(::AbstractFourierSeries{0})
 
 Return the evaluated Fourier series whose indices have all been contracted.
 Typically, this value has the same units as the Fourier series coefficients.
 """
 function value end
+
+"""
+    (f::AbstractFourierSeries{N})(x::SVector{N}) where {N}
+    (f::AbstractFourierSeries{1})(x::Number)
+
+Evaluate the Fourier series at the given point, which must have the same input
+dimension as the Fourier series
+"""
+(f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
+(f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
 
 """
     FourierSeries(coeffs, period::SVector{N,Float64}) where {N}
