@@ -53,28 +53,27 @@ rtol = 0.0
 iterated_integration(D, t; callback=contract, atol=atol, rtol=rtol)
 ```
 You will find a working example of this model in the `DOS_example.jl` demo that
-computes DOS over a range of frequencies for this model
+computes DOS over a range of frequencies for this model.
 
-## Custom adaptive integrand
+## Custom integrands
 
 For integrands that can be evaluated by Wannier interpolation, the following
 data are necessary to define an integrand:
 - the integrand evaluator
 - a Fourier series
-- additional parameters
-Consider implementing custom integrands using this generic template with a few
-associated methods
-```julia
-struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
-    f::TF
-    s::TS
-    p::TP
-end
-contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), p)
-(w::WannierIntegrand)(x::SVector{1}) = w(only(x))
-(w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)
-```
-This integrand will be compatible with adaptive integration routines like `iterated_integration`.
+- additional parameters for the evaluator Consider implementing custom
+integrands using the generic template type
+[`AutoBZ.Applications.WannierIntegrand`](@ref), that is compatible with all of
+the adaptive and equispace integration routines. See the examples below for how
+to use it for adaptive integration. For equispace integration, the caller is
+also responsible for passing pre-computed grid values to the integration
+routines, which is explained in the integration routine documentation.
+
+!!! note "Mixing adaptive and equispace integrals"
+    While it is possible to perform an integral where some variables are
+    integrated adaptively and others are integrated uniformly, this guide will
+    not explain how to do this. However, an example implementation of this is 
+    [`AutoBZ.Applications.AutoEquispaceOCIntegrand`](@ref).
 
 ### Tight binding
 
@@ -108,7 +107,8 @@ combinations of the new lattice vectors. Note that by defining ``\hat{a}_1 =
 (\delta_1 - \delta_2)/3a = (\hat{x} - 1/\sqrt{3}\hat{y})/2`` we can write
 ``\delta_1 = a(\hat{a}_1 + \hat{a}_2), \delta_2 = a(\hat{a}_1 - 2\hat{a}_2),
 \delta_3 = a(-2\hat{a}_1 + \hat{a}_2)``. Therefore our coordinate transformation
-matrix, ``T^{-1}`` from Cartesian coordinates to the triangular lattice is
+matrix, ``T`` from Cartesian coordinates to the triangular lattice,
+``\{\vec{a}_i = 3a\hat{a}_i\}``, is
 ```math
 T = \frac{1}{2}
 \begin{pmatrix}
@@ -128,10 +128,11 @@ reciprocal lattice vectors are constructed by the relation ``\hat{b}_i =
 \cdot \hat{a}_j = 2\pi\delta_{ij}``. This yields ``\hat{b}_1 =
 2\pi(\hat{x}+\sqrt{3}\hat{y}) = 4\pi(\hat{a}_1 - 2\hat{a_2}), \hat{b}_2 =
 2\pi(\hat{x}-\sqrt{3}\hat{y}) = 4\pi(2\hat{a}_1 - \hat{a_2})``. We would now
-interpret ``k`` in this basis, and need to observe that if ``a`` is the lattice
+interpret ``k`` in this basis, and could also use ``T`` to map from the
+Cartesian basis to it. Also observe that if ``a`` is the lattice
 constant of the hexagonal lattice, then ``\sqrt{3}a`` is the lattice constant of
 the triangular lattice, and ``2\pi/\sqrt{3}a`` is the lattice constant of the
-reciprocal lattice. However, we will have to rescale by factors of
+reciprocal lattice. However, we will have to rescale integrals by factors of
 ``|\operatorname{det}{T}|`` because of our coordinate transformations.
 
 Having chosen this suitable basis for $k$ and $x$, we can now express the
@@ -161,18 +162,14 @@ using AutoBZ
 using AutoBZ.Applications
 
 a = 1.0
-C = zeros(SMatrix{2,2,ComplexF64,4}, (5,5))
-C[1,1]   = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
-C[-1,-1] = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
-C[1,-2]  = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
-C[-1,2]  = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
-C[-2,1]  = SMatrix{2,2,ComplexF64,4}(0,0,1,0)
-C[2,-1]  = SMatrix{2,2,ComplexF64,4}(0,1,0,0)
-H = FourierSeries(OffsetArray(C, -2:2, -2:2), a)
+C = OffsetArray(zeros(SMatrix{2,2,ComplexF64,4}, (5,5)), -2:2, -2:2)
+C[1,1]   = C[1,-2] = C[-2,1] = [0 1; 0 0]
+C[-1,-1] = C[-1,2] = C[2,-1] = [0 0; 1 0]
+H = FourierSeries(C, 2*pi/a)
 
-T = 1.0 # K
+T = 100.0 # K
 kB = 8.617333262e-5 # eV/K
-q = SVector{3,Float64}(1.2, 2.8, 8.1) # arbitrary
+q = rand(SVector{2,Float64}) # arbitrary
 f = ManyOffsetsFourierSeries(H, q)
 
 lambda(x, T, kB) = -AutoBZ.Applications.fermi′(inv(kB*T), x)/(kB*T^2)
@@ -185,11 +182,7 @@ c = CubicLimits(H.period)
 atol = 1e-3
 rtol = 0.0
 
-iterated_integration(D, c; callback=contract, atol=atol, rtol=rtol)
+iterated_integration(integrand, c; callback=contract, atol=atol, rtol=rtol)
 ```
-
-## Custom equispace integrand
-
-### Fixed BZ grid
-
-### Automatic BZ grid
+You will find a working example of this code in the `graphene.jl` demo that
+calculates this integral for values of ``\vec{q}`` in the Brillouin zone.
