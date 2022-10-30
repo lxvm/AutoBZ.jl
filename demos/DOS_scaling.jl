@@ -8,7 +8,7 @@ using StaticArrays
 using HDF5
 using Plots
 
-include("../src/AutoBZ.jl")
+using AutoBZ
 
 include("Demos.jl")
 
@@ -55,7 +55,7 @@ for (i, eta) in enumerate(etas)
     @show eta atimes[i] aints[i] aerrs[i]
     println()
     # time equispace code
-    r = @timed AutoBZ.equispace_integration(D, t; atol=atol, rtol=rtol, pre_eval=AutoBZ.Applications.pre_eval_contract, equi_save...)
+    r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, pre_eval=AutoBZ.Applications.pre_eval_contract, equi_save...)
     global eints[i], eerrs[i], equi_save = r.value
     etimes[i] = r.time
     @show eta etimes[i] eints[i] eerrs[i]

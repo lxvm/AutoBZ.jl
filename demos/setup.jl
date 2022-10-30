@@ -1,5 +1,5 @@
 import Pkg
 Pkg.activate(".")
-Pkg.dev("..")
+Pkg.develop(path="..")
 Pkg.instantiate()
 Pkg.precompile()

@@ -1,11 +1,9 @@
-include("../src/AutoBZ.jl")
-
 using StaticArrays
 using OffsetArrays
 using Plots
 
-using .AutoBZ
-using .AutoBZ.Applications
+using AutoBZ
+using AutoBZ.Applications
 
 ns = 2:3
 plt = plot(; xguide="ω", yguide="DOS")

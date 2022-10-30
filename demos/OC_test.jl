@@ -4,7 +4,7 @@ In this script we compute OC at single point using the interface in AutoBZ.jl
 
 using StaticArrays
 
-include("../src/AutoBZ.jl")
+using AutoBZ
 
 include("Demos.jl")
 

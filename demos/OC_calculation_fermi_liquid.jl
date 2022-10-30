@@ -5,7 +5,7 @@ is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 
 using StaticArrays
 
-include("../src/AutoBZ.jl")
+using AutoBZ
 
 include("Demos.jl")
 

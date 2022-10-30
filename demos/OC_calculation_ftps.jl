@@ -6,7 +6,7 @@ data that we interpolate with a high-order Chebyshev regression
 using StaticArrays
 using FastChebInterp
 
-include("../src/AutoBZ.jl")
+using AutoBZ
 
 include("Demos.jl")
 include("LagrangeInterpolation.jl")
