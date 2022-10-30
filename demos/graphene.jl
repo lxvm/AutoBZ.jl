@@ -7,16 +7,6 @@ using Plots
 using AutoBZ
 using AutoBZ.Applications
 
-
-struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
-    f::TF
-    s::TS
-    p::TP
-end
-AutoBZ.Applications.contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), w.p)
-(w::WannierIntegrand)(x::SVector{1}) = w(only(x))
-(w::WannierIntegrand)(x::Number) = w.f(w.s(x), w.p...)
-
 a₀ = 1.0 # lattice constant of hexagonal lattice
 a = sqrt(3)a₀ # lattice constant of triangular lattice
 b = 2*pi/a
