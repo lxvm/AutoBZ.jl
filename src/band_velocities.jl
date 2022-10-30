@@ -8,11 +8,12 @@ evaluates the band velocities so that the return value after all the dimensions
 are contracted is a tuple containing `(H, ν₁, ν₂, ν₃)`. The band velocities are
 defined by dipole operators ``\\nu_{\\alpha} = -\\frac{i}{\\hbar}
 \\partial_{k_{\\alpha}} H`` where ``k_{\\alpha}`` is one of three input
-dimensions of ``H`` and ``\\hbar=1``. Note that differentiation changes the
-units to have an additional dimension of length, so if ``H`` has units of
-dimensions of energy, ``\\nu`` has dimensions of energy times length. The caller
-is responsible for transforming the units of the velocity (i.e. ``\\hbar``) if
-they want other units, which can usually be done as a post-processing step.
+dimensions of ``H`` and ``\\hbar=1``. Note that differentiation by ``k`` changes
+the units to have an additional dimension of length and a factor of ``2\\pi``,
+so if ``H`` has dimensions of energy, ``\\nu`` has dimensions of energy times
+length. The caller is responsible for transforming the units of the velocity
+(i.e. ``\\hbar``) if they want other units, which can usually be done as a
+post-processing step.
 """
 BandEnergyVelocity(H::FourierSeries{3}) = BandEnergyVelocity3(H)
 
