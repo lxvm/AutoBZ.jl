@@ -61,12 +61,11 @@ For integrands that can be evaluated by Wannier interpolation, the following
 data are necessary to define an integrand:
 - the integrand evaluator
 - a Fourier series
-- additional parameters for the evaluator Consider implementing custom
-integrands using the generic template type
-[`AutoBZ.Applications.WannierIntegrand`](@ref), that is compatible with all of
+- additional parameters for the evaluator
+Consider implementing custom integrands using the generic template type
+[`AutoBZ.Applications.WannierIntegrand`](@ref) that is compatible with all of
 the adaptive and equispace integration routines. For example, we can replicate
-the preceding tight-binding example by defining an integrand with the custom
-integrand type
+the preceding tight-binding example by defining a custom integrand
 ```julia
 using LinearAlgebra
 dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
