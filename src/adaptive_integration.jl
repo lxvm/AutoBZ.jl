@@ -1,5 +1,5 @@
 export tree_integration, iterated_integration
-
+# TODO: rename callback to pre_eval
 """
     tree_integration(f, a, b)
     tree_integration(f, ::CubicLimits)

@@ -1,9 +1,17 @@
 # Integrands
 
-## Generic constructor
+## Generic
+
+### Types
 
 ```@docs
 AutoBZ.Applications.WannierIntegrand
+```
+
+### Methods
+
+```@docs
+AutoBZ.Applications.pre_eval_contract(::AutoBZ.Applications.WannierIntegrand,::Any,::Any)
 ```
 
 ## Pre-defined

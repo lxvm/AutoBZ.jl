@@ -1,5 +1,8 @@
 export pre_eval_contract
-
+# TODO:
+# implement pre_eval_fft
+# generalize pre_eval_contract to all IntegrationLimits{d}
+# rename pre_eval_contract to contract? the new method wouldn't conflict
 function pre_eval_contract(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     f_xs = Vector{Tuple{eltype(f),Int}}(undef, npt^d)
@@ -38,6 +41,13 @@ function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3
     return pre
 end
 
+"""
+    pre_eval_contract(f::WannierIntegrand, l::IntegrationLimits, npt)
+
+This function will evaluate the Fourier series and integration weights needed
+for equispace integration of `f` at `npt` points per dimension. `l` should
+contain the relevant symmetries needed for IBZ integration, if desired.
+"""
 pre_eval_contract(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
 
 pre_eval_contract(G::GreensFunction, l, npt) = pre_eval_contract(G.H, l, npt)

@@ -64,28 +64,28 @@ data are necessary to define an integrand:
 - additional parameters for the evaluator Consider implementing custom
 integrands using the generic template type
 [`AutoBZ.Applications.WannierIntegrand`](@ref), that is compatible with all of
-the adaptive and equispace integration routines. See the examples below for how
-to use it for adaptive integration. For equispace integration, the caller is
-also responsible for passing pre-computed grid values to the integration
-routines, which is explained in the integration routine documentation.
+the adaptive and equispace integration routines. For example, we can replicate
+the preceding tight-binding example by defining an integrand with the custom
+integrand type
+```julia
+using LinearAlgebra
+dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
+D = WannierIntegrand(dos, H, (ω, μ, η))
+```
 
-!!! note "Mixing adaptive and equispace integrals"
+!!! tip "Optimizing equispace integration"
+    Unlike for adaptive integration, the caller is responsible for passing
+    pre-computed grid values to the equispace integration routines, which is
+    explained in the documentation for [Equispace integration](@ref) and
+    [`AutoBZ.Applications.pre_eval_contract`](@ref).
+
+!!! warning "Mixing adaptive and equispace integrals"
     While it is possible to perform an integral where some variables are
     integrated adaptively and others are integrated uniformly, this guide will
     not explain how to do this. However, an example implementation of this is 
     [`AutoBZ.Applications.AutoEquispaceOCIntegrand`](@ref).
 
-### Tight binding
-
-For example, we can replicate the preceding tight-binding example by defining an
-integrand with the custom integrand type
-```julia
-using LinearAlgebra
-dos(H_k::AbstractMatrix, ω, μ, η) = -tr(imag(inv(complex(ω+μ, η)*I-H_k)))/pi
-D = WannierIntegrad(dos, H, (ω, μ, η))
-```
-
-### Graphene example with `ManyOffsetsFourierSeries`
+## Graphene example with `ManyOffsetsFourierSeries`
 
 Let's study an example motivated by graphene whose Hamiltonian is given by a
 tight-binding model on the hexagonal lattice with lattice constant ``a`` and
@@ -150,10 +150,11 @@ g(\vec{q}) = \int_{\text{BZ}} dk_x dk_y \frac{\lambda(\xi(\vec{k})) - \lambda(\x
 where ``\xi(\vec{k}) = \operatorname{det}(H(\vec{k}))`` and ``\lambda(\omega) =
 \partial_T f(\omega)`` is the temperature derivative of the Fermi distribution.
 Since the integrand requires evaluation of the Hamiltonian at various
-``k``-points simultaneously, the `ManyOffsetsFourierSeries` type can be used to
-do this. Moreover, `AutoBZ.Applications` has functions to evaluate Fermi
-functions and their derivatives. Putting everything together leads us to the
-code example below
+``k``-points simultaneously, the
+[`AutoBZ.Applications.ManyOffsetsFourierSeries`](@ref) type can be used to do
+this. Moreover, `AutoBZ.Applications` has functions to evaluate Fermi functions
+and their derivatives. Putting everything together leads us to the code example
+below
 ```julia
 using StaticArrays
 using OffsetArrays
