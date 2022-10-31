@@ -137,7 +137,7 @@ function discretize_equispace(l, npt)
     for i in CartesianIndices(flag)
         if flag[i]
             n += 1
-            out[n] = (StaticArrays.sacollect(T, (p[2]-p[1])*(j-1)/npt + p[1] for (j, p) in zip(i, ps)), wsym[n])
+            out[n] = (StaticArrays.sacollect(T, (p[2]-p[1])*(j-1)/npt + p[1] for (j, p) in zip(Tuple(i), ps)), wsym[n])
             n >= nsym && break
         end
     end
