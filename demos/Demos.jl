@@ -292,24 +292,31 @@ function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
+    pre_ts = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    σ = OCIntegrand(H, Σ, 0.0, β, μ)
-    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
-    @info "using $(Threads.nthreads()) threads"
+    nthreads = Threads.nthreads()
+    @info "using $nthreads threads"
+    batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
-    Threads.@threads for (i, (freq_lim, Ω)) in collect(enumerate(zip(freq_lims, Ωs)))
-        @info "Ω=$Ω starting ..."
-        t_ = time()
-        l = CompositeLimits(BZ_lims, freq_lim)
-        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
-        int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
-        atol = rtol*10^floor(log10(norm(int_)))
-        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=0.0, callback=contract)
-        ts[i] = time() - t_
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+    Threads.@threads for batch in batches
+        σ = OCIntegrand(H, Σ, 0.0, β, μ)
+        Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
+        for (i, (freq_lim, Ω)) in batch
+            @info "Ω=$Ω starting ..."
+            t_ = time()
+            l = CompositeLimits(BZ_lims, freq_lim)
+            Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+            int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
+            atol = rtol*10^floor(log10(norm(int_)))
+            pre_ts[i] = time() - t_
+            t_ = time()
+            ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=0.0, callback=contract)
+            ts[i] = time() - t_
+            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        end
     end
-    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    @info "Finished in $(sum(ts)+sum(pre_ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    (OC=ints, err=errs, t=ts, pre_t=pre_ts, Omega=Ωs)
 end
 
 end # module
