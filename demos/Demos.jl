@@ -6,8 +6,8 @@ using HDF5
 using StaticArrays
 using OffsetArrays
 
-using ..AutoBZ
-using ..AutoBZ.Applications
+using AutoBZ
+using AutoBZ.Applications
 
 #=
 Section: loading data from HDF5
