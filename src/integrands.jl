@@ -204,7 +204,7 @@ EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
 
 """
-    OCIntegrand(H, ν₁, ν₂, ν₃, Ω, β, η, μ)
+    OCIntegrand(H, ν₁, ν₂, ν₃, Σ, Ω, β, μ)
 
 A function whose integral over the BZ and the frequency axis gives the optical
 conductivity. Mathematically, this computes
