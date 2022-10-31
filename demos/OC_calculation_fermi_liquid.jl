@@ -3,8 +3,6 @@ In this script we compute OC at various Ω at a single η, where the temperature
 is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
-using StaticArrays
-
 using AutoBZ
 
 include("Demos.jl")
@@ -12,9 +10,9 @@ include("Demos.jl")
 # import Fourier coefficients of Wannier Hamiltonian
 coeffs = Demos.loadW90Hamiltonian("epsilon_mn.h5")
 # define the periods of the axes of the Brillouin zone for example material
-periods = fill(round(2π/3.858560, digits=6), SVector{3,Float64})
+period = round(2π/3.858560, digits=6)
 # construct the Hamiltonian datatype
-H = AutoBZ.Applications.FourierSeries(coeffs, periods)
+H = AutoBZ.Applications.FourierSeries(coeffs, period)
 
 # define problem parameters
 μ = 12.3958 # eV

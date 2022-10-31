@@ -3,8 +3,6 @@ In this script, we extract timings for adaptive and equispace OC for diminishing
 eta
 =#
 
-
-using StaticArrays
 using HDF5
 using Plots
 
@@ -15,9 +13,9 @@ include("Demos.jl")
 # import Fourier coefficients of Wannier Hamiltonian
 coeffs = Demos.loadW90Hamiltonian("epsilon_mn.h5")
 # define the periods of the axes of the Brillouin zone for example material
-periods = fill(round(2π/3.858560, digits=6), SVector{3,Float64})
+period = round(2π/3.858560, digits=6)
 # construct the Hamiltonian datatype
-H = AutoBZ.Applications.FourierSeries(coeffs, periods)
+H = AutoBZ.Applications.FourierSeries(coeffs, period)
 
 # Define problem parameters
 ω = 0.0 # eV

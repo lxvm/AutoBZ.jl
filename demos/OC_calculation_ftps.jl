@@ -3,7 +3,6 @@ In this script we compute OC at various Ω using frequency-dependent self energy
 data that we interpolate with a high-order Chebyshev regression
 =#
 
-using StaticArrays
 using FastChebInterp
 
 using AutoBZ
@@ -14,9 +13,9 @@ include("LagrangeInterpolation.jl")
 # import Fourier coefficients of Wannier Hamiltonian
 coeffs = Demos.loadW90Hamiltonian("epsilon_mn.h5")
 # define the periods of the axes of the Brillouin zone for example material
-periods = fill(round(2π/3.858560, digits=6), SVector{3,Float64})
+period = round(2π/3.858560, digits=6)
 # construct the Hamiltonian datatype
-H = AutoBZ.Applications.FourierSeries(coeffs, periods)
+H = AutoBZ.Applications.FourierSeries(coeffs, period)
 
 # import self energies from an equispaced grid
 sigma_data = Demos.import_self_energy("srvo_sigma_ftps_T0.h5")
