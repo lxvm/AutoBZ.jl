@@ -71,10 +71,13 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
     error("not implemented")
 end
 
+# TODO make this compute a real update inferred from f. May have to modify e.g.
+# GammaIntegrand to do so
 function npt_update_sigma(npt, f, atol, rtol)
+    npt+20
 end
 
-function npt_update_eta(npt, f, atol, rtol)
+function npt_update_eta(npt, η, atol, rtol)
 end
 
 #=

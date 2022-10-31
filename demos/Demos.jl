@@ -257,4 +257,59 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
+function OCscript_auto(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol; ertol=1.0, eatol=0.0)
+    BZ_lims = TetrahedralLimits(H.period)
+    freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
+    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
+    σ = OCIntegrand(H, Σ, 0.0, β, μ)
+    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
+    for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
+        @info "Ω=$Ω starting ..."
+        t = time()
+        l = CompositeLimits(BZ_lims, freq_lim)
+        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+        int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
+        atol = rtol*10^floor(log10(norm(int_)))
+        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=0.0, callback=contract)
+        ts[i] = time() - t
+        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+    end
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
+end
+
+
+function OCscript_auto_parallel(filename, args...)
+    results = OCscript_auto_parallel_(args...)
+    write_nt_to_h5(results, filename)
+    results
+end
+
+function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol; ertol=1.0, eatol=0.0)
+    BZ_lims = TetrahedralLimits(H.period)
+    freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
+    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    errs = Vector{Float64}(undef, length(Ωs))
+    ts = Vector{Float64}(undef, length(Ωs))
+    σ = OCIntegrand(H, Σ, 0.0, β, μ)
+    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
+    @info "using $(Threads.nthreads()) threads"
+    t = time()
+    Threads.@threads for (i, (freq_lim, Ω)) in collect(enumerate(zip(freq_lims, Ωs)))
+        @info "Ω=$Ω starting ..."
+        t_ = time()
+        l = CompositeLimits(BZ_lims, freq_lim)
+        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+        int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
+        atol = rtol*10^floor(log10(norm(int_)))
+        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=0.0, callback=contract)
+        ts[i] = time() - t_
+        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+    end
+    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    (OC=ints, err=errs, t=ts, Omega=Ωs)
+end
+
 end # module
