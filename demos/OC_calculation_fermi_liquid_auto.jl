@@ -33,6 +33,7 @@ T = sqrt(η/c)
 
 # set error tolerances
 rtol = 1e-3
+atol = 1e-2
 
 # run script
-results = Demos.OCscript_auto_parallel("OC_results_fermi_auto_rtol$(-floor(Int, log10(rtol))).h5", H, Σ, β, Ωs, μ, rtol)
+results = Demos.OCscript_auto_parallel("OC_results_fermi_auto_rtol$(-floor(Int, log10(rtol))).h5", H, Σ, β, Ωs, μ, rtol, atol)

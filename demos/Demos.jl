@@ -287,7 +287,7 @@ function OCscript_auto_parallel(filename, args...)
     results
 end
 
-function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol; ertol=1.0, eatol=0.0)
+function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -307,10 +307,10 @@ function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
             l = CompositeLimits(BZ_lims, freq_lim)
             Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
             int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
-            atol = rtol*10^floor(log10(norm(int_)))
+            atol_ = rtol*10^floor(log10(norm(int_)))
             pre_ts[i] = time() - t_
             t_ = time()
-            ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=0.0, callback=contract)
+            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, callback=contract)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
