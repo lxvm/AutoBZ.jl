@@ -211,7 +211,7 @@ conductivity. Mathematically, this computes
 ```math
 \\sigma_{\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
-where ``f(\\omega) = (e^{\\beta\\omega}+1))^{-1}`` is the Fermi distriubtion.
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
 """
 struct OCIntegrand{T,TS}
     HV::T
