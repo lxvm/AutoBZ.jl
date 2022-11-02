@@ -304,13 +304,13 @@ struct ManyFourierSeries{N,T<:Tuple{Vararg{AbstractFourierSeries{N}}}} <: Abstra
     period::SVector{N}
 end
 function ManyFourierSeries(fs::AbstractFourierSeries{N}...) where {N}
-    @assert all(map(==(period(fs[1])), map(period, last(Base.tail(fs))))) "all periods should match"
+    @assert all(map(==(period(fs[1])), map(period, Base.tail(fs)))) "all periods should match"
     ManyFourierSeries(fs, period(fs[1]))
 end
 contract(fs::ManyFourierSeries, x::Number) = ManyFourierSeries(map(f -> contract(f, x), fs.fs), pop(fs.period))
 period(fs::ManyFourierSeries) = fs.period
 value(fs::ManyFourierSeries{0}) = map(value, fs.fs)
-Base.eltype(::Type{ManyFourierSeries{N,T}}) where {N,T} = map(eltype, T.parameters)
+Base.eltype(::Type{ManyFourierSeries{N,T}}) where {N,T} = map(eltype, Tuple(T.parameters))
 
 """
     ManyOffsetsFourierSeries(f, qs..., [origin=true])
