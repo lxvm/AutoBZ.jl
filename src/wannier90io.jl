@@ -52,7 +52,7 @@ function load_hamiltonian(filename; period=1.0)
     s = Int(cbrt(nrpts))
     r = Int((s-1)/2)
     C = reshape(similar(C_), s, s, s)
-    for (i, idx) in enumdegenerate(irvec)
+    for (i, idx) in enumerate(irvec)
         C[CartesianIndex((idx .+ (r+1))...)] = C_[i]
     end
     FourierSeries(OffsetArray(C, -r:r, -r:r, -r:r), to_3period(period))
