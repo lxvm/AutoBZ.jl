@@ -61,12 +61,12 @@ to_3period(x::T) where {T} = fill(x, SVector{3,T})
 to_3period(x::SVector{3}) = identity(x)
 
 """
-    parse_gauge_transform(filename)
+    parse_position_operator(filename)
 
-Parse a gauge transform output from Wannier90 into `filename`, extracting the
+Parse a position operator output from Wannier90 into `filename`, extracting the
 fields `(date_time, num_wann, nrpts, irvec, X, Y, Z)`
 """
-parse_gauge_transform(filename) = open(filename) do file
+parse_position_operator(filename) = open(filename) do file
     date_time = readline(file)
 
     num_wann = parse(Int, readline(file))
@@ -104,16 +104,16 @@ end
 
 
 """
-    load_gauge_transform(filename; period=1.0)
+    load_position_operator(filename; period=1.0)
 
-Load a gauge transform Hamiltonian output from Wannier90 into `filename` as an
-evaluatable `FourierSeries` whose periodicity can be set by the keyword argument
-`period` which defaults to setting the period along each dimension to `1.0`. To
-define different periods for different dimensions, pass an `SVector` as the
-`period`.
+Load a position operator Hamiltonian output from Wannier90 into `filename` as an
+evaluatable `ManyFourierSeries` with separate x, y, and z components whose
+periodicity can be set by the keyword argument `period` which defaults to
+setting the period along each dimension to `1.0`. To define different periods
+for different dimensions, pass an `SVector` as the `period`.
 """
-function load_gauge_transform(filename; period=1.0)
-    date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_gauge_transform(filename)
+function load_position_operator(filename; period=1.0)
+    date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(filename)
     s = Int(cbrt(nrpts))
     r = Int((s-1)/2)
     X = reshape(similar(X_), s, s, s)
