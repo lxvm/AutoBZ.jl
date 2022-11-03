@@ -38,7 +38,7 @@ using Combinatorics: permutations
 # using FFTW
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration,
-    equispace_integration, automatic_equispace_integration, discretize_equispace_
+    equispace_integration, automatic_equispace_integration, generic_int_eval, discretize_equispace_
 import ..AutoBZ: box, lower, upper, nsyms, symmetries
 
 # include("linalg.jl")

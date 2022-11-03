@@ -285,26 +285,27 @@ The keyword arguments, which are just passed to
       velocities and integration weights on a more refined grid than `pre1`
     - `npt2`: an integer that should be equivalent to `length(pre)`
 """
-mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TF,TH}
+mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TI,TF,TH}
     σ::OCIntegrand{T,TS}
     l::TL
     atol::Float64
     rtol::Float64
     pre_eval::TP
+    int_eval::TI
     npt_update::TF
     npt1::Int
     pre1::Vector{Tuple{TH,Int}}
     npt2::Int
     pre2::Vector{Tuple{TH,Int}}
 end
-AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
+AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, int_eval=generic_int_eval, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, int_eval, npt_update, npt1, pre1, npt2, pre2)
 
 Base.eltype(::Type{<:AutoEquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 (f::AutoEquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
 function (f::AutoEquispaceOCIntegrand)(ω::Number)
     g = GammaIntegrand(f.σ, ω)
-    int, err, other = automatic_equispace_integration(g, f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=f.pre_eval, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
+    int, err, other = automatic_equispace_integration(g, f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=f.pre_eval, int_eval=f.int_eval, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
     f.npt1 = other.npt1
     f.pre1 = other.pre1
     f.npt2 = other.npt2
