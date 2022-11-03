@@ -71,13 +71,22 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
     error("not implemented")
 end
 
-# TODO make this compute a real update inferred from f. May have to modify e.g.
-# GammaIntegrand to do so
-function npt_update_sigma(npt, f, atol, rtol)
-    npt+20
+function npt_update_sigma(npt, g::GammaIntegrand, atol, rtol)
+    ηω = im_sigma_to_eta(-imag(g.Mω))
+    ηΩ = im_sigma_to_eta(-imag(g.MΩ))
+    npt_update_eta(npt, min(ηω, ηΩ), atol, rtol)
 end
 
+im_sigma_to_eta(x::UniformScaling) = -x.λ
+
+"""
+    npt_update_eta(npt, η, atol, rtol)
+
+Implements the heuristics for incrementing kpts suggested by Kaye et al.
+"""
 function npt_update_eta(npt, η, atol, rtol)
+    npt == 0 && return min(400, round(Int, 6/η))
+    npt + max(50, round(Int, 2.3/η))
 end
 
 #=
