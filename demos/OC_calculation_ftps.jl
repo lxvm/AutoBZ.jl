@@ -32,7 +32,7 @@ sigma_bary_interp = LagrangeInterpolation.LocalEquiBaryInterpolant(sigma_data.ω
 
 # construct the self energy datatype
 Σ = AutoBZ.Applications.ScalarEnergy(sigma_cheb_interp, lb, ub)
-# Σ = AutoBZ.Applications.ScalarEnergy(sigma_bary_interp, lb, ub)
+# Σ = AutoBZ.Applications.ScalarEnergy(sigma_bary_interp, minimum(sigma_data.ω), maximum(sigma_data.ω))
 
 # define problem parameters
 μ = 12.3958 # eV
