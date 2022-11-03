@@ -1,60 +1,68 @@
-export BandEnergyVelocity
+export BandEnergyVelocity, BandEnergyBerryVelocity
 
 """
-    BandEnergyVelocity(H::FourierSeries{3})
+    BandEnergyVelocity(H::FourierSeries{N}, V::ManyFourierSeries{N}) where N
+    BandEnergyVelocity(H::FourierSeries{N}) where N
 
-This constructor takes a Fourier series representing the Hamiltonian and also
-evaluates the band velocities so that the return value after all the dimensions
-are contracted is a tuple containing `(H, ν₁, ν₂, ν₃)`. The band velocities are
-defined by dipole operators ``\\nu_{\\alpha} = \\frac{1}{\\hbar}
+The bottom constructor takes a Fourier series representing the Hamiltonian and
+also evaluates the band velocities so that the return value after all the
+dimensions are contracted is a tuple containing `(H, v₁, v₂, ..., vₙ)`. The band
+velocities are defined by dipole operators ``\\nu_{\\alpha} = \\frac{1}{\\hbar}
 \\partial_{k_{\\alpha}} H`` where ``k_{\\alpha}`` is one of three input
-dimensions of ``H`` and ``\\hbar=1``. Note that differentiation by ``k`` changes
+dimensions of ``H`` and ``\\hbar=1``. Effectively, this type evaluates `H` and
+its gradient. Note that differentiation by ``k`` changes the units to have an
+additional dimension of length and a factor of ``2\\pi``, so if ``H`` has
+dimensions of energy, ``\\nu`` has dimensions of energy times length. The caller
+is responsible for transforming the units of the velocity (i.e. ``\\hbar``) if
+they want other units, which can usually be done as a post-processing step.
+"""
+struct BandEnergyVelocity{N,TH<:FourierSeries{N},TV<:ManyFourierSeries{N}} <: AbstractFourierSeries{N}
+    H::TH
+    V::TV
+end
+BandEnergyVelocity(H::FourierSeries{N}) where N = BandEnergyVelocity(H, ManyFourierSeries((), period(H)))
+period(f::BandEnergyVelocity) = period(f.H)
+function contract(f::BandEnergyVelocity{N}, x::Number) where N
+    v = FourierSeriesDerivative(f.H, SVector(ntuple(n -> ifelse(n == N, 1, 0), Val{N}())))
+    BandEnergyVelocity(contract(f.H, x), ManyFourierSeries((contract(v, x), contract(f.V, x).fs...), pop(period(f))))
+end
+value(f::BandEnergyVelocity{0}) = (value(f.H), value(f.V)...)
+Base.eltype(::Type{BandEnergyVelocity{N,TH,TV}}) where {N,M,TH,TV<:ManyFourierSeries{N,<:NTuple{M}}} = NTuple{N+M+1,eltype(TH)}
+
+"""
+    BandEnergyBerryVelocity(H::BandEnergyVelocity{N}, A::ManyFourierSeries{N}) where N
+    BandEnergyBerryVelocity(H::FourierSeries{N}, A::ManyFourierSeries{N,<:NTuple{N}}) where N
+
+This constructor takes a `FourierSeries`, `H`, representing the Hamiltonian and
+also a `ManyFourierSeries`, `A`, representing the gradient of the Berry
+connection, and evaluates modified band velocities so that the return value
+after all the dimensions are contracted is a tuple containing `(H, ṽ₁, ṽ₂,
+..., ṽₙ)`. The modified band velocities are defined by
+``\\tilde{\\nu}_{\\alpha} = \\frac{1}{\\hbar} \\partial_{k_{\\alpha}} H -
+\frac{i}{\\hbar} [H,A_{\\alpha}]`` where ``k_{\\alpha}`` is one of three input
+dimensions of ``H`` and ``\\hbar=1``. Effectively, this type evaluates the
+Hamiltonian and its gradient modified by a commutator of the Hamiltonian with
+the gradient of the Berry connection. Note that differentiation by ``k`` changes
 the units to have an additional dimension of length and a factor of ``2\\pi``,
 so if ``H`` has dimensions of energy, ``\\nu`` has dimensions of energy times
 length. The caller is responsible for transforming the units of the velocity
 (i.e. ``\\hbar``) if they want other units, which can usually be done as a
 post-processing step.
 """
-BandEnergyVelocity(H::FourierSeries{3}) = BandEnergyVelocity3(H)
-
-struct BandEnergyVelocity3{TH} <: AbstractFourierSeries{3}
-    H::TH
+struct BandEnergyBerryVelocity{N,THV<:BandEnergyVelocity{N},TA<:ManyFourierSeries{N}} <: AbstractFourierSeries{N}
+    HV::THV
+    A::TA
 end
 
-Base.eltype(f::BandEnergyVelocity3) = Tuple{ntuple(_ -> eltype(f.H), Val{4}())...}
-period(f::BandEnergyVelocity3) = period(f.H)
-
-function contract(f::BandEnergyVelocity3, z::Number)
-    ν₃ = FourierSeriesDerivative(f.H, SVector(0,0,1))
-    BandEnergyVelocity2(contract(f.H, z), contract(ν₃, z))
+function BandEnergyBerryVelocity(H::FourierSeries{N}, A::ManyFourierSeries{N,<:NTuple{N}}) where N
+    @assert period(H) == period(A)
+    BandEnergyBerryVelocity(BandEnergyVelocity(H), A)
 end
-
-struct BandEnergyVelocity2{TH,T3} <: AbstractFourierSeries{2}
-    H::TH
-    ν₃::T3
+period(f::BandEnergyBerryVelocity) = period(f.HV)
+contract(f::BandEnergyBerryVelocity, x::Number) = BandEnergyBerryVelocity(contract(f.HV, x), contract(f.A, x))
+function value(f::BandEnergyBerryVelocity{0})
+    H, vs... = value(f.HV)
+    As = value(f.A)
+    (H, ntuple(n -> vs[n] - im*(H*As[n] - As[n]*H), Val{length(As)}())...)
 end
-
-function contract(f::BandEnergyVelocity2, y::Number)
-    ν₂ = FourierSeriesDerivative(f.H, SVector(0,1))
-    BandEnergyVelocity1(contract(f.H, y), contract(ν₂, y), contract(f.ν₃, y))
-end
-
-struct BandEnergyVelocity1{TH,T2,T3} <: AbstractFourierSeries{1}
-    H::TH
-    ν₂::T2
-    ν₃::T3
-end
-
-function contract(f::BandEnergyVelocity1, x::Number)
-    ν₁ = FourierSeriesDerivative(f.H, SVector(1))
-    BandEnergyVelocity0(contract(f.H, x), contract(ν₁, x), contract(f.ν₂, x), contract(f.ν₃, x))
-end
-
-struct BandEnergyVelocity0{TH,T1,T2,T3} <: AbstractFourierSeries{0}
-    H::TH
-    ν₁::T1
-    ν₂::T2
-    ν₃::T3
-end
-Base.eltype(f::BandEnergyVelocity0) = Tuple{map(eltype, (f.H, f.ν₁, f.ν₂, f.ν₃))...}
-value(f::BandEnergyVelocity0) = map(value, (f.H, f.ν₁, f.ν₂, f.ν₃))
+Base.eltype(::Type{BandEnergyBerryVelocity{N,THV,TA}}) where {N,THV,TA} = eltype(THV)
