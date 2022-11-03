@@ -85,7 +85,7 @@ im_sigma_to_eta(x::UniformScaling) = -x.λ
 Implements the heuristics for incrementing kpts suggested by Kaye et al.
 """
 function npt_update_eta(npt, η, atol, rtol)
-    npt == 0 && return min(400, round(Int, 6/η))
+    npt == 0 && return round(Int, 6/η)
     npt + max(50, round(Int, 2.3/η))
 end
 
