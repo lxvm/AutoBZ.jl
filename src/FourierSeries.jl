@@ -91,7 +91,7 @@ struct FourierSeries{N,T} <: AbstractFourierSeries{N}
 end
 
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
-Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = eltype(T)
+Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = Base.promote_op(*, ComplexF64, eltype(T))
 Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
 """
@@ -301,7 +301,7 @@ contracts them all simultaneously.
 """
 struct ManyFourierSeries{N,T<:Tuple{Vararg{AbstractFourierSeries{N}}}} <: AbstractFourierSeries{N}
     fs::T
-    period::SVector{N}
+    period::SVector{N,Float64}
 end
 function ManyFourierSeries(fs::AbstractFourierSeries{N}...) where {N}
     @assert all(map(==(period(fs[1])), map(period, Base.tail(fs)))) "all periods should match"
