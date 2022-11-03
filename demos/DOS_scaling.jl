@@ -8,14 +8,10 @@ using Plots
 
 using AutoBZ
 
-include("Demos.jl")
-
-# import Fourier coefficients of Wannier Hamiltonian
-coeffs = Demos.loadW90Hamiltonian("epsilon_mn.h5")
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
-# construct the Hamiltonian datatype
-H = AutoBZ.Applications.FourierSeries(coeffs, period)
+# Load the Wannier Hamiltonian as a Fourier series
+H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
 
 # Define problem parameters
 ω = 0.0 # eV
