@@ -5,7 +5,6 @@ using LinearAlgebra
 using HDF5
 using StaticArrays
 using OffsetArrays
-using ParallelMagics
 
 using AutoBZ
 using AutoBZ.Applications
@@ -138,7 +137,7 @@ function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, r
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
         σ = OCIntegrand(H, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
+        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
@@ -162,7 +161,7 @@ function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, at
         @info "Ω=$Ω starting ..."
         t = time()
         σ = OCIntegrand(H_,ν₁_, ν₂_, ν₃_, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
+        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
@@ -191,7 +190,7 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
             σ = OCIntegrand(H, Σ, Ω, β, μ)
-            ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, callback=contract)
+            ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
@@ -216,19 +215,19 @@ function OCscript_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
         t = time()
         σ = OCIntegrand(HV, Σ, Ω, β, μ)
         Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
-        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
+        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_equispace_parallel(filename, args...)
-    results = OCscript_equispace_parallel_(args...)
+function OCscript_equispace_parallel(filename, args...; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
+    results = OCscript_equispace_parallel_(args..., pre_eval, nthreads)
     write_nt_to_h5(results, filename)
     results
 end
-function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol, pre_eval, nthreads)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     HV = BandEnergyVelocity(H)
@@ -239,7 +238,6 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    nthreads = Threads.nthreads()
     @info "using $nthreads threads"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
@@ -249,7 +247,7 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
             t_ = time()
             σ = OCIntegrand(HV, Σ, Ω, β, μ)
             Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
-            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, callback=contract)
+            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
@@ -274,7 +272,7 @@ function OCscript_auto(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rt
         Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
         int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
         atol_ = rtol*norm(int_)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, callback=contract)
+        ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
     end
@@ -311,7 +309,7 @@ function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
             atol_ = rtol*norm(int_)
             pre_ts[i] = time() - t_
             t_ = time()
-            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, callback=contract)
+            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
@@ -320,7 +318,14 @@ function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
     (OC=ints, err=errs, t=ts, pre_t=pre_ts, Omega=Ωs)
 end
 
-function OCscript_auto_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+
+function OCscript_auto_equispace(filename, args...)
+    results = OCscript_auto_equispace_(args...)
+    write_nt_to_h5(results, filename)
+    results
+end
+
+function OCscript_auto_equispace_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -339,44 +344,35 @@ function OCscript_auto_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_auto_equispace_parallel(filename, args...)
-    results = OCscript_auto_equispace_parallel_(args...)
+function OCscript_auto_equispace_parallel(filename, args...; nthreads=Threads.nthreads())
+    results = OCscript_auto_equispace_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_auto_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+function OCscript_auto_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
     BZ_lims = TetrahedralLimits(H.period)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    nthreads = Threads.nthreads()
     @info "using $nthreads threads"
-    σ = OCIntegrand(H, Σ, 0.0, β, μ)
-    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol; int_eval=parallel_int_eval)
-    for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
-        t_ = time()
-        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
-        ts[i] = time() - t_
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+    batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
+    t = time()
+    Threads.@threads for batch in batches
+        σ = OCIntegrand(H, Σ, 0.0, β, μ)
+        Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
+        for (i, (freq_lim, Ω)) in batch
+            @info "Ω=$Ω starting ..."
+            t_ = time()
+            Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
+            ts[i] = time() - t_
+            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        end
     end
-    @info "Finished in $(sum(ts)) (s) wall clock time"
+    @info "Finished in $(sum(ts)+sum(pre_ts)) (s) CPU time and $(time()-t) (s) wall clock time"
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
-
-parallel_int_eval(f, pre, dvol) = dvol * ParallelMagics.sum(x -> x[2]*f(x[1]), pre)
-#=
-function parallel_int_eval(f, pre, dvol)
-    nthreads = Threads.nthreads()
-    s = Vector{}(undef, nthreads)
-    Threads.@threads for i in 1:nthreads
-        s[i] = sum(x -> x[2]*f(x[1]), @view pre[])
-    end
-    dvol * sum(s)
-end
-=#
 
 end # module

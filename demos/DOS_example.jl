@@ -34,7 +34,7 @@ for (j, n) in enumerate(ns)
     for (k,η) in enumerate(ηs)
         Threads.@threads for (i, ω) in collect(enumerate(ωs))
             D = DOSIntegrand(H, ω, EtaEnergy(η), μ)
-            ints[i], = iterated_integration(D, t; callback=contract, atol=atol, rtol=rtol)
+            ints[i], = iterated_integration(D, t; atol=atol, rtol=rtol)
         end
         plot!(plt, ωs, ints; label=k == length(ηs) ? "n=$n" : "", color=j, alpha=k/length(ηs))#(1/(1+η^3)))
     end

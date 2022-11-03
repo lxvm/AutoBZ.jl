@@ -31,7 +31,7 @@ kB = 8.617333262e-5 # eV/K
 lambda(x, T, kB) = -AutoBZ.Applications.fermi′(inv(kB*T), x)/(kB*T^2)
 integrand_(f, T, kB) = (lambda(real(det(f[1])), T, kB) - lambda(real(det(f[2])), T, kB))/(real(det(f[1]))-real(det(f[2])))
 
-ints = map(k -> contract(WannierIntegrand(integrand_, OffsetFourierSeries(H, M*SVector(1.0, 2.0)), (T, kB)), k[2])(k[1]), map(k -> M * SVector(k), Iterators.product(ks, ks)))
+ints = map(k -> integrand_(OffsetFourierSeries(H, M*SVector(1.0, 2.0))(k), T, kB), map(k -> M * SVector(k), Iterators.product(ks, ks)))
 int_plt = heatmap(ks, ks, map(abs, ints); xguide="kx", yguide="ky", title="|Integrand| with q=(1,2)", color=:BuGn)
 savefig(int_plt, "graphene_integrand.png")
 
@@ -46,7 +46,7 @@ for (i, kx) in enumerate(ks), (j, ky) in enumerate(ks)
     q = M * SVector((kx, ky))
     f = ManyOffsetsFourierSeries(H, q)
     integrand = WannierIntegrand(integrand_, f, (T, kB))
-    r[i,j], = iterated_integration(integrand, c; callback=contract, atol=atol, rtol=rtol)
+    r[i,j], = iterated_integration(integrand, c; atol=atol, rtol=rtol)
 end
 plt = heatmap(ks, ks, map(abs, r); xguide="qx", yguide="qy", title="|Integral| in q-space", color=:BuGn)
 savefig(plt, "graphene_integral.png")

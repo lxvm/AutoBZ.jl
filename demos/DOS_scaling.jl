@@ -44,13 +44,13 @@ for (j, eta) in enumerate(etas)
     for (i, omega) in enumerate(omegas)
         D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
         # time adaptive code
-        r = @timed AutoBZ.iterated_integration(D, t; callback=AutoBZ.Applications.contract, atol=atol, rtol=rtol)
+        r = @timed AutoBZ.iterated_integration(D, t; atol=atol, rtol=rtol)
         aints[i,j], aerrs[i,j] = r.value
         atimes[i,j] = r.time
         # @show eta omega atimes[i,j] aints[i,j] aerrs[i,j]
         # println()
         # time equispace code
-        r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, pre_eval=AutoBZ.Applications.pre_eval_contract, equi_save...)
+        r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
         global eints[i,j], eerrs[i,j], equi_save = r.value
         etimes[i,j] = r.time
         # @show eta omega etimes[i,j] eints[i,j] eerrs[i,j]
