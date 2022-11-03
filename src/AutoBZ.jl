@@ -3,30 +3,25 @@
 
 A small package implementing adaptive iterated integration and equispace
 integration for Brillouin-zone integration of sharply-peaked functions.
-
-TODO:
-* implement generic equispace quadrature
-* implement symmetry operations for Matrix-valued IBZ integration
-* modify 1d adaptive quadrature to take quadrature rule and routine as arguments
 """
 module AutoBZ
 
 using LinearAlgebra
-
 using StaticArrays
 using HCubature
 # using QuadGK
 
 include("IntegrationLimits.jl")
-include("callback.jl")
+include("thunk.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
 
 """
     Applications
 
-A small module depending on AutoBZ that calculates DOS and optical conductivity.
-Note: it could be a separate package, but is included as an example application.
+A small module depending on AutoBZ that calculates density of states and optical
+conductivity, and also provides tools for custom integrands evaluated by Wannier
+interpolation.
 """
 module Applications
 
@@ -37,9 +32,11 @@ using OffsetArrays
 using Combinatorics: permutations
 # using FFTW
 
-using  ..AutoBZ: IntegrationLimits, CubicLimits, iterated_integration,
-    equispace_integration, automatic_equispace_integration, generic_int_eval, discretize_equispace_
-import ..AutoBZ: box, lower, upper, nsyms, symmetries
+using  ..AutoBZ: IntegrationLimits, CubicLimits, 
+    equispace_integration, automatic_equispace_integration, discretize_equispace_
+import ..AutoBZ: box, lower, upper, nsyms, symmetries,
+    equispace_pre_eval, equispace_npt_update,
+    iterated_pre_eval
 
 # include("linalg.jl")
 include("FourierSeries.jl")
@@ -48,6 +45,7 @@ include("self_energies.jl")
 include("limits.jl")
 include("integrands.jl")
 include("custom_equispace.jl")
+include("custom_adaptive.jl")
 include("wannier90io.jl")
 
 end
