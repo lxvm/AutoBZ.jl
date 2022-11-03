@@ -9,8 +9,10 @@ automatic_equispace_integration
 
 ## Customization
 
+The methods below can be extended/customized to integrand types
+
 ```@docs
-AutoBZ.generic_npt_update
-AutoBZ.generic_pre_eval
-AutoBZ.generic_int_eval
+equispace_npt_update
+equispace_pre_eval
+equispace_int_eval
 ```
