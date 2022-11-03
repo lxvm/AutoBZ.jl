@@ -43,7 +43,6 @@ struct GreensFunction{TH<:FourierSeries,TM}
 end
 
 greens_function(H::FourierSeries, M) = GreensFunction(H, M)
-greens_function(H::FourierSeries, M::UniformScaling) = GreensFunction(H, M.λ*one(eltype(H)))
 
 GreensFunction(args...) = greens_function(args...)
 
