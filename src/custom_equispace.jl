@@ -1,8 +1,7 @@
-export pre_eval_contract
 # TODO:
 # implement pre_eval_fft
 # generalize pre_eval_contract to all IntegrationLimits{d}
-# rename pre_eval_contract to contract? the new method wouldn't conflict
+
 function pre_eval_contract(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     f_xs = Vector{Tuple{eltype(f),Int}}(undef, npt^d)
@@ -42,20 +41,21 @@ function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3
 end
 
 """
-    pre_eval_contract(f::WannierIntegrand, l::IntegrationLimits, npt)
+    equispace_pre_eval(f::WannierIntegrand, l::IntegrationLimits, npt)
 
 This function will evaluate the Fourier series and integration weights needed
 for equispace integration of `f` at `npt` points per dimension. `l` should
 contain the relevant symmetries needed for IBZ integration, if desired.
 """
-pre_eval_contract(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
+equispace_pre_eval(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
 
-pre_eval_contract(G::GreensFunction, l, npt) = pre_eval_contract(G.H, l, npt)
-pre_eval_contract(A::SpectralFunction, l, npt) = pre_eval_contract(A.G, l, npt)
-pre_eval_contract(D::DOSIntegrand, l, npt) = pre_eval_contract(D.A, l, npt)
+equispace_pre_eval(G::GreensFunction, l, npt) = pre_eval_contract(G.H, l, npt)
+equispace_pre_eval(A::SpectralFunction, l, npt) = equispace_pre_eval(A.G, l, npt)
+equispace_pre_eval(D::DOSIntegrand, l, npt) = equispace_pre_eval(D.A, l, npt)
 
-pre_eval_contract(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
-pre_eval_contract(f::OCIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
+equispace_pre_eval(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
+
+equispace_pre_eval(f::OCIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
 
 function pre_eval_fft(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
@@ -71,7 +71,20 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
     error("not implemented")
 end
 
-function npt_update_sigma(npt, g::GammaIntegrand, atol, rtol)
+
+equispace_int_eval(w::WannierIntegrand, pre, dvol) = dvol*sum(x -> x[2]*w.f(x[1], w.p...), pre)
+
+equispace_int_eval(g::GammaIntegrand, pre, dvol) = dvol*sum(x -> x[2]*gamma_integrand(x[1]..., g.Mω, g.MΩ), pre)
+
+
+function equispace_npt_update(npt, g::GreensFunction, atol, rtol)
+    η = im_sigma_to_eta(-imag(g.M))
+    npt_update_eta(npt, η, atol, rtol)
+end
+equispace_npt_update(npt, A::SpectralFunction, atol, rtol) = equispace_npt_update(npt, A.G, atol, rtol)
+equispace_npt_update(npt, D::DOSIntegrand, atol, rtol) = equispace_npt_update(npt, D.A, atol, rtol)
+
+function equispace_npt_update(npt, g::GammaIntegrand, atol, rtol)
     ηω = im_sigma_to_eta(-imag(g.Mω))
     ηΩ = im_sigma_to_eta(-imag(g.MΩ))
     npt_update_eta(npt, min(ηω, ηΩ), atol, rtol)

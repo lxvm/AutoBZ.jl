@@ -16,7 +16,6 @@ struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
     s::TS
     p::TP
 end
-contract(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), w.p)
 (w::WannierIntegrand)(x) = w.f(w.s(x), w.p...)
 
 # pre-defined integrands
@@ -53,8 +52,6 @@ Base.eltype(::Type{<:GreensFunction{TH}}) where {TH} = Base.promote_op(inv, elty
 (g::GreensFunction)(k::Union{AbstractVector,Number}) = g(g.H(k))
 (g::GreensFunction)(H_k::AbstractMatrix) = greens_function(H_k, g.M)
 
-contract(g::GreensFunction, x) = GreensFunction(contract(g.H, x), g.M)
-
 
 spectral_function(args...) = spectral_function(greens_function(args...))
 spectral_function(G::AbstractMatrix) = imag(G)/(-pi)
@@ -79,8 +76,6 @@ Base.eltype(::Type{<:SpectralFunction{TG}}) where {TG} = Base.promote_op(imag, e
 
 (A::SpectralFunction)(k) = spectral_function(A.G(k))
 
-contract(A::SpectralFunction, x) = SpectralFunction(contract(A.G, x))
-
 
 dos_integrand(args...) = dos_integrand(spectral_function(args...))
 dos_integrand(A::AbstractMatrix) = tr(A)
@@ -104,8 +99,6 @@ DOSIntegrand(args...) = dos_integrand(args...)
 Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
 
 (D::DOSIntegrand)(k) = dos_integrand(D.A(k))
-
-contract(D::DOSIntegrand, x) = DOSIntegrand(contract(D.A, x))
 
 
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
@@ -152,7 +145,6 @@ Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (g::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, g.Mω, g.MΩ)
 (g::GammaIntegrand)(Hν_k::NTuple{4,AbstractMatrix}) = g(Hν_k...)
 # (g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
-contract(g::GammaIntegrand, k) = GammaIntegrand(contract(g.HV, k), g.Mω, g.MΩ)
 
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
@@ -229,14 +221,12 @@ Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = f(value(f.HV), ω)
 
-contract(f::OCIntegrand, k) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
-
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
 """
     EquispaceOCIntegrand(σ::OCIntegrand, l, npt, pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}})
-    EquispaceOCIntegrand(σ, l, npt, [pre_eval=pre_eval_contract])
+    EquispaceOCIntegrand(σ, l, npt)
 
 This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a fixed number of
@@ -250,8 +240,8 @@ struct EquispaceOCIntegrand{T,TS,TL}
     npt::Int
     pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
 end
-function EquispaceOCIntegrand(σ::OCIntegrand, l::IntegrationLimits, npt::Int; pre_eval=pre_eval_contract)
-    pre = pre_eval(σ, l, npt)
+function EquispaceOCIntegrand(σ::OCIntegrand, l::IntegrationLimits, npt::Int)
+    pre = equispace_pre_eval(σ, l, npt)
     EquispaceOCIntegrand(σ, l, npt, pre)
 end
 (f::EquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
@@ -264,8 +254,8 @@ end
 Base.eltype(::Type{<:EquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 """
-    AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, npt_update, npt1, pre1, npt2, pre2)
-    AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}[], npt2=0,pre2=Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}[])
+    AutoEquispaceOCIntegrand(σ, l, atol, rtol, npt1, pre1, npt2, pre2)
+    AutoEquispaceOCIntegrand(σ, l, atol, rtol; npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[])
 
 This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a number of grid
@@ -275,37 +265,32 @@ zone. This type should be called by an adaptive integration routine whose limits
 of integration are only the frequency variable.
 
 The keyword arguments, which are just passed to
-[`automatic_equispace_integration`](@ref), fall into two categories:
-1. Integrand evaluators: `pre_eval` and `npt_update`
-2. Stored precomputations
-    - `pre1`: a `Vector` containing tuples of the evaluated Hamiltonian + band
-      velocities and integration weights
-    - `npt1`: an integer that should be equivalent to `length(pre1)`
-    - `pre2`: a `Vector` containing tuples of the evaluated Hamiltonian + band
-      velocities and integration weights on a more refined grid than `pre1`
-    - `npt2`: an integer that should be equivalent to `length(pre)`
+[`automatic_equispace_integration`](@ref), are:
+- `pre1`: a `Vector` containing tuples of the evaluated Hamiltonian + band
+    velocities and integration weights
+- `npt1`: an integer that should be equivalent to `length(pre1)`
+- `pre2`: a `Vector` containing tuples of the evaluated Hamiltonian + band
+    velocities and integration weights on a more refined grid than `pre1`
+- `npt2`: an integer that should be equivalent to `length(pre)`
 """
-mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TP,TI,TF,TH}
+mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TH}
     σ::OCIntegrand{T,TS}
     l::TL
     atol::Float64
     rtol::Float64
-    pre_eval::TP
-    int_eval::TI
-    npt_update::TF
     npt1::Int
     pre1::Vector{Tuple{TH,Int}}
     npt2::Int
     pre2::Vector{Tuple{TH,Int}}
 end
-AutoEquispaceOCIntegrand(σ, l, atol, rtol; pre_eval=pre_eval_contract, int_eval=generic_int_eval, npt_update=npt_update_sigma, npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, pre_eval, int_eval, npt_update, npt1, pre1, npt2, pre2)
+AutoEquispaceOCIntegrand(σ, l, atol, rtol; npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, npt1, pre1, npt2, pre2)
 
 Base.eltype(::Type{<:AutoEquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 (f::AutoEquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
 function (f::AutoEquispaceOCIntegrand)(ω::Number)
     g = GammaIntegrand(f.σ, ω)
-    int, err, other = automatic_equispace_integration(g, f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, pre_eval=f.pre_eval, int_eval=f.int_eval, atol=f.atol, rtol=f.rtol, npt_update=f.npt_update)
+    int, err, other = automatic_equispace_integration(g, f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, atol=f.atol, rtol=f.rtol)
     f.npt1 = other.npt1
     f.pre1 = other.pre1
     f.npt2 = other.npt2
