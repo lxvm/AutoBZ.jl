@@ -37,6 +37,7 @@ A struct that calculates the lattice Green's function from a Hamiltonian.
 ```math
 G(\\omega) = \\int_{\\text{BZ}} dk {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
 ```
+This type works with both adaptive and equispace integration routines.
 """
 struct GreensFunction{TH<:FourierSeries,TM}
     H::TH
@@ -62,6 +63,7 @@ A type that whose integral gives the imaginary part of the Green's function.
 ```math
 A(ω) = {\\pi}^{-1} \\Im[G(ω)]
 ```
+This type works with both adaptive and equispace integration routines.
 """
 struct SpectralFunction{TG<:GreensFunction}
     G::TG
@@ -86,6 +88,7 @@ A type whose integral gives the density of states.
 ```math
 D(ω) = \\operatorname{Tr}[A(ω)]
 ```
+This type works with both adaptive and equispace integration routines.
 """
 struct DOSIntegrand{TA<:SpectralFunction}
     A::TA
@@ -129,6 +132,7 @@ A type whose integral over the BZ gives the transport distribution.
 ```math
 \\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
 ```
+This type works with both adaptive and equispace integration routines.
 """
 struct GammaIntegrand{T,M1,M2}
     HV::T
@@ -203,7 +207,10 @@ conductivity. Mathematically, this computes
 ```math
 \\sigma_{\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
-where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
+this type only for adaptive integration and order the limits so that the
+integral over the Brillouin zone is the outer integral and the frequency
+integral is the inner integral.
 """
 struct OCIntegrand{T,TS}
     HV::T
