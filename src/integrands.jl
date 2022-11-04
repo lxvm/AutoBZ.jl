@@ -217,7 +217,6 @@ OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64) = OCInt
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ)
-evaluate_integrand(f::OCIntegrand, kω) = iterated_pre_eval(f, pop(kω))(last(kω))
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
