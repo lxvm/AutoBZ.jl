@@ -1,4 +1,4 @@
-export equispace_npt_update, equispace_pre_eval, equispace_int_eval,
+export equispace_npt_update, equispace_pre_eval, equispace_int_eval, evaluate_integrand,
     equispace_integration, automatic_equispace_integration
 
 """
@@ -15,17 +15,33 @@ equispace_npt_update(npt, f, atol, rtol)::Int = npt + 20
 
 Precomputes the grid points and weights to use for equispace quadrature of `f`
 on the domain `l` while applying the relevant symmetries to `l` to reduce the
-number of evaluation points.
+number of evaluation points. Should return a vector of tuples with the
+integration weight in the first position and the precomputation in the second.
+This output is passed to the argument `pre` of `equispace_int_eval`.
 """
 equispace_pre_eval(f, l, npt) = discretize_equispace(l, npt)
 
 """
     equispace_int_eval(f, pre, dvol)
 
-Sums the values of `f` on the precomputed grid points with corresponding integer
-weights and also multiplies by the mesh cell volume.
+Sums the values of `f` on the precomputed grid points with corresponding
+quadrature weights and also multiplies by the mesh cell volume to obtain the
+integral on the precomputed domain represented by `pre`, obtained from
+`equispace_pre_eval`. Evaluation of `f` is done by the function
+`evaluate_integrand` in order to create a function boundary between the
+quadrature and the integrand evaluation.
 """
-equispace_int_eval(f, pre, dvol) = dvol * sum(x -> x[2]*f(x[1]), pre)
+equispace_int_eval(f, pre, dvol) = dvol * sum(x -> x[2]*evaluate_integrand(f, x[1]), pre)
+
+"""
+    evaluate_integrand(f, x)
+
+By default, this calls `f(x)`, however the caller may dispatch on the type of
+`f` if they would like to specialize this function together with
+`equispace_pre_eval` so that `x` is a more useful precomputation (e.g. a Fourier
+series evaluated at a grid point).
+"""
+evaluate_integrand(f, x) = f(x)
 
 """
     equispace_integration(f, l, npt; pre=nothing, equispace_pre_eval=generic_equispace_pre_eval, equispace_int_eval=generic_equispace_int_eval)

@@ -35,7 +35,7 @@ using Combinatorics: permutations
 using  ..AutoBZ: IntegrationLimits, CubicLimits, 
     equispace_integration, automatic_equispace_integration, discretize_equispace_
 import ..AutoBZ: box, lower, upper, nsyms, symmetries,
-    equispace_pre_eval, equispace_npt_update,
+    equispace_pre_eval, equispace_npt_update, evaluate_integrand,
     iterated_pre_eval
 
 # include("linalg.jl")

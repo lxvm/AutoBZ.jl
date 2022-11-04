@@ -1,3 +1,4 @@
+export pre_eval_contract
 # TODO:
 # implement pre_eval_fft
 # generalize pre_eval_contract to all IntegrationLimits{d}
@@ -55,7 +56,6 @@ equispace_pre_eval(D::DOSIntegrand, l, npt) = equispace_pre_eval(D.A, l, npt)
 
 equispace_pre_eval(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
 
-equispace_pre_eval(f::OCIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
 
 function pre_eval_fft(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
@@ -70,11 +70,6 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
     # ifft(coeffs)
     error("not implemented")
 end
-
-
-equispace_int_eval(w::WannierIntegrand, pre, dvol) = dvol*sum(x -> x[2]*w.f(x[1], w.p...), pre)
-
-equispace_int_eval(g::GammaIntegrand, pre, dvol) = dvol*sum(x -> x[2]*gamma_integrand(x[1]..., g.Mω, g.MΩ), pre)
 
 
 function equispace_npt_update(npt, g::GreensFunction, atol, rtol)

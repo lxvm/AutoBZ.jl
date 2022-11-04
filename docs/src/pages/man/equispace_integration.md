@@ -15,4 +15,5 @@ The methods below can be extended/customized to integrand types
 equispace_npt_update
 equispace_pre_eval
 equispace_int_eval
+evaluate_integrand
 ```

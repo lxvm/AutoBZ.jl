@@ -16,7 +16,8 @@ struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
     s::TS
     p::TP
 end
-(w::WannierIntegrand)(x) = w.f(w.s(x), w.p...)
+(w::WannierIntegrand)(x) = evaluate_integrand(w, w.s(x))
+evaluate_integrand(w::WannierIntegrand, s_x) = w.f(s_x, w.p...)
 
 # pre-defined integrands
 export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, EquispaceOCIntegrand, AutoEquispaceOCIntegrand
@@ -48,9 +49,8 @@ GreensFunction(args...) = greens_function(args...)
 
 Base.eltype(::Type{<:GreensFunction{TH}}) where {TH} = Base.promote_op(inv, eltype(TH))
 
-(g::GreensFunction)(k::Union{AbstractVector,Number}) = g(g.H(k))
-(g::GreensFunction)(H_k::AbstractMatrix) = greens_function(H_k, g.M)
-
+(g::GreensFunction)(k) = evaluate_integrand(g, g.H(k))
+evaluate_integrand(g::GreensFunction, H_k) = greens_function(H_k, g.M)
 
 spectral_function(args...) = spectral_function(greens_function(args...))
 spectral_function(G::AbstractMatrix) = imag(G)/(-pi)
@@ -74,7 +74,7 @@ SpectralFunction(args...) = spectral_function(args...)
 Base.eltype(::Type{<:SpectralFunction{TG}}) where {TG} = Base.promote_op(imag, eltype(TG))
 
 (A::SpectralFunction)(k) = spectral_function(A.G(k))
-
+evaluate_integrand(A::SpectralFunction, H_k) = spectral_function(evaluate_integrand(A.G, H_k))
 
 dos_integrand(args...) = dos_integrand(spectral_function(args...))
 dos_integrand(A::AbstractMatrix) = tr(A)
@@ -98,6 +98,7 @@ DOSIntegrand(args...) = dos_integrand(args...)
 Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
 
 (D::DOSIntegrand)(k) = dos_integrand(D.A(k))
+evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(evaluate_integrand(D.A, H_k))
 
 
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
@@ -120,8 +121,9 @@ function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
 end
 
 """
-    GammaIntegrand(H, Σ, ω, Ω, μ)
-    GammaIntegrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
+    GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ)
+    GammaIntegrand(HV, Σ, ω, Ω, μ)
+    GammaIntegrand(HV, Mω, MΩ)
 
 A type whose integral over the BZ gives the transport distribution.
 ```math
@@ -141,10 +143,8 @@ function GammaIntegrand(HV, Σ, ω, Ω, μ)
     GammaIntegrand(HV, Mω, MΩ)
 end
 Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(g::GammaIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k) = gamma_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, g.Mω, g.MΩ)
-(g::GammaIntegrand)(Hν_k::NTuple{4,AbstractMatrix}) = g(Hν_k...)
-# (g::GammaIntegrand)(k::Union{AbstractVector,Number}) = g(g.H(k), g.ν₁(k), g.ν₂(k), g.ν₃(k))
-
+(g::GammaIntegrand)(k) = evaluate_integrand(g, g.HV(k))
+evaluate_integrand(g::GammaIntegrand, HV_k) = gamma_integrand(HV_k..., g.Mω, g.MΩ)
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
 fermi(ω, β) = fermi(β*ω)
@@ -195,7 +195,8 @@ EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
 
 """
-    OCIntegrand(H, ν₁, ν₂, ν₃, Σ, Ω, β, μ)
+    OCIntegrand(H::FourierSeries, Σ, Ω, β, μ)
+    OCIntegrand(HV, Σ, Ω, β, μ)
 
 A function whose integral over the BZ and the frequency axis gives the optical
 conductivity. Mathematically, this computes
@@ -214,12 +215,9 @@ end
 
 OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64) = OCIntegrand(BandEnergyVelocity(H), Σ, Ω, β, μ)
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(f::OCIntegrand)(H_k, ν₁_k, ν₂_k, ν₃_k, ω) = oc_integrand(H_k, ν₁_k, ν₂_k, ν₃_k, f.Σ, ω, f.Ω, f.β, f.μ)
-(f::OCIntegrand)(Hν_k::NTuple{4,AbstractMatrix}, ω) = f(Hν_k..., ω)
-# (f::OCIntegrand)(kω::SVector) = f(f.HV(pop(kω)), last(kω)) # not implemented
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
-(f::OCIntegrand)(ω::Number) = f(value(f.HV), ω)
-
+(f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ)
+evaluate_integrand(f::OCIntegrand, kω) = iterated_pre_eval(f, pop(kω))(last(kω))
 
 GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
