@@ -3,7 +3,7 @@ In this script we compute OC at various Ω at a single η, where the temperature
 is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
-using ParallelMagics
+import ParallelMagics
 using AutoBZ
 
 include("Demos.jl")
@@ -34,9 +34,8 @@ T = sqrt(η/c)
 rtol = 1e-3
 atol = 1e-2
 
-# customize equispace evaluator to use a parallelized summation
-function AutoBZ.equispace_int_eval(g::AutoBZ.Applications.GammaIntegrand, pre, dvol)
-    dvol * ParallelMagics.sum(x -> x[2]*AutoBZ.Applications.gamma_integrand(x[1]..., g.Mω, g.MΩ), pre)
-end
+# redefine equispace evaluator to use a parallelized summation
+AutoBZ.equispace_int_eval(f, pre, dvol) = dvol * ParallelMagics.sum(x -> x[2]*evaluate_integrand(f, x[1]), pre)
+
 # run calculation
 results = Demos.OCscript_auto_equispace("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", H, Σ, β, Ωs, μ, rtol, atol)
