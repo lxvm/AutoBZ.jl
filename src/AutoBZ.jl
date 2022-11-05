@@ -8,8 +8,7 @@ module AutoBZ
 
 using LinearAlgebra
 using StaticArrays
-using HCubature
-# using QuadGK
+using QuadGK
 
 include("IntegrationLimits.jl")
 include("thunk.jl")

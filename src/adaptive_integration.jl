@@ -32,39 +32,21 @@ Calls `HCubature` to perform iterated 1D integration of `f` over a domain
 parametrized by `IntegrationLimits`.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits;atol=0.0, rtol=sqrt(eps()), kwargs...)
-    int, err = iterated_integration_(f, l, atol/nsyms(l), rtol; kwargs...)
+function iterated_integration(f, l::IntegrationLimits; atol=0.0, rtol=sqrt(eps()), norm=norm, kwargs...)
+    T = typeof(lower(l))
+    fx = f(zero(SVector{ndims(l),T}))
+    segbufs = ntuple(_ -> QuadGK.alloc_segbuf(T, typeof(fx), typeof(norm(fx))), Val{ndims(l)}())
+    int, err = iterated_integration_(f, l, atol/nsyms(l), rtol, segbufs; norm=norm, kwargs...)
     symmetrize(l, int, err)
 end
 
-function iterated_integration_(f, l::IntegrationLimits{1}, atol, rtol; kwargs...) 
-    hcubature(f, SVector(lower(l)), SVector(upper(l)); atol=atol, rtol=rtol, kwargs...)
+function iterated_integration_(f, l::IntegrationLimits{1}, atol, rtol, segbufs; kwargs...) 
+    quadgk(f, lower(l), upper(l); atol=atol, rtol=rtol, segbuf=segbufs[1], kwargs...)
 end
-function iterated_integration_(f, l::IntegrationLimits, atol, rtol; kwargs...)
-    hcubature(SVector(lower(l)), SVector(upper(l)); atol=atol, rtol=rtol, kwargs...) do x
-        first(iterated_integration_(iterated_pre_eval(f, x), l(x), iterated_tol_update(f, l, atol, rtol)...; kwargs...))
-    end
-end
-#= replacements with other quadrature routines
-# TODO: think about how to make an interface to easily switch between routines
-# TODO: write arbitrary order quadrature routine with a speedup like hcubature
-
-# slower because wraps integrand with (x -> f(x[1])) and calls promote_type
-# is it faster to write f ∘ only ?
-iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = hquadrature(f, lower(l), upper(l); kwargs...)
-function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
-    hquadrature(lower(l), upper(l); kwargs...) do x
-        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
+function iterated_integration_(f, l::IntegrationLimits, atol, rtol, segbufs; kwargs...)
+    quadgk(lower(l), upper(l); atol=atol, rtol=rtol, segbuf=segbufs[1], kwargs...) do x
+        first(iterated_integration_(iterated_pre_eval(f, x), l(x), iterated_tol_update(f, l, atol, rtol)..., Base.tail(segbufs); kwargs...))
     end
 end
 
-# slower or may not even run ... not sure why ... maybe commit below helps
-# https://github.com/JuliaMath/QuadGK.jl/commit/298f76e71be8a36d6e3f16715f601c3d22c2241c
-# https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing
-iterated_integration_(f, l::IntegrationLimits{1}, callback; kwargs...) = quadgk(f, lower(l), upper(l); kwargs...)
-function iterated_integration_(f, l::IntegrationLimits, callback; kwargs...)
-    quadgk(lower(l), upper(l); kwargs...) do x
-        first(iterated_integration_(callback(f, x), l(x), callback; kwargs...))
-    end
-end
-=#
+# TODO: draft v2 using QuadGK.adapt since v1 is horribly slow
