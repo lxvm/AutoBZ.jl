@@ -9,10 +9,9 @@ module AutoBZ
 using LinearAlgebra
 using StaticArrays
 using HCubature
-# using QuadGK
+using QuadGK
 
 include("IntegrationLimits.jl")
-include("thunk.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
 

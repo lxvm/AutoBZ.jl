@@ -234,30 +234,34 @@ integration removed.
 """
 (c::CubicLimits)(::Number) = CubicLimits(pop(c.l), pop(c.u))
 
+Base.eltype(::Type{CubicLimits{d,T}}) where {d,T} = T
+
 function discretize_equispace(c::CubicLimits{d,T}, npt) where {d,T}
     ((SVector{d,T}(x...), true) for x in Iterators.product([range(l, step=(u-l)/npt, length=npt) for (l,u) in box(c)]...))
 end
 
 """
+    CompositeLimits(lims::IntegrationLimits...)
     CompositeLimits(::Tuple{Vararg{IntegrationLimits}})
 
 Construct a collection of limits which yields the first limit followed by the
 second, and so on.
 """
-struct CompositeLimits{T<:Tuple{Vararg{IntegrationLimits}},d} <: IntegrationLimits{d}
-    lims::T
+struct CompositeLimits{L<:Tuple{Vararg{IntegrationLimits}},T,d} <: IntegrationLimits{d}
+    lims::L
     function CompositeLimits(lims::T) where {T<:Tuple{Vararg{IntegrationLimits}}}
-        new{T, mapreduce(ndims, +, T.parameters; init=0)}(lims)
+        new{T, mapreduce(eltype, promote_type, T.parameters), mapreduce(ndims, +, T.parameters; init=0)}(lims)
     end
 end
 CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
 (l::CompositeLimits)(x::Number) = CompositeLimits(first(l.lims)(x), Base.rest(l.lims, 2)...)
 (l::CompositeLimits{T})(x::Number) where {T<:Tuple{<:IntegrationLimits}} = CompositeLimits(first(l.lims)(x))
 (l::CompositeLimits{T})(::Number) where {T<:Tuple{<:IntegrationLimits{1},Vararg{IntegrationLimits}}} = CompositeLimits(Base.rest(l.lims, 2)...)
+Base.eltype(::Type{<:CompositeLimits{L,T}}) where {L,T} = T
 
 box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
-lower(l::CompositeLimits) = lower(first(l.lims))
-upper(l::CompositeLimits) = upper(first(l.lims))
+lower(l::CompositeLimits{L,T}) where {L,T} = T(lower(first(l.lims)))
+upper(l::CompositeLimits{L,T}) where {L,T} = T(upper(first(l.lims)))
 nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
 function symmetrize(l::CompositeLimits, x)
     r = x

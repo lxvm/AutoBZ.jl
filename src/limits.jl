@@ -18,6 +18,7 @@ end
 TetrahedralLimits(a::SVector{d,T}) where {d,T<:AbstractFloat} = TetrahedralLimits(a, one(T)/2)
 TetrahedralLimits(c::CubicLimits) = TetrahedralLimits(c.u-c.l)
 (t::TetrahedralLimits)(x::Number) = TetrahedralLimits(pop(t.a), x/last(t.a))
+Base.eltype(::Type{TetrahedralLimits{d,T}}) where {d,T} = T
 
 box(t::TetrahedralLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, (zero(T), a) for a in t.a)
 lower(t::TetrahedralLimits) = zero(t.p)
