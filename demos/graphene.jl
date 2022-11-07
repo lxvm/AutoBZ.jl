@@ -18,7 +18,7 @@ H = FourierSeries(C, b)
 M = SMatrix{2,2,Float64,4}([1/2 1/2sqrt(3); 1/2 -1/2sqrt(3)])
 iM = inv(M)
 
-ks = range(-b/2, b/2, length=513)
+ks = range(-b/2, b/2, length=513) .+ sqrt(eps()) # avoid evaluating exactly at singular points
 Hs = map(k -> H(M*SVector{2}(k[1], k[2])), Iterators.product(ks, ks))
 band_plt = plot(; xguide="kx", yguide="ky", zguide="H(kx,ky)", title="Graphene band structure")
 surface!(band_plt, ks, ks, map(e -> real(eigvals(Matrix(e))[1]), Hs))
