@@ -39,26 +39,57 @@ parse_hamiltonian(filename) = open(filename) do file
 end
 
 """
-    load_hamiltonian(filename; period=1.0)
+    load_hamiltonian(filename; period=1.0, compact=:N)
 
 Load an ab-initio Hamiltonian output from Wannier90 into `filename` as an
 evaluatable `FourierSeries` whose periodicity can be set by the keyword argument
 `period` which defaults to setting the period along each dimension to `1.0`. To
 define different periods for different dimensions, pass an `SVector` as the
-`period`.
+`period`. To store Hermitian Fourier coefficients in compact form, use the
+keyword `compact` to specify:
+- `:N`: do not store the coefficients in compact form
+- `:L`: store the lower triangle of the coefficients
+- `:U`: store the upper triangle of the coefficients
+- `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_hamiltonian(filename; period=1.0)
+function load_hamiltonian(filename; period=1.0, compact=:N)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
     s = Int(cbrt(nrpts))
     r = Int((s-1)/2)
-    C = reshape(similar(C_), s, s, s)
-    for (i, idx) in enumerate(irvec)
-        C[CartesianIndex((idx .+ (r+1))...)] = C_[i]
-    end
+    C = load_coefficients(Val{compact}(), num_wann, s, r, irvec, C_)[1]
     FourierSeries(OffsetArray(C, -r:r, -r:r, -r:r), to_3period(period))
 end
+
 to_3period(x::T) where {T} = fill(x, SVector{3,T})
 to_3period(x::SVector{3}) = identity(x)
+
+load_coefficients(compact, num_wann, s, r, irvec, cs...) = load_coefficients(compact, num_wann, s, r, irvec, cs)
+@generated function load_coefficients(compact, num_wann, s, r, irvec, cs::NTuple{N}) where N
+    if compact === Val{:N}
+        T = :(SMatrix{num_wann,num_wann,ComplexF64,num_wann^2})
+        expr = :(c[i])
+    elseif compact === Val{:L}
+        T = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
+        expr = :($T(c[i]))
+    elseif compact === Val{:U}
+        T = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
+        expr = :($T(c[i]'))
+    elseif compact === Val{:S}
+        T = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
+        expr = :($T(0.5*(c[i]+c[i]')))
+    end
+quote
+    Cs = Base.Cartesian.@ntuple $N _ -> Array{$T,3}(undef, s,s,s)
+    for (i, idx) in enumerate(irvec)
+        idx_ = CartesianIndex((idx .+ (r+1))...)
+        for (j,c) in enumerate(cs)
+            Cs[j][idx_] = $expr
+        end
+    end
+    Cs
+end
+end
+
 
 """
     parse_position_operator(filename)
@@ -104,26 +135,24 @@ end
 
 
 """
-    load_position_operator(filename; period=1.0)
+    load_position_operator(filename; period=1.0, compact=nothing)
 
 Load a position operator Hamiltonian output from Wannier90 into `filename` as an
 evaluatable `ManyFourierSeries` with separate x, y, and z components whose
 periodicity can be set by the keyword argument `period` which defaults to
 setting the period along each dimension to `1.0`. To define different periods
-for different dimensions, pass an `SVector` as the `period`.
+for different dimensions, pass an `SVector` as the `period`. To store Hermitian
+Fourier coefficients in compact form, use the keyword `compact` to specify:
+- `:N`: do not store the coefficients in compact form
+- `:L`: store the lower triangle of the coefficients
+- `:U`: store the upper triangle of the coefficients
+- `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_position_operator(filename; period=1.0)
+function load_position_operator(filename; period=1.0, compact=:N)
     date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(filename)
     s = Int(cbrt(nrpts))
     r = Int((s-1)/2)
-    X = reshape(similar(X_), s, s, s)
-    Y = reshape(similar(Y_), s, s, s)
-    Z = reshape(similar(Z_), s, s, s)
-    for (i, idx) in enumerate(irvec)
-        X[CartesianIndex((idx .+ (r+1))...)] = X_[i]
-        Y[CartesianIndex((idx .+ (r+1))...)] = Y_[i]
-        Z[CartesianIndex((idx .+ (r+1))...)] = Z_[i]
-    end
+    X, Y, Z = load_coefficients(Val{compact}(), num_wann, s, r, irvec, X_, Y_, Z_)
     periods = to_3period(period)
     FX = FourierSeries(OffsetArray(X, -r:r, -r:r, -r:r), periods)
     FY = FourierSeries(OffsetArray(Y, -r:r, -r:r, -r:r), periods)
