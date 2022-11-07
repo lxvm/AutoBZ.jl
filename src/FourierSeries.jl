@@ -107,8 +107,7 @@ function contract(f::FourierSeries{N}, x::Number; dim::Int=N) where {N}
     C′ = mapreduce(+, CartesianIndices(C); dims=dim) do i
         @inbounds C[i]*cispi(2*i.I[dim]*ϕ)
     end
-    idx = StaticArrays.sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
-    FourierSeries(reshape(C′, @inbounds axes(C)[idx]), @inbounds f.period[idx])
+    FourierSeries(dropdims(C′; dims=dim), deleteat(f.period, dim))
 end
 # evaluation by recurrence is faster for 1D Fourier series evaluation
 function contract(f::FourierSeries{1}, x::Number)
@@ -211,9 +210,8 @@ function contract(dv::FourierSeriesDerivative{N}, x::Number; dim::Int=N) where {
     C′ = mapreduce(+, CartesianIndices(C); dims=dim) do i
         @inbounds C[i]*(cispi(2*i.I[dim]*ϕ)*((imk*i.I[dim])^a))
     end
-    idx = StaticArrays.sacollect(SVector{N-1,Int}, i >= dim ? i+1 : i for i in 1:N-1)
-    f = FourierSeries(reshape(C′, @inbounds axes(C)[idx]), dv.f.period[idx])
-    FourierSeriesDerivative(f, @inbounds dv.a[idx])
+    f = FourierSeries(dropdims(C′; dims=dim), deleteat(dv.f.period, dim))
+    FourierSeriesDerivative(f, deleteat(dv.a, dim))
 end
 # 1D recurrence is still faster
 function contract(dv::FourierSeriesDerivative{1}, x::Number)
