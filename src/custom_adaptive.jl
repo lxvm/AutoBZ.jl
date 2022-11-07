@@ -7,3 +7,5 @@ iterated_pre_eval(D::DOSIntegrand, x) = DOSIntegrand(iterated_pre_eval(D.A, x))
 iterated_pre_eval(g::GammaIntegrand, k) = GammaIntegrand(contract(g.HV, k), g.Mω, g.MΩ)
 
 iterated_pre_eval(f::OCIntegrand, k) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
+
+infer_f(::T, _) where {T<:Union{GreensFunction,SpectralFunction,DOSIntegrand,GammaIntegrand,OCIntegrand}} = (eltype(T), Base.promote_op(norm, eltype(T)))

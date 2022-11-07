@@ -17,4 +17,5 @@ The methods below can be extended/customized to integrand types
 ```@docs
 iterated_tol_update
 iterated_pre_eval
+AutoBZ.infer_f
 ```
