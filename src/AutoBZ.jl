@@ -50,7 +50,7 @@ import ..AutoBZ: box, lower, upper, nsyms, symmetries,
     equispace_pre_eval, equispace_npt_update, evaluate_integrand,
     iterated_pre_eval, infer_f
 
-# include("linalg.jl")
+include("linalg.jl")
 include("FourierSeries.jl")
 include("band_velocities.jl")
 include("self_energies.jl")
