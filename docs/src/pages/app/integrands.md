@@ -19,8 +19,6 @@ AutoBZ.Applications.pre_eval_contract(::AutoBZ.Applications.WannierIntegrand,::A
 ### Types
 
 ```@docs
-AutoBZ.Applications.GreensFunction
-AutoBZ.Applications.SpectralFunction
 AutoBZ.Applications.DOSIntegrand
 AutoBZ.Applications.GammaIntegrand
 AutoBZ.Applications.OCIntegrand
@@ -31,8 +29,6 @@ AutoBZ.Applications.AutoEquispaceOCIntegrand
 ### Functions
 
 ```@docs
-AutoBZ.Applications.greens_function
-AutoBZ.Applications.spectral_function
 AutoBZ.Applications.dos_integrand
 AutoBZ.Applications.gamma_integrand
 AutoBZ.Applications.oc_integrand

@@ -50,9 +50,7 @@ contain the relevant symmetries needed for IBZ integration, if desired.
 """
 equispace_pre_eval(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
 
-equispace_pre_eval(G::GreensFunction, l, npt) = pre_eval_contract(G.H, l, npt)
-equispace_pre_eval(A::SpectralFunction, l, npt) = equispace_pre_eval(A.G, l, npt)
-equispace_pre_eval(D::DOSIntegrand, l, npt) = equispace_pre_eval(D.A, l, npt)
+equispace_pre_eval(D::DOSIntegrand, l, npt) = pre_eval_contract(D.H, l, npt)
 
 equispace_pre_eval(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
 
@@ -72,12 +70,10 @@ function pre_eval_fft(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {
 end
 
 
-function equispace_npt_update(npt, g::GreensFunction, atol, rtol)
-    η = im_sigma_to_eta(-imag(g.M))
+function equispace_npt_update(npt, D::DOSIntegrand, atol, rtol)
+    η = im_sigma_to_eta(-imag(D.M))
     npt_update_eta(npt, η, atol, rtol)
 end
-equispace_npt_update(npt, A::SpectralFunction, atol, rtol) = equispace_npt_update(npt, A.G, atol, rtol)
-equispace_npt_update(npt, D::DOSIntegrand, atol, rtol) = equispace_npt_update(npt, D.A, atol, rtol)
 
 function equispace_npt_update(npt, g::GammaIntegrand, atol, rtol)
     ηω = im_sigma_to_eta(-imag(g.Mω))

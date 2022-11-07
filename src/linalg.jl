@@ -44,3 +44,30 @@ function hinv_(A1::T, A2::T, A3::T, A5::T, A6::T, A9::T) where T
     b9 = (A1*A5 - abs2(A2))*idet
     b1, b2, b3, b4, b5, b6, b7, b8, b9
 end
+
+
+"""
+    tr_inv(A)
+
+Calculate the trace of the inverse of `A`.
+"""
+tr_inv(A::AbstractMatrix) = tr(inv(A))
+
+tr_inv(A::SMatrix{3,3}) = tr_inv_(A.data...)
+function tr_inv_(A1::T, A2::T, A3::T, A4::T, A5::T, A6::T, A7::T, A8::T, A9::T) where T
+    x0 = A5*A9 - A6*A8
+    x1 = A6*A7 - A4*A9
+    x2 = A4*A8 - A5*A7
+    idet = inv(A1*x0 + A2*x1 + A3*x2)
+    +(x0, A9*A1 - A7*A3, A1*A5 - A2*A4)*idet
+end
+
+
+tr_inv(A::SHermitianCompact{3}) = tr_inv_(A.lowertriangle...)
+function tr_inv_(A1::T, A2::T, A3::T, A5::T, A6::T, A9::T) where T
+    x0 = A5*A9 - abs2(A6)
+    x1 = A6*conj(A3) - conj(A2)*A9
+    x2 = conj(A2*A6) - A5*conj(A3)
+    idet = inv(A1*x0 + A2*x1 + A3*x2)
+    +(x0, A9*A1 - abs2(A3), A1*A5 - abs2(A2))*idet
+end

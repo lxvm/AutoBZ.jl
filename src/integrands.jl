@@ -20,95 +20,45 @@ end
 evaluate_integrand(w::WannierIntegrand, s_x) = w.f(s_x, w.p...)
 
 # pre-defined integrands
-export GreensFunction, SpectralFunction, DOSIntegrand, GammaIntegrand, OCIntegrand, EquispaceOCIntegrand, AutoEquispaceOCIntegrand
+export DOSIntegrand, GammaIntegrand, OCIntegrand, EquispaceOCIntegrand, AutoEquispaceOCIntegrand
 
-greens_function(H, ω, Σ, μ) = greens_function(H, (ω+μ)*I-Σ(ω))
-greens_function(H, ω, Σ::AbstractMatrix, μ) = greens_function(H, (ω+μ)*I-Σ)
-greens_function(H, ω, Σ) = greens_function(H, ω*I-Σ(ω))
-greens_function(H, ω, Σ::AbstractMatrix) = greens_function(H, ω*I-Σ)
-greens_function(H::AbstractMatrix, M) = inv(M-H)
+dos_integrand(H, ω, Σ, μ) = dos_integrand(H, (ω+μ)*I-Σ(ω))
+dos_integrand(H, ω, Σ::AbstractMatrix, μ) = dos_integrand(H, (ω+μ)*I-Σ)
+dos_integrand(H, ω, Σ) = dos_integrand(H, ω*I-Σ(ω))
+dos_integrand(H, ω, Σ::AbstractMatrix) = dos_integrand(H, ω*I-Σ)
+dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
 
 """
-    GreensFunction(H,ω,Σ,μ)
-    GreensFunction(H,ω,Σ)
-    GreensFunction(H,M)
+    DOSIntegrand(H, ω, Σ, μ)
+    DOSIntegrand(H, ω, Σ)
+    DOSIntegrand(H, M)
 
-A struct that calculates the lattice Green's function from a Hamiltonian.
+A type whose integral gives the density of states.
 ```math
-G(\\omega) = \\int_{\\text{BZ}} dk {((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}
+D(ω) = -{\\pi}^{-1} \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\Im[{((\\omega + \\mu) I - H(k) - \\Sigma(\\omega))}^{-1}]]
 ```
 This type works with both adaptive and equispace integration routines.
 """
-struct GreensFunction{TH<:FourierSeries,TM}
+struct DOSIntegrand{TH<:FourierSeries,TM}
     H::TH
     M::TM
 end
 
-greens_function(H::FourierSeries, M) = GreensFunction(H, M)
-
-GreensFunction(args...) = greens_function(args...)
-
-Base.eltype(::Type{<:GreensFunction{TH}}) where {TH} = Base.promote_op(inv, eltype(TH))
-
-(g::GreensFunction)(k) = evaluate_integrand(g, g.H(k))
-evaluate_integrand(g::GreensFunction, H_k) = greens_function(H_k, g.M)
-
-spectral_function(args...) = spectral_function(greens_function(args...))
-spectral_function(G::AbstractMatrix) = imag(G)/(-pi)
-
-"""
-    SpectralFunction(::GreensFunction)
-
-A type that whose integral gives the imaginary part of the Green's function.
-```math
-A(ω) = {\\pi}^{-1} \\Im[G(ω)]
-```
-This type works with both adaptive and equispace integration routines.
-"""
-struct SpectralFunction{TG<:GreensFunction}
-    G::TG
-end
-
-spectral_function(G::GreensFunction) = SpectralFunction(G)
-
-SpectralFunction(args...) = spectral_function(args...)
-
-Base.eltype(::Type{<:SpectralFunction{TG}}) where {TG} = Base.promote_op(imag, eltype(TG))
-
-(A::SpectralFunction)(k) = spectral_function(A.G(k))
-evaluate_integrand(A::SpectralFunction, H_k) = spectral_function(evaluate_integrand(A.G, H_k))
-
-dos_integrand(args...) = dos_integrand(spectral_function(args...))
-dos_integrand(A::AbstractMatrix) = tr(A)
-
-"""
-    DOSIntegrand(::SpectralFunction)
-
-A type whose integral gives the density of states.
-```math
-D(ω) = \\operatorname{Tr}[A(ω)]
-```
-This type works with both adaptive and equispace integration routines.
-"""
-struct DOSIntegrand{TA<:SpectralFunction}
-    A::TA
-end
-
-dos_integrand(A::SpectralFunction) = DOSIntegrand(A)
+dos_integrand(H::FourierSeries, M) = DOSIntegrand(H, M)
 
 DOSIntegrand(args...) = dos_integrand(args...)
 
-Base.eltype(::Type{<:DOSIntegrand{TA}}) where {TA} = eltype(eltype(TA))
+Base.eltype(::Type{<:DOSIntegrand{TH}}) where {TH} = eltype(Base.promote_op(imag, Base.promote_op(inv, eltype(TH))))
 
-(D::DOSIntegrand)(k) = dos_integrand(D.A(k))
-evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(evaluate_integrand(D.A, H_k))
+(D::DOSIntegrand)(k) = evaluate_integrand(D, D.H(k))
+evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(H_k, D.M)
 
 
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ)
 function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
-    Gω = greens_function(H, Mω)
-    GΩ = greens_function(H, MΩ)
+    Gω = dos_integrand(H, Mω)
+    GΩ = dos_integrand(H, MΩ)
     Aω = spectral_function(Gω)
     AΩ = spectral_function(GΩ)
     gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
