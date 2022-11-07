@@ -215,3 +215,68 @@ function plot_error()
     plot!(plt, tomegas, _ -> atol; color=:red, label="atol")
     savefig("DOS_error_equispace.png")
 end
+
+initialize_order() = 3:7
+
+function oadaptive_scaling()
+    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    orders = initialize_order()
+    for o in orders
+        @info "using order $o GK rule"
+        for (j, eta) in enumerate(etas)
+            @info "starting log2(eta)=$(log2(eta))"
+            Σ = AutoBZ.Applications.EtaEnergy(eta)
+            for (i, omega) in ProgressBar(enumerate(omegas))
+                D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
+                r = @timed AutoBZ.iterated_integration(D, t; order=Val{o}(), atol=atol, rtol=rtol)
+                ints[i,j], errs[i,j] = r.value
+                times[i,j] = r.time
+            end
+            write_h5("DOS_scaling_adaptive_o$(o)_$(id).h5", etas[1:j], omegas, ints[:,1:j], errs[:,1:j], times[:,1:j])
+        end
+    end
+end
+
+function plot_order()
+    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    orders = initialize_order()
+    plt = plot(; xscale=:log10, xguide="η (eV)", yguide="Wall time (s)", title="DOS scaling for $(length(omegas)) frequencies, atol=$atol, rtol=$rtol", legend=:bottomleft)
+
+    for (i,o) in enumerate(orders)
+        aetas, aomegas, ints, errs, atimes = read_h5("DOS_scaling_adaptive_o$(o)_$(id).h5")
+        plot!(plt, aetas[2:end], vec(sum(atimes[:,2:end], dims=1)); color=i, markershape=:x, label="GK $o")
+        # plot!(plt, aetas[2:end], x -> 5e-1*log(1/x)^3; color=1, ls=:dash, label="O(log(1/η)³)")
+
+        plt_ = plot(; yscale=:log10, xguide="ω (eV)", yguide="Wall time (s)", title="DOS GK $o scaling (ω resolved), atol=$atol, rtol=$rtol", legend=:bottomright)
+        for (j, eta) in enumerate(aetas)
+            j == 1 && continue # compilation messes up timing
+            plot!(plt_, aomegas, atimes[:,j]; color=i, label="log2(η)=$(log2(eta))", alpha=j/length(aetas))
+        end
+        savefig(plt_, "DOS_order$(o).png")
+    end
+    savefig(plt, "DOS_order.png")
+
+end
+
+function plot_order_error()
+    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    orders = initialize_order()
+
+    # validation dataset
+    tetas, tomegas, tints, errs, times = read_h5("DOS_scaling_adaptive_atol-5_rtol-Inf.h5")
+    @show tetas 
+    plt = plot(; xguide="Evaluation points grouped by eta (smaller -> darker)", yguide="|adaptive-true|", title="DOS absolute error, atol=$atol, rtol=$rtol", yscale=:log10, legend=:bottomleft, ylims=(1e-5, 1e0), xticks=[])
+    for (i,o) in enumerate(orders)
+        aetas, aomegas, aints, errs, times = read_h5("DOS_scaling_adaptive_o$(o)_$(id).h5")
+        @show aetas 
+        tomegas == aomegas || return
+        for (j, (eta, eta_)) in enumerate(zip(tetas, aetas))
+            @assert eta == eta_
+            label = ifelse(j == length(tetas), "GK $o", "")
+            scatter!(plt, (1:length(tomegas)) .+ (j-1 + length(tetas)*(i-1))*length(tomegas), abs.(tints[:,j] .- aints[:,j]); color=i, label=label, alpha=(j/length(tetas))^3, markershape=:x)
+        end
+    end
+    plot!(plt, [1, (length(tetas)*length(orders)+1)*length(tomegas)], _ -> atol; color=:red, label="atol")
+    savefig("DOS_error_order.png")
+
+end
