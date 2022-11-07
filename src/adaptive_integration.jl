@@ -114,10 +114,11 @@ end
     infer_f(f, Tx)
 
 Evaluates `f(zero(Tx))` and `norm(f(zero(Tx)))` and returns their types. If the
-type of the range of `f` is known apriori, this method is meant to be specialized.
+type of the range of `f` is known apriori, this method is meant to be
+specialized. Implicitly this assumes that `f` is type-stable.
 """
 function infer_f(f, Tx)
-    fx = evaluate_integrand(f, zero(Tx))
+    fx = f(zero(Tx))
     nfx = norm(fx)
     typeof(fx), typeof(nfx)
 end

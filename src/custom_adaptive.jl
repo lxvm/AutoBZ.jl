@@ -6,4 +6,4 @@ iterated_pre_eval(g::GammaIntegrand, k) = GammaIntegrand(contract(g.HV, k), g.M�
 
 iterated_pre_eval(f::OCIntegrand, k) = OCIntegrand(contract(f.HV, k), f.Σ, f.Ω, f.β, f.μ)
 
-infer_f(::T, _) where {T<:Union{DOSIntegrand,GammaIntegrand,OCIntegrand}} = (eltype(T), Base.promote_op(norm, eltype(T)))
+infer_f(::T, _) where {T<:Union{DOSIntegrand,GammaIntegrand,OCIntegrand,EquispaceOCIntegrand,AutoEquispaceOCIntegrand}} = (eltype(T), Base.promote_op(norm, eltype(T)))
