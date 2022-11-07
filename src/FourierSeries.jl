@@ -95,12 +95,12 @@ Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = Base.promote_op(*, Compl
 Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
 """
-    contract(f::FourierSeries{N}, x::Number, [dim=N]) where {N}
+    contract(f::FourierSeries{N}, x::Number, [dim=N]) where N
 
 Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
 """
-function contract(f::FourierSeries{N}, x::Number; dim::Int=N) where {N}
+function contract(f::FourierSeries{N}, x::Number, dim::Int) where N
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = f.coeffs
     @inbounds ϕ = x/f.period[dim]
@@ -109,7 +109,8 @@ function contract(f::FourierSeries{N}, x::Number; dim::Int=N) where {N}
     end
     FourierSeries(dropdims(C′; dims=dim), deleteat(f.period, dim))
 end
-# evaluation by recurrence is faster for 1D Fourier series evaluation
+# Fourier series evaluation by recurrence is faster, but we only implement
+# contraction of the outermost dimension
 function contract(f::FourierSeries{1}, x::Number)
     C = contract_(f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period)) # for consistency with N>1 edit C -> fill(C)
@@ -129,26 +130,35 @@ function contract_(C::AbstractVector, ϕ::Number)
     end
     r
 end
-#= N-D implementation of recurrence, which is slower so disabled
-function contract(f::FourierSeries{N,T}, x::Number) where {N,T}
-    C = contract_(f.coeffs, x / last(f.period))
+# N-D implementation of recurrence
+@generated function contract(f::FourierSeries{N,T}, x::Number) where {N,T}
+quote
+    C_ = f.coeffs
+    C = (Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :)
+    contract!(C, f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period))
 end
-function contract_(C::AbstractArray{<:Any,N}, ϕ::Number) where {N}
+end
+@generated function contract!(r, C::AbstractArray{<:Any,N}, ϕ::Number) where N
+quote
     -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
-    ax = CartesianIndices(axes(C)[1:N-1])
-    @inbounds r = view(C, ax, 0)
+    @inbounds Base.Cartesian.@nloops $(N-1) i r begin
+        (Base.Cartesian.@nref $(N-1) r i) = (Base.Cartesian.@nref $N C d -> d == $N ? 0 : i_d)
+    end
     if size(C,N) > 1
         z₀ = cispi(2ϕ)
         z = one(z₀)
-        for i in 1:last(axes(C,N))
+        for n in 1:last(axes(C,N))
             z *= z₀
-            @inbounds r += z*view(C, ax, i) + conj(z)*view(C, ax, -i)
+            z̄ = conj(z)
+            @inbounds Base.Cartesian.@nloops $(N-1) i r begin
+                (Base.Cartesian.@nref $(N-1) r i) += z*(Base.Cartesian.@nref $N C d -> d == $N ? n : i_d) + z̄*(Base.Cartesian.@nref $N C d -> d == $N ? -n : i_d)
+            end
         end
     end
-    r
 end
-=#
+end
+
 
 function (f::FourierSeries{N})(x::SVector{N}) where {N}
     C = f.coeffs
