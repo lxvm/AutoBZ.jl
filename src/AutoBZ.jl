@@ -12,7 +12,6 @@ using HCubature
 using QuadGK
 
 include("IntegrationLimits.jl")
-include("thunk.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
 
