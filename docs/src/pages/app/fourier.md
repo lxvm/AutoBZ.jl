@@ -65,4 +65,5 @@ AutoBZ.Applications.BandEnergyVelocity
 
 ```@docs
 AutoBZ.Applications.contract(::AutoBZ.Applications.AbstractFourierSeries)
+AutoBZ.Applications.band_velocities
 ```

@@ -78,7 +78,7 @@ function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
 end
 
 """
-    GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ)
+    GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ, [kind=:full])
     GammaIntegrand(HV, Σ, ω, Ω, μ)
     GammaIntegrand(HV, Mω, MΩ)
 
@@ -86,7 +86,8 @@ A type whose integral over the BZ gives the transport distribution.
 ```math
 \\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
 ```
-This type works with both adaptive and equispace integration routines.
+This type works with both adaptive and equispace integration routines. The
+keyword `kind` determines the band velocity component.
 """
 struct GammaIntegrand{T,M1,M2}
     HV::T
@@ -94,7 +95,7 @@ struct GammaIntegrand{T,M1,M2}
     MΩ::M2
 end
 
-GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ) = GammaIntegrand(BandEnergyVelocity(H), Σ, ω, Ω, μ)
+GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ, kind::Symbol=:full) = GammaIntegrand(BandEnergyVelocity(H, kind), Σ, ω, Ω, μ)
 function GammaIntegrand(HV, Σ, ω, Ω, μ)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
@@ -153,7 +154,7 @@ EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
 
 """
-    OCIntegrand(H::FourierSeries, Σ, Ω, β, μ)
+    OCIntegrand(H::FourierSeries, Σ, Ω, β, μ, [kind=:full])
     OCIntegrand(HV, Σ, Ω, β, μ)
 
 A function whose integral over the BZ and the frequency axis gives the optical
@@ -164,7 +165,8 @@ conductivity. Mathematically, this computes
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
 this type only for adaptive integration and order the limits so that the
 integral over the Brillouin zone is the outer integral and the frequency
-integral is the inner integral.
+integral is the inner integral. The keyword `kind` determines the
+band velocity component.
 """
 struct OCIntegrand{T,TS}
     HV::T
@@ -174,7 +176,7 @@ struct OCIntegrand{T,TS}
     μ::Float64
 end
 
-OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64) = OCIntegrand(BandEnergyVelocity(H), Σ, Ω, β, μ)
+OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64, kind::Symbol=:full) = OCIntegrand(BandEnergyVelocity(H, kind), Σ, Ω, β, μ)
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ)
