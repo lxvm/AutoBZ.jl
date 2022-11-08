@@ -59,6 +59,7 @@ AutoBZ.Applications.OffsetFourierSeries
 AutoBZ.Applications.ManyFourierSeries
 AutoBZ.Applications.ManyOffsetsFourierSeries
 AutoBZ.Applications.BandEnergyVelocity
+AutoBZ.Applications.BandEnergyBerryVelocity
 ```
 
 ## Methods
