@@ -19,6 +19,7 @@ returns `(atol, rtol)` unchanged.
 iterated_tol_update(f, l, atol, rtol) = (atol, rtol)
 
 """
+    iterated_pre_eval(f, x, dim)
     iterated_pre_eval(f, x)
 
 Perform a precomputation on `f` using the value of a variable of integration,
@@ -26,8 +27,10 @@ Perform a precomputation on `f` using the value of a variable of integration,
 of the values of the variables of integration are determined at a integration
 point. Certain types of functions, such as Fourier series, take can use `x` to
 precompute a new integrand for the remaining variables of integration that is
-more computationally efficient.
+more computationally efficient. This function must return the integrand for the
+subsequent integral.
 """
+iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
 iterated_pre_eval(f, x) = thunk(f, x)
 
 """
@@ -98,15 +101,15 @@ function iterated_integration(f, l::IntegrationLimits; order=4, atol=nothing, rt
     segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
     atol_ = something(atol, zero(Tnfx))/nsyms(l)
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(Tnfx))) : zero(Tnfx))
-    int, err = iterated_integration_(f, l, order, atol_, rtol_, maxevals, norm, segbufs_)
+    int, err = iterated_integration_(Tfx,Tnfx, f, l, order, atol_, rtol_, maxevals, norm, segbufs_)::Tuple{Tfx,Tnfx}
     symmetrize(l, int, err)
 end
-function iterated_integration_(f, l::IntegrationLimits{1}, order, atol, rtol, maxevals, norm, segbufs)
+function iterated_integration_(Tfx,Tnfx, f, l::IntegrationLimits{1}, order, atol, rtol, maxevals, norm, segbufs)::Tuple{Tfx,Tnfx}
     QuadGK.do_quadgk(f, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1])
 end
-function iterated_integration_(f, l::IntegrationLimits, order, atol, rtol, maxevals, norm, segbufs)
+function iterated_integration_(Tfx, Tnfx, f, l::IntegrationLimits{d}, order, atol, rtol, maxevals, norm, segbufs)::Tuple{Tfx,Tnfx} where d
     QuadGK.do_quadgk((lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1]) do x
-        first(iterated_integration_(iterated_pre_eval(f, x), l(x), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, Base.tail(segbufs)))
+        first(iterated_integration_(Tfx,Tnfx, iterated_pre_eval(f, x, d), l(x), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, Base.tail(segbufs)))::Tfx
     end
 end
 

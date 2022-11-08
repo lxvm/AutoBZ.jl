@@ -101,6 +101,7 @@ Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
 """
 function contract(f::FourierSeries{N}, x::Number, dim::Int) where N
+    dim == N && return contract(f, x)
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = f.coeffs
     @inbounds ϕ = x/f.period[dim]
@@ -212,6 +213,7 @@ Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
 """
 function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where N
+    dim == N && return contract(dv, x)
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = dv.f.coeffs
     @inbounds imk = im*2*pi/dv.f.period[dim]
@@ -356,3 +358,51 @@ end
 period(f::ManyOffsetsFourierSeries) = period(f.f)
 value(f::ManyOffsetsFourierSeries{0}) = value(f.f)
 Base.eltype(::Type{ManyOffsetsFourierSeries{N,T,Q}}) where {N,T,Q} = ntuple(_ -> eltype(T), Val{Q}())
+
+
+"""
+    FourierSeries3D(coeffs::Array{T,3}, [period=ones(SVector{3,Float64})])
+
+This type is an `AbstractFourierSeries{3}` designed for in-place evaluation of
+`FourierSeries`, and unlike `FourierSeries` is specialized for 3D Fourier series
+and does not allocate a new array every time `contract` is called on it. This
+type stores the intermediate arrays used in a calculation and assumes that the
+size of `coeffs` on each axis is odd because it treats the zeroth harmonic as
+the center of the array (i.e. `(size(coeffs) .÷ 2) .+ 1`).
+"""
+struct FourierSeries3D{T} <: AbstractFourierSeries{3}
+    coeffs::Array{T,3}
+    period::SVector{3,Float64}
+    coeffs_z::Array{T,2}
+    coeffs_yz::Array{T,1}
+    coeffs_xyz::Array{T,0}
+end
+
+function FourierSeries3D(coeffs::Array{T,3}, period=ones(SVector{3,Float64})) where T
+    @assert all(map(isodd, size(coeffs)))
+    coeffs_z = Array{T,2}(undef, size(coeffs,1), size(coeffs, 2))
+    coeffs_yz = Array{T,1}(undef, size(coeffs,1))
+    coeffs_xyz = Array{T,0}(undef)
+    FourierSeries3D(coeffs, period, coeffs_z, coeffs_yz, coeffs_xyz)
+end
+FourierSeries3D(f::FourierSeries{3}) = FourierSeries3D(collect(f.coeffs). f.period)
+
+period(f::FourierSeries3D) = f.period
+Base.eltype(::Type{FourierSeries3D{T}}) where T = T
+value(f::FourierSeries3D) = only(f.coeffs_xyz)
+function contract(f::FourierSeries3D, x::Number, dim)
+    #= TODO: account for the offset in the array indices
+    if dim == 3
+        contract!(f.coeffs_z, f.coeffs, x/f.period[3])
+    elseif dim == 2
+        contract!(f.coeffs_yz, f.coeffs_z, x/f.period[2])
+    elseif dim == 1
+        contract!(f.coeffs_xyz, f.coeffs_yz, x/f.period[1])
+    else
+        error("dim=$dim is out of bounds")
+    end
+    =#
+    return f
+end
+(f::FourierSeries3D)(x::SVector{1}) = f(only(x))
+(f::FourierSeries3D)(x::Number) = value(contract(f, x, 1))

@@ -54,6 +54,7 @@ interface and should cover most use cases.
 
 ```@docs
 AutoBZ.Applications.FourierSeries
+AutoBZ.Applications.FourierSeries3D
 AutoBZ.Applications.FourierSeriesDerivative
 AutoBZ.Applications.OffsetFourierSeries
 AutoBZ.Applications.ManyFourierSeries

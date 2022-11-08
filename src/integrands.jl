@@ -39,12 +39,12 @@ D(ω) = -{\\pi}^{-1} \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\Im[{((\\omega + 
 ```
 This type works with both adaptive and equispace integration routines.
 """
-struct DOSIntegrand{TH<:FourierSeries,TM}
+struct DOSIntegrand{TH<:AbstractFourierSeries,TM}
     H::TH
     M::TM
 end
 
-dos_integrand(H::FourierSeries, M) = DOSIntegrand(H, M)
+dos_integrand(H::AbstractFourierSeries, M) = DOSIntegrand(H, M)
 
 DOSIntegrand(args...) = dos_integrand(args...)
 
