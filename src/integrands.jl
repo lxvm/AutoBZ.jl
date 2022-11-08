@@ -54,13 +54,13 @@ Base.eltype(::Type{<:DOSIntegrand{TH}}) where {TH} = eltype(Base.promote_op(imag
 evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(H_k, D.M)
 
 
+spectral_function(H, M) = imag(inv(M-H))/(-pi)
+
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
 gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ)
 function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
-    Gω = dos_integrand(H, Mω)
-    GΩ = dos_integrand(H, MΩ)
-    Aω = spectral_function(Gω)
-    AΩ = spectral_function(GΩ)
+    Aω = spectral_function(H, Mω)
+    AΩ = spectral_function(H, MΩ)
     gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
 end
 function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
@@ -70,7 +70,11 @@ function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
     ν₁AΩ = ν₁*AΩ
     ν₂AΩ = ν₂*AΩ
     ν₃AΩ = ν₃*AΩ
-    SMatrix{3,3,ComplexF64,9}(map(tr, (ν₁Aω*ν₁AΩ, ν₂Aω*ν₁AΩ, ν₃Aω*ν₁AΩ, ν₁Aω*ν₂AΩ, ν₂Aω*ν₂AΩ, ν₃Aω*ν₂AΩ, ν₁Aω*ν₃AΩ, ν₂Aω*ν₃AΩ, ν₃Aω*ν₃AΩ)))
+    SMatrix{3,3,ComplexF64,9}((
+        tr_mul(ν₁Aω, ν₁AΩ), tr_mul(ν₂Aω, ν₁AΩ), tr_mul(ν₃Aω, ν₁AΩ),
+        tr_mul(ν₁Aω, ν₂AΩ), tr_mul(ν₂Aω, ν₂AΩ), tr_mul(ν₃Aω, ν₂AΩ),
+        tr_mul(ν₁Aω, ν₃AΩ), tr_mul(ν₂Aω, ν₃AΩ), tr_mul(ν₃Aω, ν₃AΩ),
+    ))
 end
 
 """

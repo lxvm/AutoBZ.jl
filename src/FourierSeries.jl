@@ -123,15 +123,15 @@ function contract_(C::AbstractVector, ϕ::Number)
     if size(C,1) > 1
         z₀ = cispi(2ϕ)
         z = one(z₀)
-        for i in 1:last(axes(C,1))
+        @inbounds for n in Base.OneTo(last(axes(C,1)))
             z *= z₀
-            @inbounds r += z*C[i] + conj(z)*C[-i]
+            r += z*C[n] + conj(z)*C[-n]
         end
     end
     r
 end
 # N-D implementation of recurrence
-@generated function contract(f::FourierSeries{N,T}, x::Number) where {N,T}
+@generated function contract(f::FourierSeries{N}, x::Number) where N
 quote
     C_ = f.coeffs
     C = (Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :)
@@ -141,14 +141,14 @@ end
 end
 @generated function contract!(r, C::AbstractArray{<:Any,N}, ϕ::Number) where N
 quote
-    -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
+    -2first(axes(C,$N))+1 == size(C,$N) || throw("array indices are not of form -n:n")
     @inbounds Base.Cartesian.@nloops $(N-1) i r begin
         (Base.Cartesian.@nref $(N-1) r i) = (Base.Cartesian.@nref $N C d -> d == $N ? 0 : i_d)
     end
-    if size(C,N) > 1
+    if size(C,$N) > 1
         z₀ = cispi(2ϕ)
         z = one(z₀)
-        for n in 1:last(axes(C,N))
+        for n in Base.OneTo(last(axes(C,$N)))
             z *= z₀
             z̄ = conj(z)
             @inbounds Base.Cartesian.@nloops $(N-1) i r begin
@@ -211,7 +211,7 @@ Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
 """
-function contract(dv::FourierSeriesDerivative{N}, x::Number; dim::Int=N) where {N}
+function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where N
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = dv.f.coeffs
     @inbounds imk = im*2*pi/dv.f.period[dim]
@@ -236,35 +236,45 @@ function contract_(C::AbstractVector, x, a₀, a)
         imk = im*2*pi/a₀
         z₀ = cispi(2*x/a₀)
         z = one(z₀)
-        for i in 1:last(axes(C,1))
+        @inbounds for n in Base.OneTo(last(axes(C,1)))
             z *= z₀
-            @inbounds r += (((imk*i)^a)*z)*C[i] + (((-imk*i)^a)*conj(z))*C[-i]
+            r += (((imk*n)^a)*z)*C[n] + (((-imk*n)^a)*conj(z))*C[-n]
         end
     end
     r
 end
-#= N-D implementation of recurrence, which is slower so disabled
-function contract(dv::FourierSeriesDerivative, x::Number)
-    C = contract_(dv.f.coeffs, x, last(dv.f.period), last(dv.a))
+# N-D implementation of recurrence
+@generated function contract(dv::FourierSeriesDerivative{N}, x::Number) where N
+quote
+    C_ = dv.f.coeffs
+    C = (Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :)
+    contract!(C, dv.f.coeffs, x, last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period))
     FourierSeriesDerivative(f, pop(dv.a))
 end
-function contract_(C::AbstractArray{<:Any,N}, x, a₀, a) where {N}
-    -2first(axes(C,N))+1 == size(C,N) || throw("array indices are not of form -n:n")
-    ax = CartesianIndices(axes(C)[1:N-1])
-    @inbounds r = (0^a)*view(C, ax, 0)
-    if size(C,N) > 1
+end
+@generated function contract!(r, C::AbstractArray{<:Any,N}, x, a₀, a) where {N}
+quote
+    -2first(axes(C,$N))+1 == size(C,$N) || throw("array indices are not of form -n:n")
+    c₀ = 0^a
+    @inbounds Base.Cartesian.@nloops $(N-1) i r begin
+        (Base.Cartesian.@nref $(N-1) r i) = c₀*(Base.Cartesian.@nref $N C d -> d == $N ? 0 : i_d)
+    end
+    if size(C,$N) > 1
         imk = im*2*pi/a₀
         z₀ = cispi(2*x/a₀)
         z = one(z₀)
-        for i in 1:last(axes(C,N))
+        for n in Base.OneTo(last(axes(C,$N)))
             z *= z₀
-            @inbounds r += (((imk*i)^a)*z)*view(C, ax, i) + (((-imk*i)^a)*conj(z))*view(C, ax, -i)
+            c = ((imk*n)^a)*z
+            c̄ = ((-imk*n)^a)*conj(z)
+            @inbounds Base.Cartesian.@nloops $(N-1) i r begin
+                (Base.Cartesian.@nref $(N-1) r i) += c*(Base.Cartesian.@nref $N C d -> d == $N ? n : i_d) + c̄*(Base.Cartesian.@nref $N C d -> d == $N ? -n : i_d)
+            end
         end
     end
-    r
 end
-=#
+end
 
 """
     (f::FourierSeriesDerivative)(x)

@@ -71,3 +71,13 @@ function tr_inv_(A1::T, A2::T, A3::T, A5::T, A6::T, A9::T) where T
     idet = inv(A1*x0 + A2*x1 + A3*x2)
     +(x0, A9*A1 - abs2(A3), A1*A5 - abs2(A2))*idet
 end
+
+"""
+    tr_mul(A, B)
+
+Calculate `tr(A*B)` without storing the intermediate result.
+"""
+function tr_mul(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T,S}
+    sum(x -> mapreduce(), zip(eachrow(A), eachcol(B)); init=zero(promote_type(S,T)))
+end
+tr_mul(A::StaticMatrix{N,N}, B::StaticMatrix{N,N}) where N = tr(A*B) # this gets optimized by the compiler
