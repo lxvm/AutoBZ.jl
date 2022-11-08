@@ -13,7 +13,7 @@ function initialize_data()
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
+H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period, compact=:S)
 
 # Define problem parameters
 omegas = collect(range(-1, 1; length=300)) # eV
