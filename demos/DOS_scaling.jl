@@ -228,7 +228,7 @@ function oadaptive_scaling()
             Σ = AutoBZ.Applications.EtaEnergy(eta)
             for (i, omega) in ProgressBar(enumerate(omegas))
                 D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
-                r = @timed AutoBZ.iterated_integration(D, t; order=Val{o}(), atol=atol, rtol=rtol)
+                r = @timed AutoBZ.iterated_integration(D, t; order=o, atol=atol, rtol=rtol)
                 ints[i,j], errs[i,j] = r.value
                 times[i,j] = r.time
             end
