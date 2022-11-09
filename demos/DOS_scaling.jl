@@ -141,7 +141,7 @@ function plot_scaling()
     aetas, aomegas, ints, errs, atimes = read_h5("DOS_scaling_adaptive_$(id).h5")
     plot!(plt, aetas[2:end], vec(sum(atimes[:,2:end], dims=1)); color=1, markershape=:x, label="adaptive")
     plot!(plt, aetas[2:end], x -> 5e-1*log(1/x)^3; color=1, ls=:dash, label="O(log(1/η)³)")
-    
+
     eetas, eomegas, ints, errs, etimes = read_h5("DOS_scaling_equispace_$(id).h5")
     plot!(plt, eetas[2:end], vec(sum(etimes[:,2:end], dims=1)); color=2, markershape=:x, label="equispace")
     plot!(plt, eetas[2:end], x -> 1e-4/x^3; color=2, ls=:dash, label="O(1/η³)")
@@ -191,29 +191,47 @@ end
 function plot_error()
     H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
 
-    aetas, aomegas, aints, errs, times = read_h5("DOS_scaling_adaptive_$(id).h5")
-    eetas, eomegas, eints, errs, times = read_h5("DOS_scaling_equispace_$(id).h5")
+    aetas, aomegas, aints, aerrs, times = read_h5("DOS_scaling_adaptive_$(id).h5")
+    eetas, eomegas, eints, eerrs, times = read_h5("DOS_scaling_equispace_$(id).h5")
     
     # validation dataset
-    tetas, tomegas, tints, errs, times = read_h5("DOS_scaling_adaptive_atol-5_rtol-Inf.h5")
+    tetas, tomegas, tints, errs, times = read_h5("old_DOS_scaling_adaptive_atol-5_rtol-Inf.h5")
     
     tomegas == aomegas || return
     plt = plot(; xguide="ω (eV)", yguide="|adaptive-true|", title="DOS absolute error, atol=$atol, rtol=$rtol", yscale=:log10, legend=:topright, ylims=(1e-5, 1e0))
+    hst = plot(; xguide="log10(absolute error)", yguide="counts", title="DOS adaptive error distribution", legend=:topleft)
+    hst2 = plot(; xguide="log10(reported error)", yguide="counts", title="DOS adaptive error distribution", legend=:topleft)
     for (j, (eta, eta_)) in enumerate(zip(tetas, aetas))
         @assert eta == eta_
-        scatter!(plt, tomegas, abs.(tints[:,j] .- aints[:,j]); color=1, label="log2(η)=$(log2(eta))", alpha=j/length(etas), markershape=:x)
+        err_ = abs.(tints[:,j] .- aints[:,j])
+        scatter!(plt, tomegas, err_; color=1, label="log2(η)=$(log2(eta))", alpha=j/length(etas), markershape=:x)
+        histogram!(hst, log10.(err_); label="log2(η)=$(log2(eta))", color=j, alpha=j/length(etas))
+        histogram!(hst2, log10.(abs.(aerrs[:,j])); label="log2(η)=$(log2(eta))", color=j, alpha=j/length(etas))
     end
     plot!(plt, tomegas, _ -> atol; color=:red, label="atol")
-    savefig("DOS_error_adaptive.png")
+    savefig(plt,"DOS_error_adaptive.png")
+    vline!(hst, [log10(atol)]; color=:red, label="atol")
+    savefig(hst, "DOS_error_adaptive_distribution.png")
+    vline!(hst2, [log10(atol)]; color=:red, label="atol")
+    savefig(hst2, "DOS_error_adaptive_distribution_reported.png")
 
     tomegas == eomegas || return
     plt = plot(; xguide="ω (eV)", yguide="|equispace-true|", title="DOS absolute error, atol=$atol, rtol=$rtol", yscale=:log10, legend=:topright, ylims=(1e-5, 1e0))
+    hst = plot(; xguide="log10(absolute error)", yguide="counts", title="DOS equispace error distribution", legend=:topleft)
+    hst2 = plot(; xguide="log10(reported error)", yguide="counts", title="DOS adaptive error distribution", legend=:topleft)
     for (j, (eta, eta_)) in enumerate(zip(tetas, eetas))
         @assert eta == eta_
-        scatter!(plt, tomegas, abs.(tints[:,j] .- eints[:,j]); color=2, label="log2(η)=$(log2(eta))", alpha=j/length(etas), markershape=:x)
+        err_ = abs.(tints[:,j] .- eints[:,j])
+        scatter!(plt, tomegas, err_; color=2, label="log2(η)=$(log2(eta))", alpha=j/length(etas), markershape=:x)
+        histogram!(hst, log10.(err_); label="log2(η)=$(log2(eta))", color=j, alpha=j/length(etas))
+        histogram!(hst2, log10.(abs.(eerrs[:,j])); label="log2(η)=$(log2(eta))", color=j, alpha=j/length(etas))
     end
     plot!(plt, tomegas, _ -> atol; color=:red, label="atol")
-    savefig("DOS_error_equispace.png")
+    savefig(plt,"DOS_error_equispace.png")
+    vline!(hst, [log10(atol)]; color=:red, label="atol")
+    savefig(hst, "DOS_error_equispace_distribution.png")
+    vline!(hst2, [log10(atol)]; color=:red, label="atol")
+    savefig(hst2, "DOS_error_equispace_distribution_reported.png")
 end
 
 initialize_order() = 3:7
