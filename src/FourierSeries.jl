@@ -405,6 +405,21 @@ end
 (f::FourierSeries3D)(x::SVector{N}) where N = (contract(f, x[N], N); f(pop(x)))
 (f::FourierSeries3D)(x::SVector{1}) = f(only(x))
 (f::FourierSeries3D)(x::Number) = value(contract(f, x, 1))
+function (f::FourierSeries3D{T,0})(x::Number) where T
+    C = f.coeffs_yz
+    ξ = inv(f.period[1])
+    s = size(C,1)
+    isodd(s) || return error("expected an array with an odd number of coefficients")
+    m = div(s,2)
+    @inbounds r = C[m+1]
+    z₀ = cispi(2ξ*x)
+    z = one(z₀)
+    @inbounds for n in Base.OneTo(m)
+        z *= z₀
+        r += z*C[n+m+1] + conj(z)*C[-n+m+1]
+    end
+    r
+end
 
 """
     fourier_kernel!(r::Array{T,N-1}, C::Array{T,N}, x, ξ, [::Val{a}=Val{0}()]) where {T,N,a}
