@@ -30,6 +30,8 @@ AutoBZ.Applications.AutoEquispaceOCIntegrand
 
 ```@docs
 AutoBZ.Applications.dos_integrand
+AutoBZ.Applications.spectral_function
+AutoBZ.Applications.band_velocities
 AutoBZ.Applications.gamma_integrand
 AutoBZ.Applications.oc_integrand
 AutoBZ.Applications.fermi
