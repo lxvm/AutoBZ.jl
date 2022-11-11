@@ -96,20 +96,21 @@ argument. This buffer can be used across multiple calls to avoid repeated
 allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits; order=4, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, segbufs=nothing)
+function iterated_integration(f, l::IntegrationLimits{d}; order=4, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, segbufs=nothing) where d
     Tfx, Tnfx = infer_f(f, SVector{ndims(l),eltype(l)})
     segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
     atol_ = something(atol, zero(Tnfx))/nsyms(l)
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(Tnfx))) : zero(Tnfx))
-    int, err = iterated_integration_(Tfx,Tnfx, f, l, order, atol_, rtol_, maxevals, norm, segbufs_)::Tuple{Tfx,Tnfx}
+    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, segbufs_)::Tuple{Tfx,Tnfx}
     symmetrize(l, int, err)
 end
-function iterated_integration_(Tfx,Tnfx, f, l::IntegrationLimits{1}, order, atol, rtol, maxevals, norm, segbufs)::Tuple{Tfx,Tnfx}
+
+function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, segbufs)
     QuadGK.do_quadgk(f, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1])
 end
-function iterated_integration_(Tfx, Tnfx, f, l::IntegrationLimits{d}, order, atol, rtol, maxevals, norm, segbufs)::Tuple{Tfx,Tnfx} where d
-    QuadGK.do_quadgk((lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1]) do x
-        first(iterated_integration_(Tfx,Tnfx, iterated_pre_eval(f, x, d), l(x), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, Base.tail(segbufs)))::Tfx
+function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, segbufs) where d
+    QuadGK.do_quadgk((lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[d]) do x
+        first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, segbufs))
     end
 end
 
