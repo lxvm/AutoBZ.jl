@@ -79,6 +79,7 @@ Compute the outermost `length(x)` variables of integration.
 Realizations of type `T<:IntegrationLimits` only have to implement a method with
 signature `(::T)(::Number)`.
 """
+(l::IntegrationLimits)(x, dim) = l(x)
 (l::IntegrationLimits)(x::SVector) = l(last(x))(pop(x))
 (l::IntegrationLimits)(::SVector{0}) = l
 
@@ -194,7 +195,8 @@ function CubicLimits(l::SVector{d,Tl}, u::SVector{d,Tu}) where {d,Tl<:Real,Tu<:R
     CubicLimits(SVector{d,T}(l), SVector{d,T}(u))
 end
 CubicLimits(l::Tl, u::Tu) where {Tl<:Real,Tu<:Real} = CubicLimits(SVector{1,Tl}(l), SVector{1,Tu}(u))
-CubicLimits(u) = CubicLimits(zero(u), u)
+CubicLimits(u::SVector) = CubicLimits(zero(u), u)
+CubicLimits(u::NTuple{N,T}) where {N,T} = CubicLimits(SVector{N,T}(u))
 
 box(c::CubicLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, zip(c.l, c.u))
 
@@ -247,17 +249,18 @@ end
 Construct a collection of limits which yields the first limit followed by the
 second, and so on.
 """
-struct CompositeLimits{L<:Tuple{Vararg{IntegrationLimits}},T,d} <: IntegrationLimits{d}
+struct CompositeLimits{d,T,L<:Tuple{Vararg{IntegrationLimits}}} <: IntegrationLimits{d}
     lims::L
-    function CompositeLimits(lims::T) where {T<:Tuple{Vararg{IntegrationLimits}}}
-        new{T, mapreduce(eltype, promote_type, T.parameters), mapreduce(ndims, +, T.parameters; init=0)}(lims)
-    end
 end
 CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
-(l::CompositeLimits)(x::Number) = CompositeLimits(first(l.lims)(x), Base.rest(l.lims, 2)...)
-(l::CompositeLimits{T})(x::Number) where {T<:Tuple{<:IntegrationLimits}} = CompositeLimits(first(l.lims)(x))
-(l::CompositeLimits{T})(::Number) where {T<:Tuple{<:IntegrationLimits{1},Vararg{IntegrationLimits}}} = CompositeLimits(Base.rest(l.lims, 2)...)
-Base.eltype(::Type{<:CompositeLimits{L,T}}) where {L,T} = T
+function CompositeLimits(lims::L) where {L<:Tuple{Vararg{IntegrationLimits}}}
+    CompositeLimits{mapreduce(ndims, +, L.parameters; init=0),mapreduce(eltype, promote_type, L.parameters),L}(lims)
+end
+CompositeLimits{d,T}(lims::IntegrationLimits...) where {d,T} = CompositeLimits{d,T}(lims)
+CompositeLimits{d,T}(lims::L) where {d,T,L} = CompositeLimits{d,T,L}(lims)
+(l::CompositeLimits{d,T,L})(x::Number) where {d,T,L} = CompositeLimits{d-1,T}(first(l.lims)(x), Base.rest(l.lims, 2)...)
+(l::CompositeLimits{d,T,L})(::Number) where {d,T,L<:Tuple{<:IntegrationLimits{1},Vararg{IntegrationLimits}}} = CompositeLimits{d-1,T}(Base.rest(l.lims, 2)...)
+Base.eltype(::Type{<:CompositeLimits{d,T}}) where {d,T} = T
 
 box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
 lower(l::CompositeLimits{L,T}) where {L,T} = T(lower(first(l.lims)))
