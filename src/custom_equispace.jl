@@ -40,6 +40,27 @@ function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3
     end
     return pre
 end
+function pre_eval_contract(f::AbstractFourierSeries3D, l::TetrahedralLimits{3}, npt)
+    @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    flag, wsym, nsym = discretize_equispace_(l, npt)
+    n = 0
+    b = box(l)
+    pre = Vector{Tuple{eltype(f),Int}}(undef, nsym)
+    for k in axes(flag, 3)
+        contract!(f, (b[3][2]-b[3][1])*(k-1)/npt, 3)
+        for j in axes(flag, 2)
+            contract!(f, (b[2][2]-b[2][1])*(j-1)/npt, 2)
+            for i in axes(flag, 1)
+                if flag[i,j,k]
+                    n += 1
+                    pre[n] = (f((b[1][2]-b[1][1])*(i-1)/npt), wsym[n])
+                    n >= nsym && break
+                end
+            end
+        end
+    end
+    return pre
+end
 
 """
     equispace_pre_eval(f::WannierIntegrand, l::IntegrationLimits, npt)

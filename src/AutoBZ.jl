@@ -40,6 +40,7 @@ import ..AutoBZ: box, lower, upper, nsyms, symmetries,
 include("linalg.jl")
 include("FourierSeries.jl")
 include("band_velocities.jl")
+include("fourier3d.jl")
 include("self_energies.jl")
 include("limits.jl")
 include("integrands.jl")

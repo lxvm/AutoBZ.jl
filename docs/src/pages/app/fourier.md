@@ -54,7 +54,6 @@ interface and should cover most use cases.
 
 ```@docs
 AutoBZ.Applications.FourierSeries
-AutoBZ.Applications.FourierSeries3D
 AutoBZ.Applications.FourierSeriesDerivative
 AutoBZ.Applications.OffsetFourierSeries
 AutoBZ.Applications.ManyFourierSeries
@@ -67,5 +66,31 @@ AutoBZ.Applications.BandEnergyBerryVelocity
 
 ```@docs
 AutoBZ.Applications.contract(::AutoBZ.Applications.AbstractFourierSeries)
-AutoBZ.Applications.band_velocities
+```
+
+# Optimized 3D evaluators
+
+For the use-case of Wannier90 calculations, the following Fourier series
+evaluators are optimized to improve performance by reducing allocations.
+
+## Interface
+
+```@docs
+AutoBZ.Applications.AbstractFourierSeries3D
+AutoBZ.Applications.contract!
+```
+
+## Types
+
+```@docs
+AutoBZ.Applications.FourierSeries3D
+AutoBZ.Applications.BandEnergyVelocity3D
+AutoBZ.Applications.BandEnergyBerryVelocity3D
+```
+
+## Methods
+
+```@docs
+AutoBZ.Applications.contract!(::AutoBZ.Applications.AbstractFourierSeries3D)
+AutoBZ.Applications.fourier_kernel!
 ```
