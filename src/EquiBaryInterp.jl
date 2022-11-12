@@ -85,7 +85,7 @@ struct LocalEquiBaryInterp{Tx,Ty,Tw,Th}
     h::Th
 end
 function LocalEquiBaryInterp(x::AbstractVector{Tx}, y::AbstractVector{Ty}, degree::Integer=8) where {Tx,Ty}
-    length(x) >= n+1 || ArgumentError("Insufficient nodes to construct requested order interpolant")
+    length(x) >= degree+1 || ArgumentError("Insufficient nodes to construct requested order interpolant")
     LocalEquiBaryInterp(convert(Vector{Tx}, x), convert(Vector{Ty}, y), equi_bary_weights(degree), step(to_range(x)))
 end
 function (b::LocalEquiBaryInterp{T})(x_::Number) where T
