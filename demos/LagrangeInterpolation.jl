@@ -1,88 +1,122 @@
-module LagrangeInterpolation
+"""
+    EquiBaryInterp
 
-using StaticArrays: SVector, sacollect
+A module to perform local barycentric Lagrange interpolation of data on
+equispaced grids as in the paper by Berrut and Trefethen (2004) SIAM review
+https://doi.org/10.1137/S0036144502417715
+"""
+module EquiBaryInterp
 
-export barycentric_weights, BaryPoly, LocalEquiBaryInterpolant
+export barycentric_weights, BaryPoly, LocalEquiBaryInterp
 
+"""
+    barycentric_weights(x::AbstractVector{T}) where {T<:Real}
+
+Computes barycentric weights for the nodes `x`.
+"""
 function barycentric_weights(x::AbstractVector{T}) where {T<:Real}
-    N = length(x)
-    sacollect(SVector{N,T}, inv(prod(x[i] - x[j] for j in 1:N if j != i)) for i in 1:N)
+    T[inv(prod(x[i] - x[j] for j in 1:N if j != i)) for i in 1:length(x)]
 end
 barycentric_weights(x::AbstractRange) = equi_bary_weights(length(x)-1)
-"Return barycentric weights for `n+1` equispace nodes"
-equi_bary_weights(n) = sacollect(SVector{n+1,Int64}, (-1)^j * binomial(n, j) for j in 0:n)
+"""
+    equi_bary_weights(n::Integer)
+
+Computes barycentric weights for `n+1` equispace nodes.
+"""
+function equi_bary_weights(n::T) where {T<:Integer}
+    T[(-1)^j * binomial(n, j) for j in 0:n]
+end
+
+
+"""
+    bary_kernel(x, xs, ys, ws)
+
+Computes the value of the barycentric Lagrange polynomial interpolant with nodes
+`xs`, values `ys`, and weights `ws` at point `x`.
+"""
+function bary_kernel(x_, xs::AbstractVector{T}, ys, ws) where T
+    # unroll the first loop to get the right types
+    x = convert(T, x_)
+    Δx = x - xs[1]
+    iszero(Δx) && return ys[1]
+    q = l = ws[1]/Δx
+    p = l * ys[1]
+    @inbounds for i in 2:length(ws)
+        Δx = x - xs[i]
+        iszero(Δx) && return ys[i]
+        q += l = ws[i]/Δx
+        p += l * ys[i]
+    end
+    p/q
+end
+
 
 """
     BaryPoly(x, y)
     BaryPoly(x, y, w)
 
-Construct and store a Barycentric Lagrange polynomial from the data
+Constructs a barycentric Lagrange polynomial from the data `y` sampled on `x`.
 """
-struct BaryPoly{N,Tx<:Real,Ty,Tw<:Real}
-    x::SVector{N,Tx}
-    y::SVector{N,Ty}
-    w::SVector{N,Tw}
+struct BaryPoly{Tx,Ty,Tw}
+    x::Vector{Tx}
+    y::Vector{Ty}
+    w::Vector{Tw}
 end
-
 BaryPoly(x, y) = BaryPoly(x, y, barycentric_weights(x))
-function (b::BaryPoly{N,Tx,Ty})(x::Real) where {N,Tx,Ty}
-    first(b.x)<=x<=last(b.x) || ArgumentError("x is out of range of interpolant")
-    bary_kernel(x, b.x, b.y, b.w, N, Tx, Ty)
-end
-function bary_kernel(x, xs, ys, ws, N, Tx, Ty)
-    p = zero(Ty)
-    q = zero(Tx)
-    for i in 1:N
-        Δx = x - xs[i]
-        iszero(Δx) && return ys[i]
-        l = ws[i]/Δx
-        p += l*ys[i]
-        q += l
-    end
-    p/q
+function (b::BaryPoly)(x)
+    first(b.x) <= x <= last(b.x) || ArgumentError("x is out of range of interpolant")
+    bary_kernel(x, b.x, b.y, b.w)
 end
 
-"""
-    LocalEquiBaryInterpolant(x, y, n::Integer)
-    LocalEquiBaryInterpolant(x, y, w)
 
-Construct a local Barycentric Lagrange interpolant that uses the `n` nearest
-points to the evaluation point to form weights `w` of a Barycentric Lagrange
-polynomial interpolant of the data for f.
 """
-struct LocalEquiBaryInterpolant{N,Tx<:AbstractRange,Ty<:AbstractVector,Tw}
-    x::Tx
-    y::Ty
-    w::SVector{N,Tw}
+    LocalEquiBaryInterp(x::AbstractVector, y::AbstractVector, [n=8])
+    LocalEquiBaryInterp(x::Vector, y::Vector, w::Vector, h)
+
+Construct a local barycentric Lagrange interpolant that uses the `n` nearest
+points in `x` to the evaluation point to form weights `w` of a Barycentric
+Lagrange polynomial interpolant of the data `y`. `x` must be identical to a
+range with step size `h`.
+"""
+struct LocalEquiBaryInterp{Tx,Ty,Tw,Th}
+    x::Vector{Tx}
+    y::Vector{Ty}
+    w::Vector{Tw}
+    h::Th
 end
-LocalEquiBaryInterpolant(x, y, n::Integer) = LocalEquiBaryInterpolant(to_range(x), y, n)
-function LocalEquiBaryInterpolant(x::AbstractRange, y, n::Integer)
+function LocalEquiBaryInterp(x::AbstractVector{Tx}, y::AbstractVector{Ty}, n::Integer=8) where {Tx,Ty}
     length(x) >= n+1 || ArgumentError("Insufficient nodes to construct requested order interpolant")
-    LocalEquiBaryInterpolant(x, y, equi_bary_weights(n))
+    LocalEquiBaryInterp(convert(Vector{Tx}, x), convert(Vector{Ty}, y), equi_bary_weights(n), step(to_range(x)))
 end
-function (b::LocalEquiBaryInterpolant{N,Tx,Ty})(x::Number) where {N,Tx,Ty}
-    first(b.x)<=x<=last(b.x) || ArgumentError("x is out of range of interpolant")
-    local_bary_kernel(x, b.x, b.y, b.w, N, Tx, Ty)
-end
-function local_bary_kernel(x, xs::AbstractRange, ys::AbstractVector, ws, N, Tx, Ty)
-    r = (x - first(xs))/step(xs) + 1
+function (b::LocalEquiBaryInterp{T})(x_::Number) where T
+    x = convert(T, x_)
+    n = length(b.x)
+    b.x[1] <= x <= b.x[n] || ArgumentError("x is out of range of interpolant")
+    r = (x - b.x[1])/b.h + 1
     i = round(Int, r)
+    p = length(b.w)
     if r > i
-        il = i-ceil(Int, N/2)+1
-        iu = i+floor(Int, N/2)
+        il = i-ceil(Int, p/2)+1
+        iu = i+floor(Int, p/2)
     else # r <= i
-        il = i-floor(Int, N/2)
-        iu = i+ceil(Int, N/2)-1
+        il = i-floor(Int, p/2)
+        iu = i+ceil(Int, p/2)-1
     end
-    edge_offset = min(0, length(xs)-iu) + max(1-il, 0)
+    edge_offset = min(0, n-iu) + max(1-il, 0)
     il += edge_offset
     iu += edge_offset
-    idx = SVector{N,Int}(il:iu)
-    xs_ = xs[idx]
-    ys_ = ys[idx]
-    bary_kernel(x, xs_, ys_, ws, N, eltype(Tx), eltype(Ty))
+    idx = il:iu
+    xs = view(b.x, idx)
+    ys = view(b.y, idx)
+    bary_kernel(x, xs, ys, b.w)
 end
 
+"""
+    to_range(x::AbstractVector)
+
+Assert tjat`x` is numerically identical to an equispace range, and return an
+equivalent range object.
+"""
 function to_range(x::AbstractVector)
     y = range(first(x), last(x), length=length(x))
     x == y || error("input points could not be converted to a range")
