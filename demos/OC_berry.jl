@@ -7,11 +7,7 @@ using AutoBZ
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
-# load the gradient of the Berry connection
-A = AutoBZ.Applications.load_position_operator("svo_r.dat"; period=period)
-# construct the Fourier series for the Hamiltonian and Berry-modified velocities
-HV = AutoBZ.Applications.BandEnergyBerryVelocity(H, A)
+HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=period)
 
 # Define problem parameters
 Ω = 0.0 # eV
@@ -21,7 +17,7 @@ HV = AutoBZ.Applications.BandEnergyBerryVelocity(H, A)
 
 # initialize integrand and limits
 Σ = AutoBZ.Applications.EtaEnergy(η)
-σ = AutoBZ.Applications.OCIntegrand(HV, Σ, Ω, β, μ) # using the (Berry) band velocities
+σ = AutoBZ.Applications.OCIntegrand(HV, Σ, Ω, β, μ)
 f = AutoBZ.Applications.fermi_window_limits(Ω, β)
 c = AutoBZ.CubicLimits(H.period)
 t = AutoBZ.Applications.TetrahedralLimits(c)

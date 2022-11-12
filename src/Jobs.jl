@@ -94,8 +94,8 @@ function get_safe_freq_limits(Ωs, β, lb, ub)
 end
 
 "Performs the full calculation"
-function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -104,7 +104,7 @@ function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, r
         @info "Ω=$Ω starting ..."
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
-        σ = OCIntegrand(H, Σ, Ω, β, μ)
+        σ = OCIntegrand(HV, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -113,7 +113,7 @@ function OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, r
 end
 
 "Only performs the omega integral"
-function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y, z)
+function test_OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y, z)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -121,7 +121,7 @@ function test_OCscript(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, at
     ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
     ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
     ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
-    H_ = contract(contract(contract(H, z), y), x)
+    H_ = contract(contract(contract(HV, z), y), x)
     ν₁_ = contract(contract(contract(ν₁, z), y), x)
     ν₂_ = contract(contract(contract(ν₂, z), y), x)
     ν₃_ = contract(contract(contract(ν₃, z), y), x)
@@ -142,8 +142,8 @@ function OCscript_parallel(filename, args...)
     results
 end
 
-function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -157,7 +157,7 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
             @info "Ω=$Ω started"
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            σ = OCIntegrand(H, Σ, Ω, β, μ)
+            σ = OCIntegrand(HV, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -167,10 +167,9 @@ function OCscript_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, �
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_equispace(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_equispace(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    HV = BandEnergyVelocity(H)
     @info "pre-evaluating Hamiltonian..."
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
@@ -195,10 +194,9 @@ function OCscript_equispace_parallel(filename, args...; pre_eval=pre_eval_contra
     write_nt_to_h5(results, filename)
     results
 end
-function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol, pre_eval, nthreads)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol, pre_eval, nthreads)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    HV = BandEnergyVelocity(H)
     @info "pre-evaluating Hamiltonian..."
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
@@ -224,14 +222,14 @@ function OCscript_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, 
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_auto(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_auto(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    σ = OCIntegrand(H, Σ, 0.0, β, μ)
+    σ = OCIntegrand(HV, Σ, 0.0, β, μ)
     Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info "Ω=$Ω starting ..."
@@ -254,8 +252,8 @@ function OCscript_auto_parallel(filename, args...)
     results
 end
 
-function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -266,7 +264,7 @@ function OCscript_auto_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, �
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
-        σ = OCIntegrand(H, Σ, 0.0, β, μ)
+        σ = OCIntegrand(HV, Σ, 0.0, β, μ)
         Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."
@@ -293,18 +291,18 @@ function OCscript_auto_equispace(filename, args...)
     results
 end
 
-function OCscript_auto_equispace_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_auto_equispace_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    σ = OCIntegrand(H, Σ, 0.0, β, μ)
+    σ = OCIntegrand(HV, Σ, 0.0, β, μ)
     Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info "Ω=$Ω starting ..."
         t = time()
-        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+        Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -318,8 +316,8 @@ function OCscript_auto_equispace_parallel(filename, args...; nthreads=Threads.nt
     results
 end
 
-function OCscript_auto_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
-    BZ_lims = TetrahedralLimits(H.period)
+function OCscript_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
+    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -328,7 +326,7 @@ function OCscript_auto_equispace_parallel_(H::FourierSeries, Σ::AbstractSelfEne
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
-        σ = OCIntegrand(H, Σ, 0.0, β, μ)
+        σ = OCIntegrand(HV, Σ, 0.0, β, μ)
         Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."

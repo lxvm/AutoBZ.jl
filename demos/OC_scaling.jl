@@ -8,7 +8,7 @@ using AutoBZ
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
+HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period)
 
 # Define problem parameters
 Ω = 0.0 # eV
@@ -18,7 +18,7 @@ H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
 
 # initialize integrand and limits
 Σ = AutoBZ.Applications.EtaEnergy(η)
-σ = AutoBZ.Applications.OCIntegrand(H, Σ, Ω, β, μ)
+σ = AutoBZ.Applications.OCIntegrand(HV, Σ, Ω, β, μ)
 f = AutoBZ.Applications.fermi_window_limits(Ω, β)
 c = AutoBZ.CubicLimits(H.period)
 t = AutoBZ.Applications.TetrahedralLimits(c)

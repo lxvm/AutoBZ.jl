@@ -6,16 +6,15 @@ is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 import ParallelMagics
 using AutoBZ
 
-include("Demos.jl")
-
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
+HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period)
 
 # define problem parameters
 μ = 12.3958 # eV
-Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
+Ωs = [0.0]
+# Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
 η = 0.5 # eV
 
 # define constants
@@ -38,4 +37,4 @@ atol = 1e-2
 AutoBZ.equispace_int_eval(f, pre, dvol) = dvol * ParallelMagics.sum(x -> x[2]*evaluate_integrand(f, x[1]), pre)
 
 # run calculation
-results = Demos.OCscript_auto_equispace("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", H, Σ, β, Ωs, μ, rtol, atol)
+results = AutoBZ.Jobs.OCscript_auto_equispace("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)
