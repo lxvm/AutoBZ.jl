@@ -117,8 +117,7 @@ struct GammaIntegrand{T,M1,M2}
     kind::Symbol
 end
 
-GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full) = GammaIntegrand(HV, Σ, ω, Ω, μ, kind)
-function GammaIntegrand(HV, Σ, ω, Ω, μ, kind::Symbol=:full)
+function GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
     GammaIntegrand(HV, Mω, MΩ, kind)
