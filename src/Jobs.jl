@@ -1,4 +1,4 @@
-module Demos
+module Jobs
 
 using LinearAlgebra
 
@@ -6,8 +6,8 @@ using HDF5
 using StaticArrays
 using OffsetArrays
 
-using AutoBZ
-using AutoBZ.Applications
+using ..AutoBZ
+using ..AutoBZ.Applications
 
 #=
 Section: loading data from HDF5
@@ -25,43 +25,11 @@ function h5_dset_to_vec(A::Array{T,N}) where {T,N}
     reinterpret(SArray{Tuple{S...},T,N-1,prod(S)}, vec(A))
 end
 
-loadW90Hamiltonian(filename) = h5open(loadW90Hamiltonian_, filename)
-
-function loadW90Hamiltonian_(f::HDF5.File)
-    dset = f["epsilon_mn"]
-    idxs = f["irvec"]
-    A = read(dset)
-    s = Int(cbrt(size(A, 3)))
-    k = Int((s-1)/2)
-    idx = read(idxs)
-    T = SMatrix{size(A,1), size(A,2), ComplexF64, size(A,1)*size(A,2)}
-    # M = LinearAlgebra.checksquare(A[:,:,1,1])
-    # T = SHermitianCompact{M,ComplexF64,StaticArrays.triangularnumber(M)}
-    C = loadC(T, A, idx .+ (k+1), (s,s,s))
-    C = OffsetArray(C, -k:k, -k:k, -k:k)
-    C
-end
-
-function loadC(T, A::Array{Float64,4}, idx, dims)
-    C = Array{T, length(dims)}(undef, dims)
-    for i in axes(A, 3)
-        C[CartesianIndex(idx[:, i]...)] = T(complex.(view(A, :, :, i, 1), view(A, :, :, i, 2)))
-    end
-    C
-end
-
 import_self_energy(filename) = h5open(import_self_energy_, filename)
 function import_self_energy_(f::HDF5.File)
     dset = read(f, "sigma")
     (ω = read(f, "omega"), Σ = complex.(dset[1, :], dset[2, :]))
 end
-
-self_energy_evaluator(filename, order) = self_energy_evaluator(import_self_energy(filename)..., order)
-function self_energy_evaluator(ω, Σ, order)
-    Σ = self_energy_interpolant(ω, Σ, order)
-    Applications.ScalarEnergy(Σ, only(lb(Σ)), only(ub(Σ)))
-end
-self_energy_interpolant(ω, Σ, order) = chebregression(ω, Σ, (order,))
 
 #=
 Section: saving data to HDF5
