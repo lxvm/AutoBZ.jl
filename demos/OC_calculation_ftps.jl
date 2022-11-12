@@ -8,7 +8,7 @@ using FastChebInterp
 using AutoBZ
 
 include("Demos.jl")
-include("LagrangeInterpolation.jl")
+include("EquiBaryInterp.jl")
 
 # define the periods of the axes of the Brillouin zone for example material
 period = round(2π/3.858560, digits=6)
@@ -28,7 +28,7 @@ ub = only(sigma_cheb_interp.ub) - 0.05len
 
 # construct a Barycentric Lagrange interpolant
 degree = 8
-sigma_bary_interp = LagrangeInterpolation.LocalEquiBaryInterpolant(sigma_data.ω, sigma_data.Σ, degree)
+sigma_bary_interp = EquiBaryInterp.LocalEquiBaryInterp(sigma_data.ω, sigma_data.Σ, degree)
 
 # construct the self energy datatype
 Σ = AutoBZ.Applications.ScalarEnergy(sigma_cheb_interp, lb, ub)

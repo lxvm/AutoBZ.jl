@@ -70,13 +70,13 @@ end
 
 
 """
-    LocalEquiBaryInterp(x::AbstractVector, y::AbstractVector, [n=8])
+    LocalEquiBaryInterp(x::AbstractVector, y::AbstractVector, [degree=8])
     LocalEquiBaryInterp(x::Vector, y::Vector, w::Vector, h)
 
-Construct a local barycentric Lagrange interpolant that uses the `n` nearest
-points in `x` to the evaluation point to form weights `w` of a Barycentric
-Lagrange polynomial interpolant of the data `y`. `x` must be identical to a
-range with step size `h`.
+Construct a local barycentric Lagrange interpolant that forms a degree `degree`
+local polynomial approximation of the data `y` on the equispace grid `x`, which
+must be identical to a range with step size `h`. `w` are the equispace
+interpolation weights.
 """
 struct LocalEquiBaryInterp{Tx,Ty,Tw,Th}
     x::Vector{Tx}
@@ -84,9 +84,9 @@ struct LocalEquiBaryInterp{Tx,Ty,Tw,Th}
     w::Vector{Tw}
     h::Th
 end
-function LocalEquiBaryInterp(x::AbstractVector{Tx}, y::AbstractVector{Ty}, n::Integer=8) where {Tx,Ty}
+function LocalEquiBaryInterp(x::AbstractVector{Tx}, y::AbstractVector{Ty}, degree::Integer=8) where {Tx,Ty}
     length(x) >= n+1 || ArgumentError("Insufficient nodes to construct requested order interpolant")
-    LocalEquiBaryInterp(convert(Vector{Tx}, x), convert(Vector{Ty}, y), equi_bary_weights(n), step(to_range(x)))
+    LocalEquiBaryInterp(convert(Vector{Tx}, x), convert(Vector{Ty}, y), equi_bary_weights(degree), step(to_range(x)))
 end
 function (b::LocalEquiBaryInterp{T})(x_::Number) where T
     x = convert(T, x_)
