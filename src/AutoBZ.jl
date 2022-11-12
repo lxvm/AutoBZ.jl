@@ -50,6 +50,7 @@ include("wannier90io.jl")
 
 end
 
+include("AdaptChebInterp.jl")
 include("EquiBaryInterp.jl")
 include("Jobs.jl")
 
