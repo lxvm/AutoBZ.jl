@@ -117,7 +117,7 @@ struct GammaIntegrand{T,M1,M2}
     kind::Symbol
 end
 
-GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ, kind::Symbol=:full) = GammaIntegrand(BandEnergyVelocity(H), Σ, ω, Ω, μ, kind)
+GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full) = GammaIntegrand(HV, Σ, ω, Ω, μ, kind)
 function GammaIntegrand(HV, Σ, ω, Ω, μ, kind::Symbol=:full)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
@@ -203,7 +203,7 @@ struct OCIntegrand{T,TS}
     end
 end
 
-OCIntegrand(H::FourierSeries, Σ, Ω::Float64, β::Float64, μ::Float64, kind::Symbol=:full) = OCIntegrand(BandEnergyVelocity(H), Σ, Ω, β, μ, kind)
+OCIntegrand(HV, Σ, Ω, β, μ; kind::Symbol=:full) = OCIntegrand(HV, Σ, Ω, β, μ, kind)
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ, f.kind)
