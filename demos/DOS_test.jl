@@ -3,11 +3,12 @@ In this script we compute DOS at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
+using AutoBZ.Applications
 
 # define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
+b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
+H = load_hamiltonian("svo_hr.dat"; period=b)
 
 # Define problem parameters
 ω = 0.0 # eV
@@ -15,15 +16,14 @@ H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period)
 μ = 12.3958 # eV
 
 # initialize integrand and limits
-Σ = AutoBZ.Applications.EtaEnergy(η)
-D = AutoBZ.Applications.DOSIntegrand(H, ω, Σ, μ)
-c = AutoBZ.CubicLimits(H.period)
-t = AutoBZ.Applications.TetrahedralLimits(c)
+Σ = EtaEnergy(η)
+D = DOSIntegrand(H, ω, Σ, μ)
+c = CubicLimits(period(H))
+t = TetrahedralLimits(c)
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
-int, err = AutoBZ.iterated_integration(D, t; atol=atol, rtol=rtol)
-inte, erre, other = AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol)
-# inte, erre, other = AutoBZ.automatic_equispace_integration(D, c; atol=atol, rtol=rtol)
+int, err = iterated_integration(D, t; atol=atol, rtol=rtol)
+inte, erre, other = automatic_equispace_integration(D, t; atol=atol, rtol=rtol)

@@ -8,12 +8,13 @@ using HDF5
 using Plots
 
 using AutoBZ
+using AutoBZ.Applications
 
 function initialize_data()
 # define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
+b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-H = AutoBZ.Applications.load_hamiltonian("svo_hr.dat"; period=period, compact=:S)
+H = load_hamiltonian("svo_hr.dat"; period=b, compact=:S)
 
 # Define problem parameters
 omegas = collect(range(-1, 1; length=300)) # eV
@@ -21,8 +22,8 @@ etas = collect(2.0 .^ (-1:-1:-10)) # eV
 μ = 12.3958 # eV (SrVO3)
 
 # initialize integration limits
-c = AutoBZ.CubicLimits(H.period)
-t = AutoBZ.Applications.TetrahedralLimits(c)
+c = CubicLimits(period(H))
+t = TetrahedralLimits(c)
 
 # set error tolerances (the most generous is always chosen)
 atol_ = 3 # decimal places
@@ -87,10 +88,10 @@ function equispace_scaling()
     npt2 = Matrix{Int64}(undef, length(omegas), length(etas))
     for (j, eta) in enumerate(etas)
         @info "starting log2(eta)=$(log2(eta))"
-        Σ = AutoBZ.Applications.EtaEnergy(eta)
+        Σ = EtaEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
-            r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
+            D = DOSIntegrand(H, omega, Σ, μ)
+            r = @timed automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
             ints[i,j], errs[i,j], equi_save = r.value
             times[i,j] = r.time
             npt1[i,j] = equi_save.npt1
@@ -107,10 +108,10 @@ function adaptive_scaling()
 
     for (j, eta) in enumerate(etas)
         @info "starting log2(eta)=$(log2(eta))"
-        Σ = AutoBZ.Applications.EtaEnergy(eta)
+        Σ = EtaEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
-            r = @timed AutoBZ.iterated_integration(D, t; atol=atol, rtol=rtol)
+            D = DOSIntegrand(H, omega, Σ, μ)
+            r = @timed iterated_integration(D, t; atol=atol, rtol=rtol)
             ints[i,j], errs[i,j] = r.value
             times[i,j] = r.time
         end
@@ -122,11 +123,11 @@ function auto_adaptive_scaling(; eatol=0.0, ertol=1.0)
     H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
 
     for (j, eta) in enumerate(etas)
-        Σ = AutoBZ.Applications.EtaEnergy(eta)
+        Σ = EtaEnergy(eta)
         for (i, omega) in enumerate(omegas)
-            D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
-            int_, = AutoBZ.automatic_equispace_integration(D, t; atol=eatol, rtol=ertol, equi_save...)
-            r = @timed AutoBZ.iterated_integration(D, t; atol=max(atol, rtol*norm(int_)), rtol=0.0)
+            D = DOSIntegrand(H, omega, Σ, μ)
+            int_, = automatic_equispace_integration(D, t; atol=eatol, rtol=ertol, equi_save...)
+            r = @timed iterated_integration(D, t; atol=max(atol, rtol*norm(int_)), rtol=0.0)
             ints[i,j], errs[i,j] = r.value
             times[i,j] = r.time
         end
@@ -243,10 +244,10 @@ function oadaptive_scaling()
         @info "using order $o GK rule"
         for (j, eta) in enumerate(etas)
             @info "starting log2(eta)=$(log2(eta))"
-            Σ = AutoBZ.Applications.EtaEnergy(eta)
+            Σ = EtaEnergy(eta)
             for (i, omega) in ProgressBar(enumerate(omegas))
-                D = AutoBZ.Applications.DOSIntegrand(H, omega, Σ, μ)
-                r = @timed AutoBZ.iterated_integration(D, t; order=o, atol=atol, rtol=rtol)
+                D = DOSIntegrand(H, omega, Σ, μ)
+                r = @timed iterated_integration(D, t; order=o, atol=atol, rtol=rtol)
                 ints[i,j], errs[i,j] = r.value
                 times[i,j] = r.time
             end

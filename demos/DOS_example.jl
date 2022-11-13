@@ -24,7 +24,7 @@ for (j, n) in enumerate(ns)
     μ = 0.0
     
     # construct IBZ integration limits
-    c = CubicLimits(H.period)
+    c = CubicLimits(period(H))
     t = TetrahedralLimits(c)
     
     # set error tolerances

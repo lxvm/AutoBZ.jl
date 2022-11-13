@@ -6,12 +6,13 @@ data that we interpolate with a high-order Chebyshev regression
 using FastChebInterp
 
 using AutoBZ
+using AutoBZ.Applications
 
 
 # define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
+b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period)
+HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
 
 # import self energies from an equispaced grid
 sigma_data = AutoBZ.Jobs.import_self_energy("srvo_sigma_ftps_T0.h5")
@@ -30,7 +31,7 @@ sigma_bary_interp = AutoBZ.EquiBaryInterp.LocalEquiBaryInterp(sigma_data.ω, sig
 
 # construct the self energy datatype
 # Σ = AutoBZ.Applications.ScalarEnergy(sigma_cheb_interp, lb, ub)
-Σ = AutoBZ.Applications.ScalarEnergy(sigma_bary_interp, minimum(sigma_data.ω), maximum(sigma_data.ω))
+Σ = ScalarEnergy(sigma_bary_interp, minimum(sigma_data.ω), maximum(sigma_data.ω))
 
 # define problem parameters
 μ = 12.3958 # eV

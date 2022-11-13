@@ -3,11 +3,12 @@ In this script we compute OC at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
+using AutoBZ.Applications
 
 # define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
+b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=period)
+HV = load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=b)
 
 # Define problem parameters
 Ω = 0.0 # eV
@@ -16,21 +17,21 @@ HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; 
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 
 # initialize integrand and limits
-Σ = AutoBZ.Applications.EtaEnergy(η)
-σ = AutoBZ.Applications.OCIntegrand(HV, Σ, Ω, β, μ)
-f = AutoBZ.Applications.fermi_window_limits(Ω, β)
-c = AutoBZ.CubicLimits(H.period)
-t = AutoBZ.Applications.TetrahedralLimits(c)
+Σ = EtaEnergy(η)
+σ = OCIntegrand(HV, Σ, Ω, β, μ)
+f = fermi_window_limits(Ω, β)
+c = CubicLimits(period(HV))
+t = TetrahedralLimits(c)
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
 # fully adaptive integration
-int, err = AutoBZ.iterated_integration(σ, AutoBZ.CompositeLimits(t, f); atol=atol, rtol=rtol)
+int, err = iterated_integration(σ, CompositeLimits(t, f); atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
-Eσ = AutoBZ.Applications.AutoEquispaceOCIntegrand(σ, t, atol, rtol)
+Eσ = AutoEquispaceOCIntegrand(σ, t, atol, rtol)
 # Eσ = AutoBZ.Applications.AutoEquispaceOCIntegrand(σ, c, atol, rtol)
 
-inte, erre = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)
+inte, erre = iterated_integration(Eσ, f; atol=atol, rtol=rtol)
