@@ -3,7 +3,7 @@
 ## Interface
 
 ```@docs
-AutoBZ.Applications.Abstract
+AutoBZ.Applications.AbstractSelfEnergy
 AutoBZ.Applications.lb
 AutoBZ.Applications.ub
 ```
