@@ -27,6 +27,8 @@ makedocs(
             "pages/app/interfaces.md",
             "pages/app/self_energy.md",
         ],
+        "AdaptChebInterp" => "pages/adaptinterp.md",
+        "EquiBaryInterp" => "pages/equiinterp.md",
         "Demos" => "pages/demo.md",
         "Workflow" => "pages/workflow.md",
     ],

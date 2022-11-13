@@ -44,7 +44,12 @@ function (p::PanelPoly{T,Td})(x_) where {T,Td}
     error("panel in domain not found")
 end
 
-
+"""
+    adaptchebinterp(f, a, b; order=4, atol=0, rtol=0, norm=norm, maxevals=typemax(Int), initdiv=1)
+    
+Return a piecewise polynomial interpolant of `f` on the interval ``[a,b]`` of
+degree `order` that is pointwise accurate to the requested tolerances.
+"""
 function adaptchebinterp(f, a::A, b::B; order=4, atol=0, rtol=0, norm=norm, maxevals=typemax(Int), initdiv=1) where {A,B}
     T = float(promote_type(A, B))
     adaptchebinterp_(f, T(a), T(b), order, atol, rtol, norm, maxevals, initdiv)
