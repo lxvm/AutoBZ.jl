@@ -57,7 +57,7 @@ end
 
 Constructs a barycentric Lagrange polynomial from the data `y` sampled on `x`.
 """
-struct BaryPoly{Tx,Ty,Tw}
+struct BaryPoly{Tx,Ty,Tw} <: Function
     x::Vector{Tx}
     y::Vector{Ty}
     w::Vector{Tw}
@@ -78,7 +78,7 @@ local polynomial approximation of the data `y` on the equispace grid `x`, which
 must be identical to a range with step size `h`. `w` are the equispace
 interpolation weights.
 """
-struct LocalEquiBaryInterp{Tx,Ty,Tw}
+struct LocalEquiBaryInterp{Tx,Ty,Tw} <: Function
     x::Vector{Tx}
     y::Vector{Ty}
     w::Vector{Tw}
