@@ -32,5 +32,8 @@ T = sqrt(η/c)
 rtol = 1e-3
 atol = 1e-2
 
+# override built-in grid refinement to use a smaller, eta-independent step size 
+AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
+
 # run script
 results = AutoBZ.Jobs.OCscript_auto_parallel("OC_results_fermi_auto_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)
