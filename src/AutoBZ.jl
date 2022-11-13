@@ -32,7 +32,8 @@ using Combinatorics: permutations
 # using FFTW
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, 
-    equispace_integration, automatic_equispace_integration, discretize_equispace_
+    equispace_integration, automatic_equispace_integration, discretize_equispace_,
+    iterated_integration, alloc_segbufs
 import ..AutoBZ: box, lower, upper, nsyms, symmetries,
     equispace_pre_eval, equispace_npt_update, evaluate_integrand,
     iterated_pre_eval, infer_f
@@ -46,6 +47,7 @@ include("limits.jl")
 include("integrands.jl")
 include("custom_equispace.jl")
 include("custom_adaptive.jl")
+include("evaluators.jl")
 include("wannier90io.jl")
 
 end
