@@ -3,8 +3,11 @@
 ## Wannier90
 
 ```@docs
-AutoBZ.Applications.parse_hamiltonian
 AutoBZ.Applications.load_hamiltonian
+AutoBZ.Applications.load_hamiltonian_velocities
+AutoBZ.Applications.load_position_operator
+AutoBZ.Applications.parse_hamiltonian
+AutoBZ.Applications.parse_position_operator
 ```
 
 ## Python

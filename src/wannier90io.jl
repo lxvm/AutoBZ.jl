@@ -168,6 +168,21 @@ function load_position_operator(filename; period=1.0, compact=:N)
     FX, FY, FZ
 end
 
+"""
+    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N)
+
+Load the Hamiltonian and band velocities, which may later be passed to one of
+the integrand constructors. When called with one filename, that file is parsed
+as a Wannier 90 Hamiltonian and the resulting Band velocities are just the
+gradient of the Hamiltonian. The return type is `BandEnergyVelocity3D`. When
+called with two filenames, the second is parsed as a position operator from
+Wannier 90 and adds a contribution to band velocities from the Berry connection.
+The return type is `BandEnergyBerryVelocity3D`.The keywords `period` and
+`compact` set the reciprocal unit cell length and whether the coefficients of
+the Fourier series should be compressed as Hermitian matrices. Typically the
+coefficients cannot be compressed despite the values of the series being
+Hermitian.
+"""
 function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
     BandEnergyVelocity3D(H)
