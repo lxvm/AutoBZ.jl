@@ -27,7 +27,7 @@ makedocs(
             "pages/app/interfaces.md",
         ],
         "Demos" => "pages/demo.md",
-        "Workflow" => "pages/worflow.md",
+        "Workflow" => "pages/workflow.md",
     ],
 )
 
