@@ -10,6 +10,7 @@ using LinearAlgebra
 using StaticArrays
 using FastChebInterp: chebpoint, chebpoints, chebinterp, ChebPoly
 
+export adaptchebinterp
 
 struct Panel{Td}
     a::Td # left endpoint
