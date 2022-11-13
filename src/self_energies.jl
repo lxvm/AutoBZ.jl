@@ -9,7 +9,20 @@ An abstract type whose instances implement the following interface:
   of the frequency domain for which the instance can be evaluated
 """
 abstract type AbstractSelfEnergy end
+
+"""
+    lb(::AbstractSelfEnergy)
+
+Return the greatest lower bound of the domain of the self energy evaluator
+"""
 function lb end
+
+
+"""
+    ub(::AbstractSelfEnergy)
+
+Return the least upper bound of the domain of the self energy evaluator
+"""
 function ub end
 
 """

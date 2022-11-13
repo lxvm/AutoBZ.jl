@@ -17,7 +17,7 @@ abstract type AbstractFourierSeries3D <: AbstractFourierSeries{3} end
 """
     contract!(f::AbstractFourierSeries3D, x::Number, dim::Int)
 
-
+An in-place version of `contract`.
 """
 function contract! end
 
@@ -72,9 +72,45 @@ quote
 end
 end
 
+"""
+    fourier_kernel(C::Vector, x, ξ, [::Val{a}=Val{0}()])
+
+A version of `fourier_kernel!` for 1D Fourier series evaluation that is not in
+place, but allocates an output array. This is usually faster for series whose
+element type is a StaticArray for integrals that don't need to reuse the data.
+"""
+@generated function fourier_kernel(C::Vector{T}, x, ξ, ::Val{a}=Val{0}()) where {T,a}
+    if a == 0
+        fundamental = :(C[m+1])
+        c = :(z); c̄ = :(conj(z))
+    elseif a == 1
+        fundamental = :(zero($T))
+        c = :(im*2π*ξ*n*z); c̄ = :(conj(c))
+    else
+        f₀ = 0^a
+        fundamental = :(fill($f₀, $T))
+        c = :(((im*2pi*ξ*n)^$a)*z); c̄ = :(((-im*2pi*ξ*n)^$a)*conj(z))
+    end
+quote
+    s = size(C,1)
+    isodd(s) || return error("expected an array with an odd number of coefficients")
+    m = div(s,2)
+    @inbounds r = $fundamental
+    z₀ = cispi(2ξ*x)
+    z = one(z₀)
+    @inbounds for n in Base.OneTo(m)
+        z *= z₀
+        c  = $c
+        c̄  = $c̄
+        r += c*C[n+m+1] + c̄*C[-n+m+1]
+    end
+    r
+end
+end
+
 
 """
-    FourierSeries3D(coeffs::Array{T,3}, [period=ones(SVector{3,Float64})])
+    FourierSeries3D(coeffs::Array{T,3}, [period=(1.0, 1.0, 1.0)])
 
 This type is an `AbstractFourierSeries{3}` designed for in-place evaluation of
 `FourierSeries`, and unlike `FourierSeries` is specialized for 3D Fourier series
@@ -116,23 +152,13 @@ function contract!(f::FourierSeries3D{T,a1,a2,a3}, x::Number, dim) where {T,a1,a
     return f
 end
 
-function (f::FourierSeries3D{T,0})(x::Number) where T
-    C = f.coeffs_yz
-    ξ = inv(f.period[1])
-    s = size(C,1)
-    isodd(s) || return error("expected an array with an odd number of coefficients")
-    m = div(s,2)
-    @inbounds r = C[m+1]
-    z₀ = cispi(2ξ*x)
-    z = one(z₀)
-    @inbounds for n in Base.OneTo(m)
-        z *= z₀
-        r += z*C[n+m+1] + conj(z)*C[-n+m+1]
-    end
-    r
-end
+(f::FourierSeries3D{T,a1})(x::Number) where {T,a1} = fourier_kernel(f.coeffs_yz, x, inv(f.period[1]), Val{a1}())
 
 """
+    BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0)])
+    BandEnergyVelocity3D(H::FourierSeries3D)
+
+The in-place equivalent of `BandEnergyVelocity` for 3D series evaluation.
 """
 struct BandEnergyVelocity3D{T} <: AbstractFourierSeries3D
     H::FourierSeries3D{T,0,0,0}
@@ -182,16 +208,72 @@ function contract!(b::BandEnergyVelocity3D{T}, x::Number, dim) where T
 end
 
 """
+    BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}) where {TH,TA}
+
+The in-place equivalent of `BandEnergyBerryVelocity` for 3D series evaluation.
 """
-struct BandEnergyBerryVelocity3D{T,TA} <: AbstractFourierSeries3D
-    H::FourierSeries3D{T,0,0,0}
+struct BandEnergyBerryVelocity3D{TH,TA,TV} <: AbstractFourierSeries3D
+    H::FourierSeries3D{TH,0,0,0}
     Ax::FourierSeries3D{TA,0,0,0}
     Ay::FourierSeries3D{TA,0,0,0}
     Az::FourierSeries3D{TA,0,0,0}
-    vz_z::Array{T,2}
-    vz_yz::Array{T,1}
-    vy_yz::Array{T,1}
-    vz_xyz::Array{T,0}
-    vy_xyz::Array{T,0}
-    vx_xyz::Array{T,0}
+    vz_z::Array{TH,2}
+    vz_yz::Array{TH,1}
+    vy_yz::Array{TH,1}
+    vz_xyz::Array{TV,0}
+    vy_xyz::Array{TV,0}
+    vx_xyz::Array{TV,0}
+end
+function BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}) where {TH,TA}
+    @assert period(H) == period(Ax) == period(Ay) == period(Az)
+    vz_z = similar(H.coeffs_z)
+    vz_yz = similar(H.coeffs_yz)
+    vy_yz = similar(H.coeffs_yz)
+    TV = promote_type(TH, TA)
+    vz_xyz = Array{TV,0}(undef)
+    vy_xyz = Array{TV,0}(undef)
+    vx_xyz = Array{TV,0}(undef)
+    BandEnergyBerryVelocity3D(H, Ax, Ay, Az, vz_z, vz_yz, vy_yz, vz_xyz, vy_xyz, vx_xyz)
+end
+
+period(b::BandEnergyBerryVelocity3D) = period(b.H)
+Base.eltype(::Type{BandEnergyBerryVelocity3D{TH,TA,TV}}) where {TH,TA,TV} = Tuple{TH,TV,TV,TV}
+value(b::BandEnergyBerryVelocity3D) = (value(b.H), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
+function contract!(b::BandEnergyBerryVelocity3D{T}, x::Number, dim) where T
+    if dim == 3
+        ξ = inv(b.H.period[3])
+        fourier_kernel!(b.H.coeffs_z, b.H.coeffs, x, ξ)
+        fourier_kernel!(b.Ax.coeffs_z, b.Ax.coeffs, x, ξ)
+        fourier_kernel!(b.Ay.coeffs_z, b.Ay.coeffs, x, ξ)
+        fourier_kernel!(b.Az.coeffs_z, b.Az.coeffs, x, ξ)
+        fourier_kernel!(b.vz_z, b.H.coeffs, x, ξ, Val{1}())
+    elseif dim == 2
+        ξ = inv(b.H.period[2])
+        fourier_kernel!(b.H.coeffs_yz, b.H.coeffs_z, x, ξ)
+        fourier_kernel!(b.Ax.coeffs_yz, b.Ax.coeffs_z, x, ξ)
+        fourier_kernel!(b.Ay.coeffs_yz, b.Ay.coeffs_z, x, ξ)
+        fourier_kernel!(b.Az.coeffs_yz, b.Az.coeffs_z, x, ξ)
+        fourier_kernel!(b.vz_yz, b.vz_z, x, ξ)
+        fourier_kernel!(b.vy_yz, b.H.coeffs_z, x, ξ, Val{1}())
+    elseif dim == 1
+        ξ = inv(b.H.period[1])
+        fourier_kernel!(b.H.coeffs_xyz, b.H.coeffs_yz, x, ξ)
+        fourier_kernel!(b.Ax.coeffs_xyz, b.Ax.coeffs_yz, x, ξ)
+        fourier_kernel!(b.Ay.coeffs_xyz, b.Ay.coeffs_yz, x, ξ)
+        fourier_kernel!(b.Az.coeffs_xyz, b.Az.coeffs_yz, x, ξ)
+        fourier_kernel!(b.vz_xyz, b.vz_yz, x, ξ)
+        fourier_kernel!(b.vy_xyz, b.vy_yz, x, ξ)
+        fourier_kernel!(b.vx_xyz, b.H.coeffs_yz, x, ξ, Val{1}())
+        H = b.H.coeffs_xyz[]
+        # we take the Hermitian part of the Berry connection since Wannier 90 may have forgotten to do this
+        Ax = herm(b.Ax.coeffs_xyz[])
+        Ay = herm(b.Ay.coeffs_xyz[])
+        Az = herm(b.Az.coeffs_xyz[])
+        b.vx_xyz[] += (-im*I) * commutator(H, Ax)
+        b.vy_xyz[] += (-im*I) * commutator(H, Ay)
+        b.vz_xyz[] += (-im*I) * commutator(H, Az)
+    else
+        error("dim=$dim is out of bounds")
+    end
+    return b
 end

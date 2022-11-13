@@ -25,8 +25,10 @@ makedocs(
             "pages/app/fourier.md",
             "pages/app/integrands.md",
             "pages/app/interfaces.md",
+            "pages/app/self_energy.md",
         ],
         "Demos" => "pages/demo.md",
+        "Workflow" => "pages/workflow.md",
     ],
 )
 

@@ -35,7 +35,7 @@ ints = map(k -> integrand_(OffsetFourierSeries(H, M*SVector(1.0, 2.0))(k), T, kB
 int_plt = heatmap(ks, ks, map(abs, ints); xguide="kx", yguide="ky", title="|Integrand| with q=(1,2)", color=:BuGn)
 savefig(int_plt, "graphene_integrand.png")
 
-c = CubicLimits(H.period)
+c = CubicLimits(period(H))
 
 # set error tolerances
 atol = 1e-3

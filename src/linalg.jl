@@ -81,3 +81,17 @@ function tr_mul(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T,S}
     sum(x -> mapreduce(), zip(eachrow(A), eachcol(B)); init=zero(promote_type(S,T)))
 end
 @inline tr_mul(A::StaticMatrix{N,N}, B::StaticMatrix{N,N}) where {N} = tr(A*B) # this gets optimized by the compiler
+
+"""
+    herm(A::AbstractMatrix)
+
+Return the Hermitian part of the matrix `A`, i.e. `(A+A')/2`.
+"""
+@inline herm(A::AbstractMatrix) = 0.5I * (A + A')
+
+"""
+    commutator(A, B)
+
+Return the commutator `[A, B] = A*B - B*A`.
+"""
+@inline commutator(A, B) = A*B - B*A

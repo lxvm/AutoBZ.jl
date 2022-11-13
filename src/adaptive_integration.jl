@@ -109,9 +109,12 @@ function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals
     QuadGK.do_quadgk(f, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1])
 end
 function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, segbufs) where d
-    QuadGK.do_quadgk((lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[d]) do x
-        first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, segbufs))
+    # avoid runtime dispatch when capturing variables
+    # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
+    f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, segbufs=segbufs
+        x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, segbufs))
     end
+    QuadGK.do_quadgk(f_, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[d])
 end
 
 """

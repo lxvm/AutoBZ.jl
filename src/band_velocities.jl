@@ -38,16 +38,18 @@ also a `ManyFourierSeries`, `A`, representing the gradient of the Berry
 connection, and evaluates modified band velocities so that the return value
 after all the dimensions are contracted is a tuple containing `(H, ṽ₁, ṽ₂,
 ..., ṽₙ)`. The modified band velocities are defined by
-``\\tilde{\\nu}_{\\alpha} = \\frac{1}{\\hbar} \\partial_{k_{\\alpha}} H -
-\frac{i}{\\hbar} [H,A_{\\alpha}]`` where ``k_{\\alpha}`` is one of three input
-dimensions of ``H`` and ``\\hbar=1``. Effectively, this type evaluates the
-Hamiltonian and its gradient modified by a commutator of the Hamiltonian with
-the gradient of the Berry connection. Note that differentiation by ``k`` changes
-the units to have an additional dimension of length and a factor of ``2\\pi``,
-so if ``H`` has dimensions of energy, ``\\nu`` has dimensions of energy times
-length. The caller is responsible for transforming the units of the velocity
-(i.e. ``\\hbar``) if they want other units, which can usually be done as a
-post-processing step.
+```math
+\\tilde{\\nu}_{\\alpha} = \\frac{1}{\\hbar} \\partial_{k_{\\alpha}} H -
+\frac{i}{\\hbar} [H,(A_{\\alpha} + A_{\\alpha}^{\\dagger})/2]
+```
+where ``k_{\\alpha}`` is one of three input dimensions of ``H`` and
+``\\hbar=1``. Effectively, this type evaluates the Hamiltonian and its gradient
+modified by a commutator of the Hamiltonian with the gradient of the Berry
+connection. Note that differentiation by ``k`` changes the units to have an
+additional dimension of length and a factor of ``2\\pi``, so if ``H`` has
+dimensions of energy, ``\\nu`` has dimensions of energy times length. The caller
+is responsible for transforming the units of the velocity (i.e. ``\\hbar``) if
+they want other units, which can usually be done as a post-processing step.
 """
 struct BandEnergyBerryVelocity{N,THV<:BandEnergyVelocity{N},TA<:ManyFourierSeries{N}} <: AbstractFourierSeries{N}
     HV::THV
@@ -62,8 +64,8 @@ period(f::BandEnergyBerryVelocity) = period(f.HV)
 contract(f::BandEnergyBerryVelocity, x::Number) = BandEnergyBerryVelocity(contract(f.HV, x), contract(f.A, x))
 function value(f::BandEnergyBerryVelocity{0})
     H, vs... = value(f.HV)
-    As = value(f.A)
-    (H, ntuple(n -> vs[n] - im*(H*As[n] - As[n]*H), Val{length(As)}())...)
+    As = map(herm, value(f.A)) # we take the Hermitian part of the Berry connection since Wannier 90 may have forgotten to do this
+    (H, ntuple(n -> vs[n] - (im*I)*commutator(H, As[n]), Val{length(As)}())...)
 end
 Base.eltype(::Type{BandEnergyBerryVelocity{N,THV,TA}}) where {N,THV,TA} = eltype(THV)
 

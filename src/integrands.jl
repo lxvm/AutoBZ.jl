@@ -108,7 +108,7 @@ A type whose integral over the BZ gives the transport distribution.
 \\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
 ```
 This type works with both adaptive and equispace integration routines. The
-keyword `kind` determines the band velocity component.
+keyword `kind` determines the band velocity component (not yet implemented).
 """
 struct GammaIntegrand{T,M1,M2}
     HV::T
@@ -117,8 +117,7 @@ struct GammaIntegrand{T,M1,M2}
     kind::Symbol
 end
 
-GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full) = GammaIntegrand(HV, Σ, ω, Ω, μ, kind)
-function GammaIntegrand(HV, Σ, ω, Ω, μ, kind::Symbol=:full)
+function GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
     GammaIntegrand(HV, Mω, MΩ, kind)
@@ -188,7 +187,7 @@ where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
 this type only for adaptive integration and order the limits so that the
 integral over the Brillouin zone is the outer integral and the frequency
 integral is the inner integral. The keyword `kind` determines the
-band velocity component.
+band velocity component (not yet implemented).
 """
 struct OCIntegrand{T,TS}
     HV::T
@@ -208,7 +207,7 @@ Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
 (f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ, f.kind)
 
-GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ, σ.kind)
+GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ; kind=σ.kind)
 
 """
     EquispaceOCIntegrand(σ::OCIntegrand, l, npt, pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}})

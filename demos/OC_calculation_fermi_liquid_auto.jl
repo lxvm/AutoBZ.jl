@@ -4,11 +4,12 @@ is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
 using AutoBZ
+using AutoBZ.Applications
 
 # define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
+b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
-HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period)
+HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
 
 # define problem parameters
 μ = 12.3958 # eV
@@ -23,13 +24,16 @@ Z  = 0.5
 c = kB*pi/(Z*T₀)
 
 # derived parameters
-Σ = AutoBZ.Applications.EtaEnergy(η)
+Σ = EtaEnergy(η)
 T = sqrt(η/c)
 β = inv(kB*T)
 
 # set error tolerances
 rtol = 1e-3
 atol = 1e-2
+
+# override built-in grid refinement to use a smaller, eta-independent step size 
+AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
 
 # run script
 results = AutoBZ.Jobs.OCscript_auto_parallel("OC_results_fermi_auto_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)

@@ -77,7 +77,7 @@ Section: OC calculations
 function get_safe_freq_limits(Ωs, β, lb, ub)
     freq_lims = Vector{CubicLimits{1,Float64}}(undef, length(Ωs))
     for (i, Ω) in enumerate(Ωs)
-        c = Applications.fermi_window_limits(Ω, β)
+        c = fermi_window_limits(Ω, β)
         l = only(c.l)
         u = only(c.u)
         if l < lb
@@ -235,7 +235,7 @@ function OCscript_auto(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; erto
         @info "Ω=$Ω starting ..."
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
-        Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+        Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
         int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
         atol_ = rtol*norm(int_)
         ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0)
@@ -270,7 +270,7 @@ function OCscript_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, 
             @info "Ω=$Ω starting ..."
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+            Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
             int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol)
             atol_ = rtol*norm(int_)
             pre_ts[i] = time() - t_
@@ -331,7 +331,7 @@ function OCscript_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, 
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."
             t_ = time()
-            Eσ.σ = σ = OCIntegrand(H, Σ, Ω, β, μ)
+            Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
