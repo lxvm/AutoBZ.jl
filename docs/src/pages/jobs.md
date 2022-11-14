@@ -17,7 +17,7 @@ AutoBZ.Jobs.OCscript_auto_equispace
 ```@docs
 AutoBZ.Jobs.OCscript_parallel
 AutoBZ.Jobs.OCscript_equispace_parallel
-AutoBZ.Jobs.OCscript_auto_parallel_
+AutoBZ.Jobs.OCscript_auto_parallel
 AutoBZ.Jobs.OCscript_auto_equispace_parallel
 ```
 
