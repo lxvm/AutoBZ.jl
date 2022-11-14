@@ -316,10 +316,10 @@ Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
 `AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
-estimates the integral, `int`, and then uses narrow tolerances set by
-`max(atol,rtol*norm(int))` and `rtol` to construct an `OCIntegrand` for each
-parameter value and calls `iterated_integration` on it over the domain of the
-IBZ and a safely truncated frequency integral to get the results.
+estimates the integral, `int`, and then uses a narrow absolute tolerance set by
+`max(atol,rtol*norm(int))` to construct an `OCIntegrand` for each parameter
+value and calls `iterated_integration` on it over the domain of the IBZ and a
+safely truncated frequency integral to get the results.
 
 Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
@@ -358,11 +358,11 @@ Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
 `AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
-estimates the integral, `int`, and then uses narrow tolerances set by
-`max(atol,rtol*norm(int))` and `rtol` to construct an `OCIntegrand` for each
-parameter value and calls `iterated_integration` on it over the domain of the
-IBZ and a safely truncated frequency integral to get the results. The
-calculation is parallelized over `Ωs` on `nthreads` threads.
+estimates the integral, `int`, and then use a narrow absolute tolerance set by
+`max(atol,rtol*norm(int))` to construct an `OCIntegrand` for each parameter
+value and calls `iterated_integration` on it over the domain of the IBZ and a
+safely truncated frequency integral to get the results. The calculation is
+parallelized over `Ωs` on `nthreads` threads.
 
 Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
