@@ -17,9 +17,6 @@ environment, `cd` into this repository and execute the line below on your shell.
 $ julia setup.jl
 ```
 
-Note: this code was tested on the Julia LTS release v1.6.7 on generic Linux x86
-so should also work with newer versions of Julia.
-
 ## Running scripts
 
 To run the scripts in this repository on the Strontium Vanadate example, execute
