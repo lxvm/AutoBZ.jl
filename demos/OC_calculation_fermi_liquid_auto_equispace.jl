@@ -38,4 +38,4 @@ atol = 1e-2
 AutoBZ.equispace_int_eval(f, pre, dvol) = dvol * ParallelMagics.sum(x -> x[2]*evaluate_integrand(f, x[1]), pre)
 
 # run calculation
-results = AutoBZ.Jobs.OCscript_auto_equispace("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)
+results = AutoBZ.Jobs.OCscript_auto_equispace_parallel("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)

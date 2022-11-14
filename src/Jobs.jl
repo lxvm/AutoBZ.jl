@@ -9,6 +9,11 @@ using OffsetArrays
 using ..AutoBZ
 using ..AutoBZ.Applications
 
+export BandEnergyBerryVelocities
+export read_h5_to_nt, write_nt_to_h5, import_self_energy
+export OCscript, OC_script_equispace, OC_script_auto, OC_script_auto_equispace
+export OCscript_parallel, OC_script_equispace_parallel, OC_script_auto_parallel, OC_script_auto_equispace_parallel
+
 #=
 Section: loading data from HDF5
 - NamedTuples
@@ -16,6 +21,11 @@ Section: loading data from HDF5
 - Self Energies
 =#
 
+"""
+    read_h5_to_nt(filename)
+
+Loads the h5 archive from `filename` and reads its datasets into a `NamedTuple`
+"""
 read_h5_to_nt(filename) = h5open(filename, "r") do h5
     NamedTuple([(Symbol(key) => h5_dset_to_vec(read(h5, key))) for key in keys(h5)])
 end
@@ -25,6 +35,14 @@ function h5_dset_to_vec(A::Array{T,N}) where {T,N}
     reinterpret(SArray{Tuple{S...},T,N-1,prod(S)}, vec(A))
 end
 
+"""
+    import_self_energy(filename)
+
+Reads the groups `omega` and `sigma` in the h5 archive in `filename` and tries
+save it to a `NamedTuple` with names `ω` and `Σ`. The array in `sigma` should be
+of size `(length(omega), 2)`, where the two columns are the real and imaginary
+parts of Σ.
+"""
 import_self_energy(filename) = h5open(import_self_energy_, filename)
 function import_self_energy_(f::HDF5.File)
     dset = read(f, "sigma")
@@ -36,6 +54,12 @@ Section: saving data to HDF5
 - NamedTuple to H5
 =#
 
+"""
+    write_nt_to_h5(nt::NamedTuple, filename)
+
+Takes a `NamedTuple` and writes its values, which must be arrays, into an h5
+archive at `filename` with dataset names corresponding to the tuple names.
+"""
 write_nt_to_h5(nt::NamedTuple, filename) = h5open(filename, "w") do h5
     for key in keys(nt)
         write(h5, string(key), vec_to_h5_dset(nt[key]))
@@ -50,6 +74,8 @@ Section: parallelization
 =#
 
 """
+    batch_smooth_param(xs, nthreads)
+
 If the cost of a calculation smoothly varies with the parameters `xs`, then
 batch `xs` into `nthreads` groups where the `i`th element of group `j` is
 `xs[j+(i-1)*nthreads]`
@@ -74,17 +100,27 @@ Section: OC calculations
 - 
 =#
 
+"""
+    get_safe_freq_limits(Ωs, β, lb, ub)
+
+Given a collection of frequencies, `Ωs`, returns a `Vector{CubicLimits{1}}` with
+truncated limits of integration for the frequency integral at each `(Ω, β)`
+point that are determined by the `fermi_window_limits` routine set to the
+default tolerances for the decay of the Fermi window function. The arguments
+`lb` and `ub` are lower and upper limits on the frequency to which the default
+result gets truncated if the default result would recommend a wider interval. If
+there is any truncation, a warning is emitted to the user, but the program will
+continue with the truncated limits.
+"""
 function get_safe_freq_limits(Ωs, β, lb, ub)
     freq_lims = Vector{CubicLimits{1,Float64}}(undef, length(Ωs))
     for (i, Ω) in enumerate(Ωs)
         c = fermi_window_limits(Ω, β)
-        l = only(c.l)
-        u = only(c.u)
-        if l < lb
+        if (l = only(c.l)) < lb
             @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
             l = lb
         end
-        if u > ub
+        if (u = only(c.u)) > ub
             @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
             u = ub
         end
@@ -93,8 +129,25 @@ function get_safe_freq_limits(Ωs, β, lb, ub)
     freq_lims
 end
 
-"Performs the full calculation"
-function OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
+"""
+    BandEnergyBerryVelocities
+
+Union type of `BandEnergyBerryVelocity`, `BandEnergyBerryVelocity3D`,
+`BandEnergyVelocity`, and `BandEnergyVelocity3D`.
+"""
+const BandEnergyBerryVelocities = Union{BandEnergyBerryVelocity,BandEnergyBerryVelocity3D,BandEnergyVelocity,BandEnergyVelocity3D}
+
+"""
+    OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
+
+Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+errors, and timings for an optical conductivity calculation done at frequencies
+`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`OCIntegrand` for each parameter value and calls `iterated_integration` on it
+over the domain of the IBZ and a safely truncated frequency integral to get the
+results.
+"""
+function OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -113,7 +166,7 @@ function OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
 end
 
 "Only performs the omega integral"
-function test_OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y, z)
+function test_OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y, z)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -136,19 +189,29 @@ function test_OCscript(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, x, y
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_parallel(filename, args...)
-    results = OCscript_parallel_(args...)
+
+"""
+    OCscript_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; nthreads=Threads.nthreads())
+
+Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+the results, errors, and timings for an optical conductivity calculation done at
+frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`OCIntegrand` for each parameter value and calls `iterated_integration` on it
+over the domain of the IBZ and a safely truncated frequency integral to get the
+results. The calculation is parallelized over `Ωs` on `nthreads` threads.
+"""
+function OCscript_parallel(filename, args...; nthreads=Threads.nthreads())
+    results = OCscript_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
+function OCscript_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    nthreads = Threads.nthreads()
     @info "using $nthreads threads"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
@@ -167,7 +230,18 @@ function OCscript_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_equispace(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+"""
+    OCscript_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
+
+Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+errors, and timings for an optical conductivity calculation done at frequencies
+`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`EquispaceOCIntegrand` for each parameter value, and precomputes `HV` on an
+equispace ``k`` grid with `npt` points per dimension (which is reused for all
+parameter values), and calls `iterated_integration` on it over the domain of the
+IBZ and a safely truncated frequency integral to get the results.
+"""
+function OCscript_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     @info "pre-evaluating Hamiltonian..."
@@ -189,12 +263,24 @@ function OCscript_equispace(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, 
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
+"""
+    OCscript_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
+
+Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+the results, errors, and timings for an optical conductivity calculation done at
+frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`EquispaceOCIntegrand` for each parameter value, and precomputes `HV` on an
+equispace ``k`` grid with `npt` points per dimension (which is reused for all
+parameter values), and calls `iterated_integration` on it over the domain of the
+IBZ and a safely truncated frequency integral to get the results. The
+calculation is parallelized over `Ωs` on `nthreads` threads.
+"""
 function OCscript_equispace_parallel(filename, args...; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
     results = OCscript_equispace_parallel_(args..., pre_eval, nthreads)
     write_nt_to_h5(results, filename)
     results
 end
-function OCscript_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol, pre_eval, nthreads)
+function OCscript_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, atol, rtol, pre_eval, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     @info "pre-evaluating Hamiltonian..."
@@ -222,7 +308,26 @@ function OCscript_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, n
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-function OCscript_auto(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+
+"""
+    OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; ertol=1.0, eatol=0.0)
+
+Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+errors, and timings for an optical conductivity calculation done at frequencies
+`Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
+`AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
+estimates the integral, `int`, and then uses narrow tolerances set by
+`max(atol,rtol*norm(int))` and `rtol` to construct an `OCIntegrand` for each
+parameter value and calls `iterated_integration` on it over the domain of the
+IBZ and a safely truncated frequency integral to get the results.
+
+Since this is intended to compute a cheap equispace integral first, it is
+recommended to over-ride the default ``k``-grid refinement step to something
+``\\eta``-independent with a line like the one below before calling this script
+
+    AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
+"""
+function OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -246,20 +351,38 @@ function OCscript_auto(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; erto
 end
 
 
-function OCscript_auto_parallel(filename, args...)
-    results = OCscript_auto_parallel_(args...)
+"""
+    OCscript_auto_parallel(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
+
+Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+errors, and timings for an optical conductivity calculation done at frequencies
+`Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
+`AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
+estimates the integral, `int`, and then uses narrow tolerances set by
+`max(atol,rtol*norm(int))` and `rtol` to construct an `OCIntegrand` for each
+parameter value and calls `iterated_integration` on it over the domain of the
+IBZ and a safely truncated frequency integral to get the results. The
+calculation is parallelized over `Ωs` on `nthreads` threads.
+
+Since this is intended to compute a cheap equispace integral first, it is
+recommended to over-ride the default ``k``-grid refinement step to something
+``\\eta``-independent with a line like the one below before calling this script
+
+    AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
+"""
+function OCscript_auto_parallel(filename, args...; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
+    results = OCscript_auto_parallel_(args..., ertol, eatol, nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, ertol, eatol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     pre_ts = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    nthreads = Threads.nthreads()
     @info "using $nthreads threads"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
@@ -284,14 +407,18 @@ function OCscript_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, 
     (OC=ints, err=errs, t=ts, pre_t=pre_ts, Omega=Ωs)
 end
 
+"""
+    OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol)
 
-function OCscript_auto_equispace(filename, args...)
-    results = OCscript_auto_equispace_(args...)
-    write_nt_to_h5(results, filename)
-    results
-end
-
-function OCscript_auto_equispace_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+errors, and timings for an optical conductivity calculation done at frequencies
+`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`AutoEquispaceOCIntegrand` for each parameter value, reusing ``k``-grids of `HV`
+values from previous calculations, and calls `iterated_integration` on it over
+the domain of the IBZ and a safely truncated frequency integral to get the
+results.
+"""
+function OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -310,13 +437,24 @@ function OCscript_auto_equispace_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol,
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
+"""
+    OCscript_auto_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; nthreads=Threads.nthreads())
+
+Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+the results, errors, and timings for an optical conductivity calculation done at
+frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+`AutoEquispaceOCIntegrand` for each parameter value, reusing ``k``-grids of `HV`
+values from previous calculations, and calls `iterated_integration` on it
+over the domain of the IBZ and a safely truncated frequency integral to get the
+results. The calculation is parallelized over `Ωs` on `nthreads` threads.
+"""
 function OCscript_auto_equispace_parallel(filename, args...; nthreads=Threads.nthreads())
     results = OCscript_auto_equispace_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
+function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
@@ -337,7 +475,7 @@ function OCscript_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, Ωs, 
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
     end
-    @info "Finished in $(sum(ts)+sum(pre_ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
