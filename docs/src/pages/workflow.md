@@ -17,6 +17,13 @@ julia> ] # enters the package manager
 ```
 (For documentation on unregistered packages, see
 [here](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages).)
+An equivalent shell script to set up the environment with SSH is the following
+```
+$ mkdir dev
+$ git clone git@github.com:lxvm/AutoBZ.jl.git dev/AutoBZ
+$ julia -e 'import Pkg; Pkg.activate("."); Pkg.develop(path="dev/AutoBZ")'
+```
+
 From the working directory, the scripts from the `demos` folder can be copied
 back, as well any coefficient files for the calculations that will be run.
 ```
@@ -30,7 +37,7 @@ Moreover, the files in the working directory can be freely edited without
 affecting those in the `AutoBZ` repository, and likewise the repository can be
 updated without affecting the files in `workdir`. Note that any script
 dependencies other than `AutoBZ` will need to be added to the environment in
-`workdir` (e.g. `add Plots`).
+`workdir` (e.g. `pkg> add Plots`).
 
 Finally, to run the script from the Julia session in the `workdir`, simply
 `include("OC_berry.jl")`. If you would like to run a script as a cluster job,
