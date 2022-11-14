@@ -28,8 +28,36 @@ t = TetrahedralLimits(c)
 atol = 1e-3
 rtol = 0.0
 
-D = DOSEvaluator(H, Σ, μ, t; atol=atol, rtol=rtol)
-p = adaptchebinterp(D, ω_lo, ω_hi; atol=1e-1)
+# set interpolation parameters
+interp_atol=1e-1
+order = 4
+fast_order = 15
 
-plot(range(ω_lo, ω_hi, length=1000), p; xguide="ω (eV)", yguide="DOS(ω)")
+# D = DOSEvaluator(H, Σ, μ, t; atol=atol, rtol=rtol)
+# p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)
+# p2 = fastadaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=fast_order)
+
+nodes = Float64[]
+for panel in p1.searchtree
+    iszero(panel.val) && continue
+    push!(nodes, AdaptChebInterp.chebpoints(order, panel.a, panel.b)...)
+end
+# unique!(nodes)
+
+fast_nodes = Float64[]
+for panel in p2.searchtree
+    iszero(panel.val) && continue
+    push!(fast_nodes, AdaptChebInterp.chebpoints(fast_order, panel.a, panel.b)...)
+end
+# unique!(fast_nodes)
+
+plot(range(ω_lo, ω_hi, length=1000), p1; xguide="ω (eV)", yguide="DOS(ω)", label="rigorous")
+scatter!(nodes, fill(-0.2, length(nodes)); color=1, markerstrokewidth=0, markershape=:diamond, label="", alpha=0.25)
+plot!(range(ω_lo, ω_hi, length=1000), p2; color=2, label="fast")
+scatter!(fast_nodes, fill(-0.6, length(order+1)); color=2, markerstrokewidth=0, markershape=:diamond, label="", alpha=0.25)
 savefig("DOS_interp.png")
+
+plot(range(ω_lo, ω_hi, length=1000), x -> abs(p1(x)-p2(x)); xguide="ω (eV)", color=:black, yguide="IDOS(ω) interpolant difference", yscale=:log10, title="Interpolation atol $interp_atol", ylim=(1e-5, 1), label="|fast-rigorous|", legend=:bottomright)
+scatter!(nodes, fill(0.8, length(nodes)); color=1, markerstrokewidth=0, markershape=:diamond, alpha=0.25, label="rigorous nodes")
+scatter!(fast_nodes, fill(0.5, length(fast_nodes)); color=2, markerstrokewidth=0, markershape=:diamond, alpha=0.25, label="fast nodes")
+savefig("DOS_interp_error.png")
