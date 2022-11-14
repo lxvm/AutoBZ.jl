@@ -1,5 +1,8 @@
 # Demos
 
+Demonstrations of the library are available in the `demos` folder of the repo.
+Below, there are several tutorials that construct examples from toy models.
+
 ## DOS of the integer lattice tight-binding model
 
 To demonstrate setting up a DOS calculation with AutoBZ, we consider a
@@ -20,14 +23,17 @@ using OffsetArrays
 using AutoBZ
 using AutoBZ.Applications
 
-n = 3 # arbitrary positive integer
-a = fill(1.0, SVector{n})
-ax = repeat([-1:1], n)
-C = zeros(SMatrix{1,1,ComplexF64,1}, ntuple(_ -> 3, n))
+n = 3 # arbitrary positive integer representing the number of k-space dimensions
+b = fill(1.0, SVector{n}) # the period of the BZ in each dimension
+#=
+construct the array of Matrix-valued coefficients (for compatibility with
+multi-band Hamiltonians in DOSIntegrand) and use an OffsetArray so that the array indices correspond to the integer multi-index of the Fourier series
+=#
+C = OffsetArray(zeros(SMatrix{1,1,ComplexF64,1}, ntuple(_ -> 3, n)), repeat([-1:1], n)...)
 for i in 1:n, j in (-1, 1)
-    C[CartesianIndex(ntuple(k -> k == i ? 2+j : 2, n))] = SMatrix{1,1,ComplexF64,1}(0.5)
+    C[CartesianIndex(ntuple(k -> k == i ? j : 0, n))] = SMatrix{1,1,ComplexF64,1}(0.5)
 end
-H = FourierSeries(OffsetArray(C, ax...), a)
+H = FourierSeries(C, b)
 ```
 Then we can define the integration problem to compute DOS, defined by the
 integral
@@ -161,7 +167,12 @@ using OffsetArrays
 using AutoBZ
 using AutoBZ.Applications
 
-a = 1.0
+a = 1.0 # length of Bravais lattice vectors
+#=
+construct the array of Matrix-valued coefficients (for 2 bands) and use an
+OffsetArray so that the array indices correspond to the integer multi-index of
+the Fourier series
+=#
 C = OffsetArray(zeros(SMatrix{2,2,ComplexF64,4}, (5,5)), -2:2, -2:2)
 C[1,1]   = C[1,-2] = C[-2,1] = [0 1; 0 0]
 C[-1,-1] = C[-1,2] = C[2,-1] = [0 0; 1 0]
@@ -169,20 +180,21 @@ H = FourierSeries(C, 2*pi/a)
 
 T = 100.0 # K
 kB = 8.617333262e-5 # eV/K
-q = rand(SVector{2,Float64}) # arbitrary
-f = ManyOffsetsFourierSeries(H, q)
+q = rand(SVector{2,Float64}) # arbitrary q point to integrate
+f = ManyOffsetsFourierSeries(H, q) # makes a new Fourier series from H offset by q
 
+# define the function to integrate and wrap it in an integrand type
 lambda(x, T, kB) = -AutoBZ.Applications.fermi′(inv(kB*T), x)/(kB*T^2)
 integrand_(f, T, kB) = (lambda(det(f[1]), T, kB) - lambda(det(f[2]), T, kB))/(det(f[1])-det(f[2]))
 integrand = WannierIntegrand(integrand_, f, (T, kB))
 
-c = CubicLimits(H.period)
+c = CubicLimits(period(H)) # limits of integration of BZ
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
-iterated_integration(integrand, c; callback=contract, atol=atol, rtol=rtol)
+iterated_integration(integrand, c; atol=atol, rtol=rtol)
 ```
 You will find a working example of this code in the `graphene.jl` demo that
 calculates this integral for values of ``\vec{q}`` in the Brillouin zone.
