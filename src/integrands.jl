@@ -219,11 +219,11 @@ grid points `npt`. The argument `l` should be an `IntegrationLimits` for just
 the Brillouin zone. This type should be called by an adaptive integration
 routine whose limits of integration are only the frequency variable.
 """
-struct EquispaceOCIntegrand{T,TS,TL}
+struct EquispaceOCIntegrand{T,TS,TL,THV}
     σ::OCIntegrand{T,TS}
     l::TL
     npt::Int
-    pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}}
+    pre::Vector{Tuple{THV,Int}}
 end
 function EquispaceOCIntegrand(σ::OCIntegrand, l::IntegrationLimits, npt::Int)
     pre = equispace_pre_eval(σ, l, npt)
