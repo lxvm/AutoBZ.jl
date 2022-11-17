@@ -169,7 +169,7 @@ function load_position_operator(filename; period=1.0, compact=:N)
 end
 
 """
-    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N)
+    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N, kind=:full)
 
 Load the Hamiltonian and band velocities, which may later be passed to one of
 the integrand constructors. When called with one filename, that file is parsed
@@ -181,7 +181,10 @@ The return type is `BandEnergyBerryVelocity3D`.The keywords `period` and
 `compact` set the reciprocal unit cell length and whether the coefficients of
 the Fourier series should be compressed as Hermitian matrices. Typically the
 coefficients cannot be compressed despite the values of the series being
-Hermitian.
+Hermitian. The keyword `kind` can take values `:full`, `:inter`, and `:intra`,
+referring to whether the Hamiltonian and band velocities are kept in the Wannier
+gauge, or rotated to the Hamiltonian gauge to take just the inter/intra-band
+part (i.e. the off-diagonal/diagonal part of the band velocities, respectively).
 """
 function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:full)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
