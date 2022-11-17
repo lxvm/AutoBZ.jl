@@ -22,7 +22,7 @@ HV_intra = load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=b, kind
 
 # initialize integrand and limits
 Σ = EtaEnergy(η)
-c = CubicLimits(period(HV))
+c = CubicLimits(period(HV_full))
 t = TetrahedralLimits(c)
 
 # set error tolerances
