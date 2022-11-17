@@ -185,6 +185,8 @@ Hermitian. The keyword `kind` can take values `:full`, `:inter`, and `:intra`,
 referring to whether the Hamiltonian and band velocities are kept in the Wannier
 gauge, or rotated to the Hamiltonian gauge to take just the inter/intra-band
 part (i.e. the off-diagonal/diagonal part of the band velocities, respectively).
+
+Warning: a `kind` of `:inter` or `:intra` is incompatible with a non-scalar Σ
 """
 function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:full)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
