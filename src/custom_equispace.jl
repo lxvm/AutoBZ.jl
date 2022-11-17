@@ -18,6 +18,22 @@ function pre_eval_contract!(f_xs, _, idx, f::AbstractFourierSeries{0}, _, _)
     f_xs[idx+1] = (value(f), 1)
 end
 
+function pre_eval_contract(f::AbstractFourierSeries3D, l::CubicLimits{3}, npt)
+    @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    f_xs = Array{Tuple{eltype(f),Int},3}(undef, npt, npt, npt)
+    bz = box(l)
+    for k in 1:npt
+        contract!(f, (bz[3][2]-bz[3][1])*(k-1)/npt + bz[3][1], 3)
+            for j in 1:npt
+            contract!(f, (bz[2][2]-bz[2][1])*(j-1)/npt + bz[2][1], 2)
+            for i in 1:npt
+                f_xs[i,j,k] = (f((bz[1][2]-bz[1][1])*(i-1)/npt + bz[1][1]), 1)
+            end
+        end
+    end
+    return f_xs
+end
+
 #=
 Using anonymous function expressions is impure so can't use them in @generated
 https://docs.julialang.org/en/v1/devdocs/cartesian/#Anonymous-function-expressions-as-macro-arguments
