@@ -77,10 +77,11 @@ end
 
 Calculate `tr(A*B)` without storing the intermediate result.
 """
-function tr_mul(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T,S}
-    sum(x -> mapreduce(), zip(eachrow(A), eachcol(B)); init=zero(promote_type(S,T)))
-end
-@inline tr_mul(A::StaticMatrix{N,N}, B::StaticMatrix{N,N}) where {N} = tr(A*B) # this gets optimized by the compiler
+# function tr_mul(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T,S}
+#     sum(x -> mapreduce(), zip(eachrow(A), eachcol(B)); init=zero(promote_type(S,T)))
+# end
+@inline tr_mul(A::StaticMatrix{N,N}, B::StaticMatrix{N,N}) where N = tr(A*B) # this gets optimized by the compiler
+@inline tr_mul(A::Diagonal, B::Diagonal) = tr(A*B) # this gets optimized by the compiler
 
 """
     herm(A::AbstractMatrix)

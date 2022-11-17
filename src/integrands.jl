@@ -53,36 +53,14 @@ Base.eltype(::Type{<:DOSIntegrand{TH}}) where {TH} = eltype(Base.promote_op(imag
 (D::DOSIntegrand)(k) = evaluate_integrand(D, D.H(k))
 evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(H_k, D.M)
 
-"""
-    band_velocities(kind, vs)
-
-Transform the band velocities according to the following values of `kind`
-- `:full`: return the full band velocity
-- `:intra`: return only the diagonal of the band velocity
-- `:inter`: return only the off-diagonal terms of the band velocity
-`vs` should be an iterable collection of matrices
-"""
-function band_velocities(kind, vs)
-    if kind == :full
-        return vs
-    elseif kind == :intra
-        return map(Diagonal, vs)
-    elseif kind == :inter
-        return map(v -> v - Diagonal(v), vs)
-    else
-        error("band velocity kind not recognized")
-    end
-end
-
 spectral_function(H, M) = imag(inv(M-H))/(-pi)
 
-gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ, kind) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω), kind)
-gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ, kind) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ, kind)
-function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ, kind)
+gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
+gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ)
+function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
     Aω = spectral_function(H, Mω)
     AΩ = spectral_function(H, MΩ)
     gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
-    # gamma_integrand_(band_velocities(kind, (ν₁, ν₂, ν₃))..., Aω, AΩ)
 end
 function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
     ν₁Aω = ν₁*Aω
@@ -99,9 +77,8 @@ function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
 end
 
 """
-    GammaIntegrand(H::FourierSeries, Σ, ω, Ω, μ, [kind=:full])
-    GammaIntegrand(HV, Σ, ω, Ω, μ, [kind=:full])
-    GammaIntegrand(HV, Mω, MΩ, kind)
+    GammaIntegrand(HV, Σ, ω, Ω, μ)
+    GammaIntegrand(HV, Mω, MΩ)
 
 A type whose integral over the BZ gives the transport distribution.
 ```math
@@ -114,17 +91,16 @@ struct GammaIntegrand{T,M1,M2}
     HV::T
     Mω::M1
     MΩ::M2
-    kind::Symbol
 end
 
-function GammaIntegrand(HV, Σ, ω, Ω, μ; kind::Symbol=:full)
+function GammaIntegrand(HV, Σ, ω, Ω, μ)
     Mω = (ω+μ)*I-Σ(ω)
     MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
-    GammaIntegrand(HV, Mω, MΩ, kind)
+    GammaIntegrand(HV, Mω, MΩ)
 end
 Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (g::GammaIntegrand)(k) = evaluate_integrand(g, g.HV(k))
-evaluate_integrand(g::GammaIntegrand, HV_k) = gamma_integrand(HV_k..., g.Mω, g.MΩ, g.kind)
+evaluate_integrand(g::GammaIntegrand, HV_k) = gamma_integrand(HV_k..., g.Mω, g.MΩ)
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
 fermi(ω, β) = fermi(β*ω)
@@ -172,11 +148,10 @@ end
 EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
 EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
-oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ, kind) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ, kind)
+oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
 
 """
-    OCIntegrand(H::FourierSeries, Σ, Ω, β, μ, [kind=:full])
-    OCIntegrand(HV, Σ, Ω, β, μ, kind)
+    OCIntegrand(HV, Σ, Ω, β, μ)
 
 A function whose integral over the BZ and the frequency axis gives the optical
 conductivity. Mathematically, this computes
@@ -195,19 +170,17 @@ struct OCIntegrand{T,TS}
     Ω::Float64
     β::Float64
     μ::Float64
-    kind::Symbol
-    function OCIntegrand(HV::T, Σ::TS, Ω, β, μ, kind) where {T,TS}
+    function OCIntegrand(HV::T, Σ::TS, Ω, β, μ) where {T,TS}
         β == Inf && Ω == 0 && error("Ω=1/β=0 encountered. This case requires distributional frequency integrals, or can be computed with a GammaIntegrand")
-        new{T,TS}(HV, Σ, Ω, β, μ, kind)
+        new{T,TS}(HV, Σ, Ω, β, μ)
     end
 end
 
-OCIntegrand(HV, Σ, Ω, β, μ; kind::Symbol=:full) = OCIntegrand(HV, Σ, Ω, β, μ, kind)
 Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
-(f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ, f.kind)
+(f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ)
 
-GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ; kind=σ.kind)
+GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
 
 """
     EquispaceOCIntegrand(σ::OCIntegrand, l, npt, pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}})
