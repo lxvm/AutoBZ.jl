@@ -74,8 +74,9 @@ Base.eltype(::Type{BandEnergyVelocity{Val{:intra}(),N,TH,TV}}) where {N,M,TH,TV<
 diagonal_type(::Type{TA}) where {TA<:AbstractMatrix} = Base.promote_op(Diagonal, TA)
 
 """
-    BandEnergyBerryVelocity{kind}(H::BandEnergyVelocity{N}, A::ManyFourierSeries{N}) where {kind,N}
-    BandEnergyBerryVelocity(H::FourierSeries{N}, A::ManyFourierSeries{N,<:NTuple{N}}; kind=:full) where N
+    BandEnergyBerryVelocity{kind}(H::BandEnergyVelocity{Val{:full}(),N}, A::ManyFourierSeries{N}) where {kind,N}
+    BandEnergyBerryVelocity(H::BandEnergyVelocity{kind,N}, A::ManyFourierSeries{N,<:NTuple{N}}) where {kind,N}
+    BandEnergyBerryVelocity(H::FourierSeries, A; kind=:full)
 
 This constructor takes a `FourierSeries`, `H`, representing the Hamiltonian and
 also a `ManyFourierSeries`, `A`, representing the gradient of the Berry
@@ -121,6 +122,6 @@ function contract(f::BandEnergyBerryVelocity{kind,1}, x::Number) where kind
     BV = BandEnergyVelocity{Val{:full}()}(FourierSeries(H, p), ManyFourierSeries(map(v -> FourierSeries(v, p), vs), p))
     BandEnergyBerryVelocity{kind}(BV, ManyFourierSeries((), p))
 end
-value(f::BandEnergyBerryVelocity{kind,0}) where kind = value(f.HV)
-Base.eltype(::Type{BandEnergyBerryVelocity{kind,N,THV,TA}}) where {kind,N,THV,TA} = eltype(THV)
+value(f::BandEnergyBerryVelocity) = value(f.HV)
+Base.eltype(::Type{BandEnergyBerryVelocity{kind,N,BandEnergyVelocity{Val{:full}(),N,TH,TV},TA}}) where {kind,N,TH,TV,TA} = eltype(BandEnergyVelocity{kind,N,TH,TV})
 
