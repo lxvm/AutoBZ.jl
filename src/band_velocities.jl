@@ -25,7 +25,7 @@ end
 function to_hamiltonian_gauge(H, vws::NTuple{N}) where {N}
     ishermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
     vals, U = eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
-    (Diagonal(vals), ntuple(n -> U*vws[n]*U', Val{N}())...)
+    (Diagonal(vals), ntuple(n -> U'*vws[n]*U, Val{N}())...)
 end
 
 
