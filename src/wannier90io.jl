@@ -183,12 +183,12 @@ the Fourier series should be compressed as Hermitian matrices. Typically the
 coefficients cannot be compressed despite the values of the series being
 Hermitian.
 """
-function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N)
+function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:full)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
-    BandEnergyVelocity3D(H)
+    BandEnergyVelocity3D(H, kind)
 end
-function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N)
+function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, kind=:full)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
     Ax, Ay, Az = load_position_operator(f_pos_op; period=period, compact=compact)
-    BandEnergyBerryVelocity3D(H, Ax, Ay, Az)
+    BandEnergyBerryVelocity3D(H, Ax, Ay, Az, kind)
 end

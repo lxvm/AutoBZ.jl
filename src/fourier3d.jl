@@ -155,37 +155,51 @@ end
 (f::FourierSeries3D{T,a1})(x::Number) where {T,a1} = fourier_kernel(f.coeffs_yz, x, inv(f.period[1]), Val{a1}())
 
 """
-    BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0)])
-    BandEnergyVelocity3D(H::FourierSeries3D)
+    BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0), kind=:full])
+    BandEnergyVelocity3D(H::FourierSeries3D, [kind=:full])
 
 The in-place equivalent of `BandEnergyVelocity` for 3D series evaluation.
 """
-struct BandEnergyVelocity3D{T} <: AbstractFourierSeries3D
+struct BandEnergyVelocity3D{kind,T,TV,TH} <: AbstractFourierSeries3D
     H::FourierSeries3D{T,0,0,0}
     vz_z::Array{T,2}
     vz_yz::Array{T,1}
     vy_yz::Array{T,1}
-    vz_xyz::Array{T,0}
-    vy_xyz::Array{T,0}
-    vx_xyz::Array{T,0}
+    vz_xyz::Array{TV,0}
+    vy_xyz::Array{TV,0}
+    vx_xyz::Array{TV,0}
+    H_xyz::Array{TH,0}
 end
 
-BandEnergyVelocity3D(coeffs, period=(1.0,1.0,1.0)) = BandEnergyVelocity3D(FourierSeries3D(coeffs, period))
-BandEnergyVelocity3D(coeffs::FourierSeries{3}) = BandEnergyVelocity3D(FourierSeries3D(coeffs))
-function BandEnergyVelocity3D(H::FourierSeries3D{T,0,0,0}) where T
-    vz_z = similar(H.coeffs_z)
-    vz_yz = similar(H.coeffs_yz)
-    vy_yz = similar(H.coeffs_yz)
-    vz_xyz = similar(H.coeffs_xyz)
-    vy_xyz = similar(H.coeffs_xyz)
-    vx_xyz = similar(H.coeffs_xyz)
-    BandEnergyVelocity3D{T}(H, vz_z, vz_yz, vy_yz, vz_xyz, vy_xyz, vx_xyz)
+BandEnergyVelocity3D(coeffs, period=(1.0,1.0,1.0), kind=:full) = BandEnergyVelocity3D(FourierSeries3D(coeffs, period), kind)
+function BandEnergyVelocity3D(H::FourierSeries3D{T,0,0,0}, kind=:full) where T
+    vz_z   = similar(H.coeffs_z)
+    vz_yz  = similar(H.coeffs_yz)
+    vy_yz  = similar(H.coeffs_yz)
+    TH, TV = band_velocity_types(kind, T)
+    vz_xyz = Array{TV,0}(undef)
+    vy_xyz = Array{TV,0}(undef)
+    vx_xyz = Array{TV,0}(undef)
+    H_xyz  = Array{TH,0}(undef)
+    BandEnergyVelocity3D{Val{kind}(),T,TV,TH}(H, vz_z, vz_yz, vy_yz, vz_xyz, vy_xyz, vx_xyz, H_xyz)
+end
+
+function band_velocity_types(kind, T)
+    if kind == :full
+        return T, T
+    elseif kind == :inter
+        return diagonal_type(real(T)), T
+    elseif kind == :intra
+        return diagonal_type(real(T)), diagonal_type(T)
+    else
+        error("band velocity kind not recognized")
+    end
 end
 
 period(b::BandEnergyVelocity3D) = period(b.H)
-Base.eltype(::Type{BandEnergyVelocity3D{T}}) where T = NTuple{4,T}
-value(b::BandEnergyVelocity3D) = (value(b.H), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
-function contract!(b::BandEnergyVelocity3D{T}, x::Number, dim) where T
+Base.eltype(::Type{BandEnergyVelocity3D{kind,T,TV,TH}}) where {kind,T,TV,TH} = Tuple{TH,TV,TV,TV}
+value(b::BandEnergyVelocity3D) = (only(b.H_xyz), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
+function contract!(b::BandEnergyVelocity3D{kind}, x::Number, dim) where kind
     if dim == 3
         ξ = inv(b.H.period[3])
         fourier_kernel!(b.H.coeffs_z, b.H.coeffs, x, ξ)
@@ -197,10 +211,13 @@ function contract!(b::BandEnergyVelocity3D{T}, x::Number, dim) where T
         fourier_kernel!(b.vy_yz, b.H.coeffs_z, x, ξ, Val{1}())
     elseif dim == 1
         ξ = inv(b.H.period[1])
-        fourier_kernel!(b.H.coeffs_xyz, b.H.coeffs_yz, x, ξ)
-        fourier_kernel!(b.vz_xyz, b.vz_yz, x, ξ)
-        fourier_kernel!(b.vy_xyz, b.vy_yz, x, ξ)
-        fourier_kernel!(b.vx_xyz, b.H.coeffs_yz, x, ξ, Val{1}())
+        b.H_xyz[], b.vz_xyz[], b.vy_xyz[], b.vx_xyz[] = 
+            band_velocities(kind,
+                fourier_kernel(b.H.coeffs_yz, x, ξ),
+                fourier_kernel(b.vz_yz, x, ξ),
+                fourier_kernel(b.vy_yz, x, ξ),
+                fourier_kernel(b.H.coeffs_yz, x, ξ, Val{1}()),
+            )
     else
         error("dim=$dim is out of bounds")
     end
@@ -208,38 +225,40 @@ function contract!(b::BandEnergyVelocity3D{T}, x::Number, dim) where T
 end
 
 """
-    BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}) where {TH,TA}
+    BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, [kind=:full]) where {TH,TA}
 
 The in-place equivalent of `BandEnergyBerryVelocity` for 3D series evaluation.
 """
-struct BandEnergyBerryVelocity3D{TH,TA,TV} <: AbstractFourierSeries3D
-    H::FourierSeries3D{TH,0,0,0}
+struct BandEnergyBerryVelocity3D{kind,T,TA,TV,TH} <: AbstractFourierSeries3D
+    H::FourierSeries3D{T,0,0,0}
     Ax::FourierSeries3D{TA,0,0,0}
     Ay::FourierSeries3D{TA,0,0,0}
     Az::FourierSeries3D{TA,0,0,0}
-    vz_z::Array{TH,2}
-    vz_yz::Array{TH,1}
-    vy_yz::Array{TH,1}
+    vz_z::Array{T,2}
+    vz_yz::Array{T,1}
+    vy_yz::Array{T,1}
     vz_xyz::Array{TV,0}
     vy_xyz::Array{TV,0}
     vx_xyz::Array{TV,0}
+    H_xyz::Array{TH,0}
 end
-function BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}) where {TH,TA}
+function BandEnergyBerryVelocity3D(H::FourierSeries3D{T,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, kind=:full) where {T,TA}
     @assert period(H) == period(Ax) == period(Ay) == period(Az)
-    vz_z = similar(H.coeffs_z)
-    vz_yz = similar(H.coeffs_yz)
-    vy_yz = similar(H.coeffs_yz)
-    TV = promote_type(TH, TA)
+    vz_z   = similar(H.coeffs_z)
+    vz_yz  = similar(H.coeffs_yz)
+    vy_yz  = similar(H.coeffs_yz)
+    TH, TV = band_velocity_types(kind, promote_type(T, TA))
     vz_xyz = Array{TV,0}(undef)
     vy_xyz = Array{TV,0}(undef)
     vx_xyz = Array{TV,0}(undef)
-    BandEnergyBerryVelocity3D(H, Ax, Ay, Az, vz_z, vz_yz, vy_yz, vz_xyz, vy_xyz, vx_xyz)
+    H_xyz  = Array{TH,0}(undef)
+    BandEnergyBerryVelocity3D{Val{kind}(),T,TA,TV,TH}(H, Ax, Ay, Az, vz_z, vz_yz, vy_yz, vz_xyz, vy_xyz, vx_xyz, H_xyz)
 end
 
 period(b::BandEnergyBerryVelocity3D) = period(b.H)
-Base.eltype(::Type{BandEnergyBerryVelocity3D{TH,TA,TV}}) where {TH,TA,TV} = Tuple{TH,TV,TV,TV}
-value(b::BandEnergyBerryVelocity3D) = (value(b.H), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
-function contract!(b::BandEnergyBerryVelocity3D{T}, x::Number, dim) where T
+Base.eltype(::Type{BandEnergyBerryVelocity3D{kind,T,TA,TV,TH}}) where {kind,T,TA,TV,TH} = Tuple{TH,TV,TV,TV}
+value(b::BandEnergyBerryVelocity3D) = (only(b.H_xyz), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
+function contract!(b::BandEnergyBerryVelocity3D{kind}, x::Number, dim) where kind
     if dim == 3
         ξ = inv(b.H.period[3])
         fourier_kernel!(b.H.coeffs_z, b.H.coeffs, x, ξ)
@@ -257,21 +276,14 @@ function contract!(b::BandEnergyBerryVelocity3D{T}, x::Number, dim) where T
         fourier_kernel!(b.vy_yz, b.H.coeffs_z, x, ξ, Val{1}())
     elseif dim == 1
         ξ = inv(b.H.period[1])
-        fourier_kernel!(b.H.coeffs_xyz, b.H.coeffs_yz, x, ξ)
-        fourier_kernel!(b.Ax.coeffs_xyz, b.Ax.coeffs_yz, x, ξ)
-        fourier_kernel!(b.Ay.coeffs_xyz, b.Ay.coeffs_yz, x, ξ)
-        fourier_kernel!(b.Az.coeffs_xyz, b.Az.coeffs_yz, x, ξ)
-        fourier_kernel!(b.vz_xyz, b.vz_yz, x, ξ)
-        fourier_kernel!(b.vy_xyz, b.vy_yz, x, ξ)
-        fourier_kernel!(b.vx_xyz, b.H.coeffs_yz, x, ξ, Val{1}())
-        H = b.H.coeffs_xyz[]
+        H = fourier_kernel(b.H.coeffs_yz, x, ξ)
+        b.H_xyz[], b.vz_xyz[], b.vy_xyz[], b.vx_xyz[] = 
+        band_velocities(kind, H,
         # we take the Hermitian part of the Berry connection since Wannier 90 may have forgotten to do this
-        Ax = herm(b.Ax.coeffs_xyz[])
-        Ay = herm(b.Ay.coeffs_xyz[])
-        Az = herm(b.Az.coeffs_xyz[])
-        b.vx_xyz[] += (-im*I) * commutator(H, Ax)
-        b.vy_xyz[] += (-im*I) * commutator(H, Ay)
-        b.vz_xyz[] += (-im*I) * commutator(H, Az)
+            fourier_kernel(b.vz_yz, x, ξ) - (im*I) * commutator(H, herm(b.Az(x))),
+            fourier_kernel(b.vy_yz, x, ξ) - (im*I) * commutator(H, herm(b.Ay(x))),
+            fourier_kernel(b.H.coeffs_yz, x, ξ, Val{1}()) - (im*I) * commutator(H, herm(b.Ax(x))),
+        )
     else
         error("dim=$dim is out of bounds")
     end
