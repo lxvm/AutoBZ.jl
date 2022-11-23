@@ -199,7 +199,7 @@ struct EquispaceOCIntegrand{T,TS,TL,THV}
     pre::Vector{Tuple{THV,Int}}
 end
 function EquispaceOCIntegrand(σ::OCIntegrand, l::IntegrationLimits, npt::Int)
-    pre = equispace_pre_eval(σ, l, npt)
+    pre = equispace_pre_eval(GammaIntegrand(σ, 0.0), l, npt)
     EquispaceOCIntegrand(σ, l, npt, pre)
 end
 (f::EquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
