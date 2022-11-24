@@ -487,4 +487,28 @@ function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::Ab
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
+# enables kpt parallelization by default for OC integrals
+function AutoBZ.equispace_int_eval(f::GammaIntegrand, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
+    n = length(pre)
+    acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
+    runthreads = min(nthreads, div(n-1, min_per_thread)) # choose the actual number of threads
+    d, r = divrem(n-1, runthreads)
+    partial_sums = zeros(typeof(acc), runthreads) # allocations :(
+    Threads.@threads for i in Base.OneTo(runthreads)
+        # batch nodes into `runthreads` continguous groups of size d or d+1 (remainder)
+        jmax = (i <= r ? d+1 : d)
+        offset = min(i-1, r)*(d+1) + max(i-1-r, 0)*d
+        # partial_sums[i] = sum(x -> x[2]*evaluate_integrand(f, x[1]), view(pre, (offset+1):(offset+jmax)); init=zero(acc))
+        @inbounds for j in 1:jmax
+            x, w = pre[offset + j]
+            partial_sums[i] += w*evaluate_integrand(f, x)
+        end
+    end
+    # dvol*sum(partial_sums; init=acc)
+    for part in partial_sums
+        acc += part
+    end
+    dvol*acc
+end
+
 end # module
