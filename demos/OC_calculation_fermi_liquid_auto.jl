@@ -32,7 +32,7 @@ T = sqrt(η/c)
 rtol = 1e-3
 atol = 1e-2
 
-# override built-in grid refinement to use a smaller, eta-independent step size 
+# override built-in grid refinement to use a smaller, eta-independent step size
 AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
 
 # run script

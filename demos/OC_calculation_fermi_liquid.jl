@@ -33,4 +33,4 @@ atol = 1e-3
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.OCscript_parallel("OC_results_fermi_liquid.h5", HV, Σ, β, Ωs, μ, atol, rtol)
+results = AutoBZ.Jobs.OCscript_parallel("OC_results_fermi_liquid.h5", HV, Σ, β, Ωs, μ, rtol, atol)
