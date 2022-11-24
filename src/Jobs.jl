@@ -1,6 +1,7 @@
 module Jobs
 
 using LinearAlgebra
+using Printf
 
 using HDF5
 using StaticArrays
@@ -155,13 +156,13 @@ function OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs
     ts = Vector{Float64}(undef, length(Ωs))
     segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
         σ = OCIntegrand(HV, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
@@ -180,12 +181,12 @@ function test_OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β
     ν₂_ = contract(contract(contract(ν₂, z), y), x)
     ν₃_ = contract(contract(contract(ν₃, z), y), x)
     for (i, (l, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t = time()
         σ = OCIntegrand(H_,ν₁_, ν₂_, ν₃_, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
         ts[i] = time() - t
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
@@ -220,16 +221,16 @@ function OCscript_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnerg
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
-            @info "Ω=$Ω started"
+            @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
             σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
-            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+            @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
-    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
@@ -256,13 +257,13 @@ function OCscript_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnerg
     ts = Vector{Float64}(undef, length(Ωs))
     segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t = time()
         σ = OCIntegrand(HV, Σ, Ω, β, μ)
         Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
         ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
@@ -300,16 +301,16 @@ function OCscript_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::Abstrac
     Threads.@threads for batch in batches
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
         for (i, (freq_lim, Ω)) in batch
-            @info "Ω=$Ω starting ..."
+            @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             σ = OCIntegrand(HV, Σ, Ω, β, μ)
             Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
             ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
-            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+            @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
-    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
@@ -338,12 +339,11 @@ function OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    ts = Vector{Float64}(undef, length(Ωs))
     σ = OCIntegrand(HV, Σ, 0.0, β, μ)
     Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
     segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
         Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
@@ -351,7 +351,7 @@ function OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β
         atol_ = rtol*norm(int_)
         ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, segbufs=segbufs)
         ts[i] = time() - t
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
@@ -400,16 +400,16 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     equi_segbuf = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
     Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV, Σ, 0.0, β, μ), BZ_lims, eatol, ertol)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t_ = time()
         Eσ.σ = OCIntegrand(HV, Σ, Ω, β, μ)
         pre_ints[i], pre_errs[i] = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol, segbufs=equi_segbuf)
         pre_ts[i] = time() - t_
         npt1s[i] = Eσ.npt1
         npt2s[i] = Eσ.npt2
-        @info "Ω=$Ω finished in $(pre_ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω pre_ts[i]
     end
-    @info "Finished equispace pre-evaluation in $(time()-t) (s) wall clock time"
+    @info @sprintf "Finished equispace pre-estimate in %e (s) wall clock time" (time()-t)
 
     t = time()
     @info "Beginning adaptive integration"
@@ -418,16 +418,16 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
-            @info "Ω=$Ω starting ..."
+            @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
             σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, segbufs=segbufs)
             ts[i] = time() - t_
-            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+            @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
-    @info "Finished adaptive integration in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    @info @sprintf "Finished adaptive integration in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
     (OC=ints, err=errs, t=ts, pre_OC=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, Omega=Ωs)
 end
 
@@ -452,12 +452,12 @@ function OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
     segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
-        @info "Ω=$Ω starting ..."
+        @info @sprintf "starting Ω=%e" Ω
         t = time()
         Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
         ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
-        @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+        @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
@@ -493,15 +493,15 @@ function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::Ab
         Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV_, Σ, 0.0, β, μ), BZ_lims, atol, rtol)
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
         for (i, (freq_lim, Ω)) in batch
-            @info "Ω=$Ω starting ..."
+            @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             Eσ.σ = σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
-            @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
+            @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
-    @info "Finished in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
     (OC=ints, err=errs, t=ts, Omega=Ωs)
 end
 
