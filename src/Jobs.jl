@@ -386,31 +386,47 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
-    pre_ts = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
+    pre_ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    pre_errs = Vector{Float64}(undef, length(Ωs))
+    pre_ts = Vector{Float64}(undef, length(Ωs))
+    npt1s = Vector{Int}(undef, length(Ωs))
+    npt2s = Vector{Int}(undef, length(Ωs))
+    
     @info "using $nthreads threads"
-    batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
+    @info "Beginning equispace pre-estimate"
+    equi_segbuf = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
+    Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV, Σ, 0.0, β, μ), BZ_lims, eatol, ertol)
+    for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
+        @info "Ω=$Ω starting ..."
+        t_ = time()
+        Eσ.σ = OCIntegrand(HV, Σ, Ω, β, μ)
+        pre_ints[i], pre_errs[i] = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol, segbufs=equi_segbuf)
+        pre_ts[i] = time() - t_
+        npt1s[i] = Eσ.npt1
+        npt2s[i] = Eσ.npt2
+        @info "Ω=$Ω finished in $(pre_ts[i]) (s) wall clock time"
+    end
+    @info "Finished equispace pre-evaluation in $(time()-t) (s) wall clock time"
+
+    t = time()
+    @info "Beginning adaptive integration"
+    batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     Threads.@threads for batch in batches
-        σ = OCIntegrand(HV, Σ, 0.0, β, μ)
-        Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
-            int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol, segbufs=segbufs)
-            atol_ = rtol*norm(int_)
-            pre_ts[i] = time() - t_
-            t_ = time()
-            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, segbufs=segbufs)
+            σ = OCIntegrand(HV, Σ, Ω, β, μ)
+            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, segbufs=segbufs)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
         end
     end
-    @info "Finished in $(sum(ts)+sum(pre_ts)) (s) CPU time and $(time()-t) (s) wall clock time"
-    (OC=ints, err=errs, t=ts, pre_t=pre_ts, Omega=Ωs)
+    @info "Finished adaptive integration in $(sum(ts)) (s) CPU time and $(time()-t) (s) wall clock time"
+    (OC=ints, err=errs, t=ts, pre_OC=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, Omega=Ωs)
 end
 
 """
