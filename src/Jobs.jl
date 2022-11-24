@@ -217,12 +217,13 @@ function OCscript_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnerg
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
+        HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω started"
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            σ = OCIntegrand(HV, Σ, Ω, β, μ)
+            σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -414,12 +415,13 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     @info "Beginning adaptive integration"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     Threads.@threads for batch in batches
+        HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            σ = OCIntegrand(HV, Σ, Ω, β, μ)
+            σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, segbufs=segbufs)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
@@ -487,13 +489,13 @@ function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::Ab
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
-        σ = OCIntegrand(HV, Σ, 0.0, β, μ)
-        Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
+        HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
+        Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV_, Σ, 0.0, β, μ), BZ_lims, atol, rtol)
         segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
         for (i, (freq_lim, Ω)) in batch
             @info "Ω=$Ω starting ..."
             t_ = time()
-            Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
+            Eσ.σ = σ = OCIntegrand(HV_, Σ, Ω, β, μ)
             ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
             @info "Ω=$Ω finished in $(ts[i]) (s) wall clock time"
