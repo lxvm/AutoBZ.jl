@@ -81,7 +81,7 @@ batch `xs` into `nthreads` groups where the `i`th element of group `j` is
 `xs[j+(i-1)*nthreads]`
 """
 function batch_smooth_param(xs, nthreads)
-    batches = [Tuple{Int,eltype(xs)}[] for _ in 1:nthreads]
+    batches = [Tuple{Int,eltype(xs)}[] for _ in 1:min(nthreads, length(xs))]
     for (i, x) in enumerate(xs)
         push!(batches[mod(i-1, nthreads)+1], (i, x))
     end
