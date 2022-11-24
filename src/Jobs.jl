@@ -463,7 +463,7 @@ function OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
 end
 
 """
-    OCscript_auto_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; nthreads=Threads.nthreads())
+    OCscript_auto_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, atol, rtol; nthreads=1)
 
 Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
 the results, errors, and timings for an optical conductivity calculation done at
@@ -471,9 +471,12 @@ frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs
 `AutoEquispaceOCIntegrand` for each parameter value, reusing ``k``-grids of `HV`
 values from previous calculations, and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
-results. The calculation is parallelized over `Ωs` on `nthreads` threads.
+results. The calculation is parallelized over `Ωs` on `nthreads` threads. The
+default is set to 1 thread for frequency parallelization, although k-point
+parallelization is still enabled, to avoid duplicating calculations of the
+Hamiltonian and band velocities on the k-mesh.
 """
-function OCscript_auto_equispace_parallel(filename, args...; nthreads=Threads.nthreads())
+function OCscript_auto_equispace_parallel(filename, args...; nthreads=1)
     results = OCscript_auto_equispace_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
