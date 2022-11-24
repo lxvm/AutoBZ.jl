@@ -3,7 +3,6 @@ In this script we compute OC at various Ω at a single η, where the temperature
 is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
-import ParallelMagics
 using AutoBZ
 using AutoBZ.Applications
 
