@@ -16,7 +16,7 @@ tree_integration(f, c::CubicLimits; kwargs...) = tree_integration(f, c.l, c.u; k
 Choose a new set of error tolerances for the next inner integral. By default
 returns `(atol, rtol)` unchanged.
 """
-iterated_tol_update(f, l, atol, rtol) = (atol, rtol)
+iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 """
     iterated_pre_eval(f, x, dim)
@@ -63,7 +63,7 @@ thunk(f, x) = ThunkIntegrand(f, SVector(x))
 thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
 
 """
-    iterated_integration(f, ::IntegrationLimits; order=4, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), segbufs=nothing)
+    iterated_integration(f, ::IntegrationLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> i == 1 ? 5 : 1, Val{d}()), segbufs=nothing)
     iterated_integration(f, a, b; kwargs...)
 
 Calls `QuadGK` to perform iterated 1D integration of `f` over a domain
@@ -88,7 +88,9 @@ applied recursively to each variable of integration in an order determined by
 `l` to obtain the multi-dimensional integral.
 
 Unlike `quadgk`, this routine does not allow infinite limits of integration nor
-unions of intervals to avoid singular points of the integrand.
+unions of intervals to avoid singular points of the integrand. However, the
+`initdivs` keyword allows passing a tuple of integers which specifies the
+initial number of panels in each `quadgk` call at each level of integration.
 
 In normal usage, `iterated_integration` will allocate segment buffers. You can
 instead pass a preallocated buffer allocated using `alloc_segbufs` as the segbuf
@@ -96,25 +98,27 @@ argument. This buffer can be used across multiple calls to avoid repeated
 allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits{d}; order=4, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, segbufs=nothing) where d
+function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> 2(d+1-i), Val{d}()), segbufs=nothing) where d
     Tfx, Tnfx = infer_f(f, SVector{ndims(l),eltype(l)})
     segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
     atol_ = something(atol, zero(Tnfx))/nsyms(l)
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(Tnfx))) : zero(Tnfx))
-    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, segbufs_)::Tuple{Tfx,Tnfx}
+    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)::Tuple{Tfx,Tnfx}
     symmetrize(l, int, err)
 end
 
-function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, segbufs)
-    QuadGK.do_quadgk(f, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[1])
+function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
+    panels = Tuple(range(lower(l), upper(l), length=initdivs[1]+1))
+    QuadGK.do_quadgk(f, panels, order, atol, rtol, maxevals, norm, segbufs[1])
 end
-function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, segbufs) where d
+function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs) where d
     # avoid runtime dispatch when capturing variables
     # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
-    f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, segbufs=segbufs
-        x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol)..., maxevals, norm, segbufs))
+    f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs
+        x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs))
     end
-    QuadGK.do_quadgk(f_, (lower(l), upper(l)), order, atol, rtol, maxevals, norm, segbufs[d])
+    panels = Tuple(range(lower(l), upper(l), length=initdivs[d]+1))
+    QuadGK.do_quadgk(f_, panels, order, atol, rtol, maxevals, norm, segbufs[d])
 end
 
 """
