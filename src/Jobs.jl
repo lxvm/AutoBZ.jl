@@ -12,8 +12,8 @@ using ..AutoBZ.Applications
 
 export BandEnergyBerryVelocities
 export read_h5_to_nt, write_nt_to_h5, import_self_energy
-export OCscript, OC_script_equispace, OC_script_auto, OC_script_auto_equispace
-export OCscript_parallel, OC_script_equispace_parallel, OC_script_auto_parallel, OC_script_auto_equispace_parallel
+export OCscript, OCscript_equispace, OCscript_auto, OCscript_auto_equispace
+export OCscript_parallel, OCscript_equispace_parallel, OCscript_auto_parallel, OCscript_auto_equispace_parallel
 
 #=
 Section: loading data from HDF5
