@@ -77,7 +77,7 @@ Keyword options include a relative error tolerance `rtol` (if `atol==0`,
 defaults to `sqrt(eps)` in the precision of the norm of the return type), an
 absolute error tolerance `atol` (defaults to 0), a maximum number of function
 evaluations `maxevals` for each nested integral (defaults to `10^7`), and the
-`order` of the integration rule (defaults to 4).
+`order` of the integration rule (defaults to 7).
 
 The algorithm is an adaptive Gauss-Kronrod integration technique: the integral
 in each interval is estimated using a Kronrod rule (`2*order+1` points) and the
