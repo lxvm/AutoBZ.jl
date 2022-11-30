@@ -16,6 +16,7 @@ HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
 Ωs = [0.0]
 # Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
 η = 0.5 # eV
+n = 0 # zeroth kinetic coefficient == OC
 
 # define constants
 kB = 8.617333262e-5 # eV/K
@@ -34,4 +35,4 @@ rtol = 1e-3
 atol = 1e-2
 
 # run calculation
-results = AutoBZ.Jobs.OCscript_auto_equispace_parallel("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, Ωs, μ, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_auto_equispace_parallel("OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5", HV, Σ, β, μ, n, Ωs, rtol, atol)

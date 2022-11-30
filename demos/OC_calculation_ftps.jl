@@ -3,8 +3,6 @@ In this script we compute OC at various Ω using frequency-dependent self energy
 data that we interpolate with a high-order Chebyshev regression
 =#
 
-using FastChebInterp
-
 using AutoBZ
 using AutoBZ.Applications
 
@@ -16,14 +14,6 @@ HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
 
 # import self energies from an equispaced grid
 sigma_data = AutoBZ.Jobs.import_self_energy("srvo_sigma_ftps_T0.h5")
-
-# construct a Chebyshev interpolant
-order = 1000 # about one-third of data points
-sigma_cheb_interp = chebregression(sigma_data.ω, sigma_data.Σ, (order,))
-# reduce the domain to mitigate Runge's phenomenon
-len = only(sigma_cheb_interp.ub) - only(sigma_cheb_interp.lb)
-lb = only(sigma_cheb_interp.lb) + 0.05len
-ub = only(sigma_cheb_interp.ub) - 0.05len
 
 # construct a Barycentric Lagrange interpolant
 degree = 8
@@ -42,6 +32,7 @@ T = 50.0 # K # guess of the effective temperature
 
 # define constants
 kB = 8.617333262e-5 # eV/K
+n = 0 # zeroth kinetic coefficient == OC
 
 # derived parameters
 β = inv(kB*T)
@@ -51,4 +42,4 @@ atol = 1e-1
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.OCscript_parallel("OC_results_ftps.h5", HV, Σ, β, Ωs, μ, atol, rtol)
+results = AutoBZ.Jobs.run_kinetic_auto_parallel("OC_results_ftps.h5", HV, Σ, β, μ, n, Ωs, atol, rtol)

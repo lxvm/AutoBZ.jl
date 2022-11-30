@@ -10,10 +10,9 @@ using OffsetArrays
 using ..AutoBZ
 using ..AutoBZ.Applications
 
-export BandEnergyBerryVelocities
 export read_h5_to_nt, write_nt_to_h5, import_self_energy
-export OCscript, OCscript_equispace, OCscript_auto, OCscript_auto_equispace
-export OCscript_parallel, OCscript_equispace_parallel, OCscript_auto_parallel, OCscript_auto_equispace_parallel
+export run_kinetic, run_kinetic_equispace, run_kinetic_auto, run_kinetic_auto_equispace
+export run_kinetic_parallel, run_kinetic_equispace_parallel, run_kinetic_auto_parallel, run_kinetic_auto_equispace_parallel
 
 #=
 Section: loading data from HDF5
@@ -97,7 +96,7 @@ Section: DOS calculations
 
 
 #=
-Section: OC calculations
+Section: A calculations
 - 
 =#
 
@@ -131,87 +130,75 @@ function get_safe_freq_limits(Ωs, β, lb, ub)
 end
 
 """
-    BandEnergyBerryVelocities
+    run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
 
-Union type of `BandEnergyBerryVelocity`, `BandEnergyBerryVelocity3D`,
-`BandEnergyVelocity`, and `BandEnergyVelocity3D`.
-"""
-const BandEnergyBerryVelocities = Union{BandEnergyBerryVelocity,BandEnergyBerryVelocity3D,BandEnergyVelocity,BandEnergyVelocity3D}
-
-"""
-    OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
-
-Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`OCIntegrand` for each parameter value and calls `iterated_integration` on it
+`KineticIntegrand` for each parameter value and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
 results.
 """
-function OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+function run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
+    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(BZ_lims)+1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
-        σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, segbufs=segbufs)
+        A = KineticIntegrand(HV, Σ, β, μ, n,  Ω)
+        ints[i], errs[i] = iterated_integration(A, l; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 "Only performs the omega integral"
-function test_OCscript(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, x, y, z)
+function test_run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, x, y, z)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    ν₁ = FourierSeriesDerivative(H, SVector(1,0,0))
-    ν₂ = FourierSeriesDerivative(H, SVector(0,1,0))
-    ν₃ = FourierSeriesDerivative(H, SVector(0,0,1))
-    H_ = contract(contract(contract(HV, z), y), x)
-    ν₁_ = contract(contract(contract(ν₁, z), y), x)
-    ν₂_ = contract(contract(contract(ν₂, z), y), x)
-    ν₃_ = contract(contract(contract(ν₃, z), y), x)
+    contract!(HV, z, 3)
+    contract!(HV, y, 2)
+    contract!(HV, x, 1)
     for (i, (l, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t = time()
-        σ = OCIntegrand(H_,ν₁_, ν₂_, ν₃_, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol)
+        A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+        ints[i], errs[i] = iterated_integration(A, l; atol=atol, rtol=rtol)
         ts[i] = time() - t
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 
 """
-    OCscript_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; nthreads=Threads.nthreads())
+    run_kinetic_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; nthreads=Threads.nthreads())
 
-Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
 the results, errors, and timings for an optical conductivity calculation done at
 frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`OCIntegrand` for each parameter value and calls `iterated_integration` on it
+`KineticIntegrand` for each parameter value and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
 results. The calculation is parallelized over `Ωs` on `nthreads` threads.
 """
-function OCscript_parallel(filename, args...; nthreads=Threads.nthreads())
-    results = OCscript_parallel_(args..., nthreads)
+function run_kinetic_parallel(filename, args...; nthreads=Threads.nthreads())
+    results = run_kinetic_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
+function run_kinetic_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
     @info "using $nthreads threads"
@@ -219,111 +206,111 @@ function OCscript_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnerg
     t = time()
     Threads.@threads for batch in batches
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
+        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
             @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            σ = OCIntegrand(HV_, Σ, Ω, β, μ)
-            ints[i], errs[i] = iterated_integration(σ, l; atol=atol, rtol=rtol, segbufs=segbufs)
+            A = KineticIntegrand(HV_, Σ, β, μ, n, Ω)
+            ints[i], errs[i] = iterated_integration(A, l; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
     @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 """
-    OCscript_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, rtol, atol; pre_eval=pre_eval_contract)
+    run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol; pre_eval=pre_eval_contract)
 
-Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`EquispaceOCIntegrand` for each parameter value, and precomputes `HV` on an
+`EquispaceKineticIntegrand` for each parameter value, and precomputes `HV` on an
 equispace ``k`` grid with `npt` points per dimension (which is reused for all
 parameter values), and calls `iterated_integration` on it over the domain of the
 IBZ and a safely truncated frequency integral to get the results.
 """
-function OCscript_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, rtol, atol; pre_eval=pre_eval_contract)
+function run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol; pre_eval=pre_eval_contract)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     @info "pre-evaluating Hamiltonian..."
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
     @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
+    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t = time()
-        σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
-        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
+        A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+        EA = EquispaceKineticIntegrand(A, BZ_lims, npt, pre)
+        ints[i], errs[i] = iterated_integration(EA, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 """
-    OCscript_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, rtol, atol; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
+    run_kinetic_equispace_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
 
-Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
 the results, errors, and timings for an optical conductivity calculation done at
 frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`EquispaceOCIntegrand` for each parameter value, and precomputes `HV` on an
+`EquispaceKineticIntegrand` for each parameter value, and precomputes `HV` on an
 equispace ``k`` grid with `npt` points per dimension (which is reused for all
 parameter values), and calls `iterated_integration` on it over the domain of the
 IBZ and a safely truncated frequency integral to get the results. The
 calculation is parallelized over `Ωs` on `nthreads` threads.
 """
-function OCscript_equispace_parallel(filename, args...; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
-    results = OCscript_equispace_parallel_(args..., pre_eval, nthreads)
+function run_kinetic_equispace_parallel(filename, args...; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
+    results = run_kinetic_equispace_parallel_(args..., pre_eval, nthreads)
     write_nt_to_h5(results, filename)
     results
 end
-function OCscript_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, npt, rtol, atol, pre_eval, nthreads)
+function run_kinetic_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol, pre_eval, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     @info "pre-evaluating Hamiltonian..."
     t = time()
     pre = pre_eval(HV, BZ_lims, npt)
     @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
     @info "using $nthreads threads"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
-        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
+        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
         for (i, (freq_lim, Ω)) in batch
             @info @sprintf "starting Ω=%e" Ω
             t_ = time()
-            σ = OCIntegrand(HV, Σ, Ω, β, μ)
-            Eσ = EquispaceOCIntegrand(σ, BZ_lims, npt, pre)
-            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
+            A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+            EA = EquispaceKineticIntegrand(A, BZ_lims, npt, pre)
+            ints[i], errs[i] = iterated_integration(EA, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
     @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 
 """
-    OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+    run_kinetic_auto(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; ertol=1.0, eatol=0.0)
 
-Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
-`AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
+`AutoEquispaceKineticIntegrand` with wide tolerances `eatol` and `ertol` which
 estimates the integral, `int`, and then uses a narrow absolute tolerance set by
-`max(atol,rtol*norm(int))` to construct an `OCIntegrand` for each parameter
+`max(atol,rtol*norm(int))` to construct an `KineticIntegrand` for each parameter
 value and calls `iterated_integration` on it over the domain of the IBZ and a
 safely truncated frequency integral to get the results.
 
@@ -331,41 +318,41 @@ Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
 ``\\eta``-independent with a line like the one below before calling this script
 
-    AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
+    AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
 """
-function OCscript_auto(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0)
+function run_kinetic_auto(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; ertol=1.0, eatol=0.0)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    σ = OCIntegrand(HV, Σ, 0.0, β, μ)
-    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, eatol, ertol)
-    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
+    A = KineticIntegrand(HV, Σ, β, μ, n)
+    EA = AutoEquispaceKineticIntegrand(A, BZ_lims, eatol, ertol)
+    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(BZ_lims)+1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t = time()
         l = CompositeLimits(BZ_lims, freq_lim)
-        Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        int_, = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol, segbufs=segbufs)
+        EA.A = A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+        int_, = iterated_integration(EA, freq_lim; atol=eatol, rtol=ertol, segbufs=segbufs)
         atol_ = rtol*norm(int_)
-        ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,atol_), rtol=0.0, segbufs=segbufs)
+        ints[i], errs[i] = iterated_integration(A, l; atol=max(atol,atol_), rtol=0.0, segbufs=segbufs)
         ts[i] = time() - t
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 
 """
-    OCscript_auto_parallel(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
+    run_kinetic_auto_parallel(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
 
-Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
-`AutoEquispaceOCIntegrand` with wide tolerances `eatol` and `ertol` which
+`AutoEquispaceKineticIntegrand` with wide tolerances `eatol` and `ertol` which
 estimates the integral, `int`, and then use a narrow absolute tolerance set by
-`max(atol,rtol*norm(int))` to construct an `OCIntegrand` for each parameter
+`max(atol,rtol*norm(int))` to construct an `KineticIntegrand` for each parameter
 value and calls `iterated_integration` on it over the domain of the IBZ and a
 safely truncated frequency integral to get the results. The calculation is
 parallelized over `Ωs` on `nthreads` threads.
@@ -374,21 +361,21 @@ Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
 ``\\eta``-independent with a line like the one below before calling this script
 
-    AutoBZ.equispace_npt_update(npt, ::GammaIntegrand, atol, rtol) = npt + 50
+    AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
 """
-function OCscript_auto_parallel(filename, args...; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
-    results = OCscript_auto_parallel_(args..., ertol, eatol, nthreads)
+function run_kinetic_auto_parallel(filename, args...; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
+    results = run_kinetic_auto_parallel_(args..., ertol, eatol, nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, ertol, eatol, nthreads)
+function run_kinetic_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, ertol, eatol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    pre_ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    pre_ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     pre_errs = Vector{Float64}(undef, length(Ωs))
     pre_ts = Vector{Float64}(undef, length(Ωs))
     npt1s = Vector{Int}(undef, length(Ωs))
@@ -397,16 +384,16 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     @info "using $nthreads threads"
     t = time()
     @info "Beginning equispace pre-estimate"
-    equi_segbuf = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
-    Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV, Σ, 0.0, β, μ), BZ_lims, eatol, ertol)
+    equi_segbuf = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
+    EA = AutoEquispaceKineticIntegrand(KineticIntegrand(HV, Σ, β, μ, n), BZ_lims, eatol, ertol)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t_ = time()
-        Eσ.σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        pre_ints[i], pre_errs[i] = iterated_integration(Eσ, freq_lim; atol=eatol, rtol=ertol, segbufs=equi_segbuf)
+        EA.A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+        pre_ints[i], pre_errs[i] = iterated_integration(EA, freq_lim; atol=eatol, rtol=ertol, segbufs=equi_segbuf)
         pre_ts[i] = time() - t_
-        npt1s[i] = Eσ.npt1
-        npt2s[i] = Eσ.npt2
+        npt1s[i] = EA.npt1
+        npt2s[i] = EA.npt2
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω pre_ts[i]
     end
     @info @sprintf "Finished equispace pre-estimate in %e (s) wall clock time" (time()-t)
@@ -416,59 +403,59 @@ function OCscript_auto_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelf
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     Threads.@threads for batch in batches
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, ndims(BZ_lims)+1)
+        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(BZ_lims)+1)
         for (i, (freq_lim, Ω)) in batch
             @info @sprintf "starting Ω=%e" Ω
             t_ = time()
             l = CompositeLimits(BZ_lims, freq_lim)
-            σ = OCIntegrand(HV_, Σ, Ω, β, μ)
-            ints[i], errs[i] = iterated_integration(σ, l; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, segbufs=segbufs)
+            A = KineticIntegrand(HV_, Σ, β, μ, n, Ω)
+            ints[i], errs[i] = iterated_integration(A, l; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
     @info @sprintf "Finished adaptive integration in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (OC=ints, err=errs, t=ts, pre_OC=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, Omega=Ωs)
+    (A=ints, err=errs, t=ts, pre_A=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, Omega=Ωs)
 end
 
 """
-    OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+    run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
 
-Returns a `NamedTuple` with names `OC, err, t, Omega` containing the results,
+Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
 errors, and timings for an optical conductivity calculation done at frequencies
 `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`AutoEquispaceOCIntegrand` for each parameter value, reusing ``k``-grids of `HV`
+`AutoEquispaceKineticIntegrand` for each parameter value, reusing ``k``-grids of `HV`
 values from previous calculations, and calls `iterated_integration` on it over
 the domain of the IBZ and a safely truncated frequency integral to get the
 results.
 """
-function OCscript_auto_equispace(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol)
+function run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    σ = OCIntegrand(HV, Σ, 0.0, β, μ)
-    Eσ = AutoEquispaceOCIntegrand(σ, BZ_lims, atol, rtol)
-    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
+    A = KineticIntegrand(HV, Σ, β, μ, n)
+    EA = AutoEquispaceKineticIntegrand(A, BZ_lims, atol, rtol)
+    segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
     for (i, (freq_lim, Ω)) in enumerate(zip(freq_lims, Ωs))
         @info @sprintf "starting Ω=%e" Ω
         t = time()
-        Eσ.σ = σ = OCIntegrand(HV, Σ, Ω, β, μ)
-        ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
+        EA.A = A = KineticIntegrand(HV, Σ, β, μ, n, Ω)
+        ints[i], errs[i] = iterated_integration(EA, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
         ts[i] = time() - t
         @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
     end
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
 """
-    OCscript_auto_equispace_parallel(filename, HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol; nthreads=1)
+    run_kinetic_auto_equispace_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; nthreads=1)
 
-Writes an h5 archive to `filename` with groups `OC, err, t, Omega` containing
+Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
 the results, errors, and timings for an optical conductivity calculation done at
 frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
-`AutoEquispaceOCIntegrand` for each parameter value, reusing ``k``-grids of `HV`
+`AutoEquispaceKineticIntegrand` for each parameter value, reusing ``k``-grids of `HV`
 values from previous calculations, and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
 results. The calculation is parallelized over `Ωs` on `nthreads` threads. The
@@ -476,16 +463,16 @@ default is set to 1 thread for frequency parallelization, although k-point
 parallelization is still enabled, to avoid duplicating calculations of the
 Hamiltonian and band velocities on the k-mesh.
 """
-function OCscript_auto_equispace_parallel(filename, args...; nthreads=1)
-    results = OCscript_auto_equispace_parallel_(args..., nthreads)
+function run_kinetic_auto_equispace_parallel(filename, args...; nthreads=1)
+    results = run_kinetic_auto_equispace_parallel_(args..., nthreads)
     write_nt_to_h5(results, filename)
     results
 end
 
-function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::AbstractSelfEnergy, β, Ωs, μ, rtol, atol, nthreads)
+function run_kinetic_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, nthreads)
     BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    ints = Vector{eltype(OCIntegrand)}(undef, length(Ωs))
+    ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
     @info "using $nthreads threads"
@@ -493,23 +480,23 @@ function OCscript_auto_equispace_parallel_(HV::BandEnergyBerryVelocities, Σ::Ab
     t = time()
     Threads.@threads for batch in batches
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
-        Eσ = AutoEquispaceOCIntegrand(OCIntegrand(HV_, Σ, 0.0, β, μ), BZ_lims, atol, rtol)
-        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(OCIntegrand), Float64, 1)
+        EA = AutoEquispaceKineticIntegrand(KineticIntegrand(HV_, Σ, β, μ, n), BZ_lims, atol, rtol)
+        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
         for (i, (freq_lim, Ω)) in batch
             @info @sprintf "starting Ω=%e" Ω
             t_ = time()
-            Eσ.σ = σ = OCIntegrand(HV_, Σ, Ω, β, μ)
-            ints[i], errs[i] = iterated_integration(Eσ, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
+            EA.A = A = KineticIntegrand(HV_, Σ, β, μ, n, Ω)
+            ints[i], errs[i] = iterated_integration(EA, freq_lim; atol=atol, rtol=rtol, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished Ω=%e in %e (s) wall clock time" Ω ts[i]
         end
     end
     @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (OC=ints, err=errs, t=ts, Omega=Ωs)
+    (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-# enables kpt parallelization by default for OC integrals
-function AutoBZ.equispace_int_eval(f::GammaIntegrand, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
+# enables kpt parallelization by default for transport and kinetic integrals
+function AutoBZ.equispace_int_eval(f::TransportIntegrand, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
     n = length(pre)
     acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
     runthreads = min(nthreads, div(n-1, min_per_thread)) # choose the actual number of threads
