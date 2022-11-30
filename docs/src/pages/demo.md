@@ -88,7 +88,7 @@ D = WannierIntegrand(dos, H, (ω, μ, η))
     While it is possible to perform an integral where some variables are
     integrated adaptively and others are integrated uniformly, this guide will
     not explain how to do this. However, an example implementation of this is 
-    [`AutoBZ.Applications.AutoEquispaceOCIntegrand`](@ref).
+    [`AutoBZ.Applications.AutoEquispaceKineticIntegrand`](@ref).
 
 ## Graphene example with `ManyOffsetsFourierSeries`
 

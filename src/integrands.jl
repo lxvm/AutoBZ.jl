@@ -84,10 +84,10 @@ end
 
 A type whose integral over the BZ gives the transport distribution.
 ```math
-\\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
+\\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 This type works with both adaptive and equispace integration routines. Based on
-https://triqs.github.io/dft_tools/latest/guide/transport.html#wien2k-optics-package
+[TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html)
 """
 struct TransportIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D},M1,M2}
     HV::T
@@ -159,13 +159,13 @@ kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(ω, Ω, β)
 A function whose integral over the BZ and the frequency axis gives the kinetic
 coefficient. Mathematically, this computes
 ```math
-\\A{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Transport_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
+A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
 this type only for adaptive integration and order the limits so that the
 integral over the Brillouin zone is the outer integral and the frequency
 integral is the inner integral. Based on
-https://triqs.github.io/dft_tools/latest/guide/transport.html#wien2k-optics-package
+[TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html)
 """
 struct KineticIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D},TS<:AbstractSelfEnergy}
     HV::T
