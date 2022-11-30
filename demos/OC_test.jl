@@ -18,7 +18,7 @@ HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
 
 # initialize integrand and limits
 Σ = EtaEnergy(η)
-σ = OCIntegrand(HV, Σ, Ω, β, μ)
+σ = KineticIntegrand(HV, Σ, β, μ, 0, Ω)
 f = fermi_window_limits(Ω, β)
 c = CubicLimits(period(HV))
 t = TetrahedralLimits(c)
@@ -31,6 +31,6 @@ rtol = 0.0
 int, err = iterated_integration(σ, CompositeLimits(t, f); atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
-Eσ = AutoEquispaceOCIntegrand(σ, t, atol, rtol)
+Eσ = AutoEquispaceKineticIntegrand(σ, t, atol, rtol)
 
 inte, erre = iterated_integration(Eσ, f; atol=atol, rtol=rtol)

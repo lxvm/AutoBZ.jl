@@ -18,7 +18,7 @@ HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period
 
 # initialize integrand and limits
 Σ = AutoBZ.Applications.EtaEnergy(η)
-σ = AutoBZ.Applications.OCIntegrand(HV, Σ, Ω, β, μ)
+σ = AutoBZ.Applications.KineticIntegrand(HV, Σ, β, μ, 0, Ω)
 f = AutoBZ.Applications.fermi_window_limits(Ω, β)
 c = AutoBZ.CubicLimits(H.period)
 t = AutoBZ.Applications.TetrahedralLimits(c)
@@ -28,5 +28,5 @@ atol = 1e-3
 rtol = 0.0
 
 int, err = AutoBZ.iterated_integration(σ, AutoBZ.CompositeLimits(t, f); atol=atol, rtol=rtol)
-Eσ = AutoBZ.Applications.AutoEquispaceOCIntegrand(σ, t, atol, rtol)
+Eσ = AutoBZ.Applications.AutoEquispaceKineticIntegrand(σ, t, atol, rtol)
 inte, erre = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)
