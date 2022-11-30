@@ -6,3 +6,4 @@ Equispace integration (with a heuristic switching mechanism as plugin)
 Reading and representing H(k) and Sigma(omega)
 Option to separate intra- and interband contributions
 Add tests to library
+Absorb chemical potential into Hamiltonian

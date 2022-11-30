@@ -20,10 +20,10 @@ AutoBZ.Applications.pre_eval_contract(::AutoBZ.Applications.WannierIntegrand,::A
 
 ```@docs
 AutoBZ.Applications.DOSIntegrand
-AutoBZ.Applications.GammaIntegrand
-AutoBZ.Applications.OCIntegrand
-AutoBZ.Applications.EquispaceOCIntegrand
-AutoBZ.Applications.AutoEquispaceOCIntegrand
+AutoBZ.Applications.TransportIntegrand
+AutoBZ.Applications.KineticIntegrand
+AutoBZ.Applications.EquispaceKineticIntegrand
+AutoBZ.Applications.AutoEquispaceKineticIntegrand
 ```
 
 ### Functions
@@ -32,8 +32,8 @@ AutoBZ.Applications.AutoEquispaceOCIntegrand
 AutoBZ.Applications.dos_integrand
 AutoBZ.Applications.spectral_function
 AutoBZ.Applications.band_velocities
-AutoBZ.Applications.gamma_integrand
-AutoBZ.Applications.oc_integrand
+AutoBZ.Applications.transport_integrand
+AutoBZ.Applications.kinetic_integrand
 AutoBZ.Applications.fermi
 AutoBZ.Applications.fermi′
 AutoBZ.Applications.fermi_window

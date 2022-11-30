@@ -79,17 +79,17 @@ function pre_eval_contract(f::AbstractFourierSeries3D, l::TetrahedralLimits{3}, 
 end
 
 """
-    equispace_pre_eval(f::WannierIntegrand, l::IntegrationLimits, npt)
+    equispace_pre_eval(w::WannierIntegrand, l::IntegrationLimits, npt)
 
 This function will evaluate the Fourier series and integration weights needed
 for equispace integration of `f` at `npt` points per dimension. `l` should
 contain the relevant symmetries needed for IBZ integration, if desired.
 """
-equispace_pre_eval(f::WannierIntegrand, l, npt) = pre_eval_contract(f.s, l, npt)
+equispace_pre_eval(w::WannierIntegrand, l, npt) = pre_eval_contract(w.s, l, npt)
 
 equispace_pre_eval(D::DOSIntegrand, l, npt) = pre_eval_contract(D.H, l, npt)
 
-equispace_pre_eval(f::GammaIntegrand, l, npt) = pre_eval_contract(f.HV, l, npt)
+equispace_pre_eval(Γ::TransportIntegrand, l, npt) = pre_eval_contract(Γ.HV, l, npt)
 
 
 function pre_eval_fft(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
@@ -112,22 +112,25 @@ function equispace_npt_update(npt, D::DOSIntegrand, atol, rtol)
     npt_update_eta(npt, η, atol, rtol)
 end
 
-function equispace_npt_update(npt, g::GammaIntegrand, atol, rtol)
-    ηω = im_sigma_to_eta(-imag(g.Mω))
-    ηΩ = im_sigma_to_eta(-imag(g.MΩ))
-    npt_update_eta(npt, min(ηω, ηΩ), atol, rtol)
+function equispace_npt_update(npt, Γ::TransportIntegrand, atol, rtol)
+    ηω₁ = im_sigma_to_eta(-imag(Γ.Mω₁))
+    ηω₂ = im_sigma_to_eta(-imag(Γ.Mω₂))
+    npt_update_eta(npt, min(ηω₁, ηω₂))
 end
 
 im_sigma_to_eta(x::UniformScaling) = -x.λ
 
 """
-    npt_update_eta(npt, η, atol, rtol)
+    npt_update_eta(npt, η, [n₀=6.0, Δn=2.3])
 
-Implements the heuristics for incrementing kpts suggested by Kaye et al.
+Implements the heuristics for incrementing kpts suggested in Appendix A
+http://arxiv.org/abs/2211.12959. Choice of `n₀≈2π`, close to the period of a
+canonical BZ, approximately places a point in every box of size `η`. Choice of
+`Δn≈log(10)` should get an extra digit of accuracy from PTR upon refinement.
 """
-function npt_update_eta(npt, η, atol, rtol)
-    npt == 0 && return round(Int, 6/η)
-    npt + max(50, round(Int, 2.3/η))
+function npt_update_eta(npt, η, n₀=6.0, Δn=2.3)
+    npt == 0 && return round(Int, n₀/η)
+    npt + max(50, round(Int, Δn/η))
 end
 
 #=

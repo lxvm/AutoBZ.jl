@@ -20,7 +20,7 @@ end
 evaluate_integrand(w::WannierIntegrand, s_x) = w.f(s_x, w.p...)
 
 # pre-defined integrands
-export DOSIntegrand, GammaIntegrand, OCIntegrand, EquispaceOCIntegrand, AutoEquispaceOCIntegrand
+export DOSIntegrand, TransportIntegrand, KineticIntegrand, EquispaceKineticIntegrand, AutoEquispaceKineticIntegrand
 
 dos_integrand(H, ω, Σ, μ) = dos_integrand(H, (ω+μ)*I-Σ(ω))
 dos_integrand(H, ω, Σ::AbstractMatrix, μ) = dos_integrand(H, (ω+μ)*I-Σ)
@@ -55,52 +55,54 @@ evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(H_k, D.M)
 
 spectral_function(H, M) = imag(inv(M-H))/(-pi)
 
-gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ(ω), (ω+Ω+μ)*I-Σ(ω+Ω))
-gamma_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω, Ω, μ) = gamma_integrand(H, ν₁, ν₂, ν₃, (ω+μ)*I-Σ, (ω+Ω+μ)*I-Σ)
-function gamma_integrand(H, ν₁, ν₂, ν₃, Mω, MΩ)
-    Aω = spectral_function(H, Mω)
-    AΩ = spectral_function(H, MΩ)
-    gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
+transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω₁, ω₂, μ) = transport_integrand(H, ν₁, ν₂, ν₃, (ω₁+μ)*I-Σ(ω₁), (ω₂+μ)*I-Σ(ω₂))
+transport_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω₁, ω₂, μ) = transport_integrand(H, ν₁, ν₂, ν₃, (ω₁+μ)*I-Σ, (ω₂+μ)*I-Σ)
+function transport_integrand(H, ν₁, ν₂, ν₃, Mω₁, Mω₂)
+    Aω₁ = spectral_function(H, Mω₁)
+    Aω₂ = spectral_function(H, Mω₂)
+    # Probably missing a factor of (2*pi)^-3 to convert reciprocal space volume
+    # to real space 1/V, V the volume of the unit cell
+    transport_integrand_(ν₁, ν₂, ν₃, Aω₁, Aω₂)
 end
-function gamma_integrand_(ν₁, ν₂, ν₃, Aω, AΩ)
-    ν₁Aω = ν₁*Aω
-    ν₂Aω = ν₂*Aω
-    ν₃Aω = ν₃*Aω
-    ν₁AΩ = ν₁*AΩ
-    ν₂AΩ = ν₂*AΩ
-    ν₃AΩ = ν₃*AΩ
+function transport_integrand_(ν₁, ν₂, ν₃, Aω₁, Aω₂)
+    ν₁Aω₁ = ν₁*Aω₁
+    ν₂Aω₁ = ν₂*Aω₁
+    ν₃Aω₁ = ν₃*Aω₁
+    ν₁Aω₂ = ν₁*Aω₂
+    ν₂Aω₂ = ν₂*Aω₂
+    ν₃Aω₂ = ν₃*Aω₂
     SMatrix{3,3,ComplexF64,9}((
-        tr_mul(ν₁Aω, ν₁AΩ), tr_mul(ν₂Aω, ν₁AΩ), tr_mul(ν₃Aω, ν₁AΩ),
-        tr_mul(ν₁Aω, ν₂AΩ), tr_mul(ν₂Aω, ν₂AΩ), tr_mul(ν₃Aω, ν₂AΩ),
-        tr_mul(ν₁Aω, ν₃AΩ), tr_mul(ν₂Aω, ν₃AΩ), tr_mul(ν₃Aω, ν₃AΩ),
+        tr_mul(ν₁Aω₁, ν₁Aω₂), tr_mul(ν₂Aω₁, ν₁Aω₂), tr_mul(ν₃Aω₁, ν₁Aω₂),
+        tr_mul(ν₁Aω₁, ν₂Aω₂), tr_mul(ν₂Aω₁, ν₂Aω₂), tr_mul(ν₃Aω₁, ν₂Aω₂),
+        tr_mul(ν₁Aω₁, ν₃Aω₂), tr_mul(ν₂Aω₁, ν₃Aω₂), tr_mul(ν₃Aω₁, ν₃Aω₂),
     ))
 end
 
 """
-    GammaIntegrand(HV, Σ, ω, Ω, μ)
-    GammaIntegrand(HV, Mω, MΩ)
+    TransportIntegrand(HV, Σ, ω₁, ω₂, μ)
+    TransportIntegrand(HV, Mω₁, Mω₂)
 
 A type whose integral over the BZ gives the transport distribution.
 ```math
 \\Gamma_{\\alpha\\beta}(\\omega, \\Omega) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega) \\nu_\\beta(k) A(k, \\omega+\\Omega)]
 ```
-This type works with both adaptive and equispace integration routines. The
-keyword `kind` determines the band velocity component (not yet implemented).
+This type works with both adaptive and equispace integration routines. Based on
+https://triqs.github.io/dft_tools/latest/guide/transport.html#wien2k-optics-package
 """
-struct GammaIntegrand{T,M1,M2}
+struct TransportIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D},M1,M2}
     HV::T
-    Mω::M1
-    MΩ::M2
+    Mω₁::M1
+    Mω₂::M2
 end
 
-function GammaIntegrand(HV, Σ, ω, Ω, μ)
-    Mω = (ω+μ)*I-Σ(ω)
-    MΩ = (ω+Ω+μ)*I-Σ(ω+Ω)
-    GammaIntegrand(HV, Mω, MΩ)
+function TransportIntegrand(HV, Σ, ω₁, ω₂, μ)
+    Mω₁ = (ω₁+μ)*I-Σ(ω₁)
+    Mω₂ = (ω₂+μ)*I-Σ(ω₂)
+    TransportIntegrand(HV, Mω₁, Mω₂)
 end
-Base.eltype(::Type{<:GammaIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(g::GammaIntegrand)(k) = evaluate_integrand(g, g.HV(k))
-evaluate_integrand(g::GammaIntegrand, HV_k) = gamma_integrand(HV_k..., g.Mω, g.MΩ)
+Base.eltype(::Type{<:TransportIntegrand}) = SMatrix{3,3,ComplexF64,9}
+(Γ::TransportIntegrand)(k) = evaluate_integrand(Γ, Γ.HV(k))
+evaluate_integrand(Γ::TransportIntegrand, HV_k) = transport_integrand(HV_k..., Γ.Mω₁, Γ.Mω₂)
 
 fermi(ω, β, μ) = fermi(ω-μ, β)
 fermi(ω, β) = fermi(β*ω)
@@ -148,74 +150,76 @@ end
 EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
 EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
-oc_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ) = β * fermi_window(ω, Ω, β) * gamma_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, μ)
+kinetic_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ, n) = kinetic_integrand(transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω, ω+Ω, μ), ω, Ω, β, n)
+kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(ω, Ω, β) * Γ
 
 """
-    OCIntegrand(HV, Σ, Ω, β, μ)
+    KineticIntegrand(HV, Σ, β, μ, n, [Ω=0])
 
-A function whose integral over the BZ and the frequency axis gives the optical
-conductivity. Mathematically, this computes
+A function whose integral over the BZ and the frequency axis gives the kinetic
+coefficient. Mathematically, this computes
 ```math
-\\sigma_{\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
+\\A{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Transport_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
 this type only for adaptive integration and order the limits so that the
 integral over the Brillouin zone is the outer integral and the frequency
-integral is the inner integral. The keyword `kind` determines the
-band velocity component (not yet implemented).
+integral is the inner integral. Based on
+https://triqs.github.io/dft_tools/latest/guide/transport.html#wien2k-optics-package
 """
-struct OCIntegrand{T,TS}
+struct KineticIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D},TS<:AbstractSelfEnergy}
     HV::T
     Σ::TS
-    Ω::Float64
     β::Float64
     μ::Float64
-    function OCIntegrand(HV::T, Σ::TS, Ω, β, μ) where {T,TS}
-        β == Inf && Ω == 0 && error("Ω=1/β=0 encountered. This case requires distributional frequency integrals, or can be computed with a GammaIntegrand")
-        new{T,TS}(HV, Σ, Ω, β, μ)
+    n::Int
+    Ω::Float64
+    function KineticIntegrand(HV::T, Σ::TS, β, μ, n, Ω=0.0) where {T,TS}
+        β == Inf && Ω == 0 && error("Ω=1/β=0 encountered. This case requires distributional frequency integrals, or can be computed with a TransportIntegrand")
+        new{T,TS}(HV, Σ, β, μ, n, Ω)
     end
 end
 
-Base.eltype(::Type{<:OCIntegrand}) = SMatrix{3,3,ComplexF64,9}
-(f::OCIntegrand)(ω::SVector{1}) = f(only(ω))
-(f::OCIntegrand)(ω::Number) = oc_integrand(value(f.HV)..., f.Σ, ω, f.Ω, f.β, f.μ)
+Base.eltype(::Type{<:KineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
+# innermost integral is the frequency integral
+(A::KineticIntegrand)(ω::SVector{1}) = A(only(ω))
+(A::KineticIntegrand)(ω::Number) = kinetic_integrand(value(A.HV)..., A.Σ, ω, A.Ω, A.β, A.μ, A.n)
 
-GammaIntegrand(σ::OCIntegrand, ω::Float64) = GammaIntegrand(σ.HV, σ.Σ, ω, σ.Ω, σ.μ)
+TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, A.Σ, ω, ω+A.Ω, A.μ)
 
 """
-    EquispaceOCIntegrand(σ::OCIntegrand, l, npt, pre::Vector{Tuple{NTuple{4, SMatrix{3, 3, ComplexF64, 9}},Int}})
-    EquispaceOCIntegrand(σ, l, npt)
+    EquispaceKineticIntegrand(A::KineticIntegrand, l, npt, pre::Vector{Tuple{eltype(A.HV),Int}})
+    EquispaceKineticIntegrand(A, l, npt)
 
-This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
+This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a fixed number of
 grid points `npt`. The argument `l` should be an `IntegrationLimits` for just
 the Brillouin zone. This type should be called by an adaptive integration
 routine whose limits of integration are only the frequency variable.
 """
-struct EquispaceOCIntegrand{T,TS,TL,THV}
-    σ::OCIntegrand{T,TS}
+struct EquispaceKineticIntegrand{T,TS,TL,THV}
+    A::KineticIntegrand{T,TS}
     l::TL
     npt::Int
     pre::Vector{Tuple{THV,Int}}
 end
-function EquispaceOCIntegrand(σ::OCIntegrand, l::IntegrationLimits, npt::Int)
-    pre = equispace_pre_eval(GammaIntegrand(σ, 0.0), l, npt)
-    EquispaceOCIntegrand(σ, l, npt, pre)
+function EquispaceKineticIntegrand(A::KineticIntegrand, l::IntegrationLimits, npt::Int)
+    pre = equispace_pre_eval(TransportIntegrand(A, 0.0), l, npt)
+    EquispaceKineticIntegrand(A, l, npt, pre)
 end
-(f::EquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
-function (f::EquispaceOCIntegrand)(ω::Number)
-    g = GammaIntegrand(f.σ, ω)
-    int, _ = equispace_integration(g, f.l, f.npt; pre=f.pre)
-    return f.σ.β * fermi_window(ω, f.σ.Ω, f.σ.β) * int
+(f::EquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
+function (f::EquispaceKineticIntegrand)(ω::Number)
+    Γ, = equispace_integration(TransportIntegrand(f.A, ω), f.l, f.npt; pre=f.pre)
+    return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
 end
 
-Base.eltype(::Type{<:EquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
+Base.eltype(::Type{<:EquispaceKineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 """
-    AutoEquispaceOCIntegrand(σ, l, atol, rtol, npt1, pre1, npt2, pre2)
-    AutoEquispaceOCIntegrand(σ, l, atol, rtol; npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[])
+    AutoEquispaceKineticIntegrand(A, l, atol, rtol, npt1, pre1, npt2, pre2)
+    AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=Tuple{eltype(A.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[])
 
-This type represents an `OCIntegrand`, `σ` integrated adaptively in frequency
+This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a number of grid
 points necessary to meet the maximum of the tolerances given by `atol` and
 `rtol`. The argument `l` should be an `IntegrationLimits` for just the Brillouin
@@ -231,27 +235,27 @@ The keyword arguments, which are just passed to
     velocities and integration weights on a more refined grid than `pre1`
 - `npt2`: an integer that should be equivalent to `length(pre)`
 """
-mutable struct AutoEquispaceOCIntegrand{T,TS,TL,TH}
-    σ::OCIntegrand{T,TS}
+mutable struct AutoEquispaceKineticIntegrand{T,TS,TL,THV}
+    A::KineticIntegrand{T,TS}
     l::TL
     atol::Float64
     rtol::Float64
     npt1::Int
-    pre1::Vector{Tuple{TH,Int}}
+    pre1::Vector{Tuple{THV,Int}}
     npt2::Int
-    pre2::Vector{Tuple{TH,Int}}
+    pre2::Vector{Tuple{THV,Int}}
 end
-AutoEquispaceOCIntegrand(σ, l, atol, rtol; npt1=0, pre1=Tuple{eltype(σ.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[]) = AutoEquispaceOCIntegrand(σ, l, atol, rtol, npt1, pre1, npt2, pre2)
+AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=Tuple{eltype(A.HV),Int}[], npt2=0,pre2=Tuple{eltype(A.HV),Int}[]) =
+    AutoEquispaceKineticIntegrand(A, l, atol, rtol, npt1, pre1, npt2, pre2)
 
-Base.eltype(::Type{<:AutoEquispaceOCIntegrand}) = SMatrix{3,3,ComplexF64,9}
+Base.eltype(::Type{<:AutoEquispaceKineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
-(f::AutoEquispaceOCIntegrand)(ω::SVector{1}) = f(only(ω))
-function (f::AutoEquispaceOCIntegrand)(ω::Number)
-    g = GammaIntegrand(f.σ, ω)
-    int, err, other = automatic_equispace_integration(g, f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, atol=f.atol, rtol=f.rtol)
+(f::AutoEquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
+function (f::AutoEquispaceKineticIntegrand)(ω::Number)
+    Γ, _, other = automatic_equispace_integration(TransportIntegrand(f.A, ω), f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, atol=f.atol, rtol=f.rtol)
     f.npt1 = other.npt1
     f.pre1 = other.pre1
     f.npt2 = other.npt2
     f.pre2 = other.pre2
-    return f.σ.β * fermi_window(ω, f.σ.Ω, f.σ.β) * int
+    return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
 end
