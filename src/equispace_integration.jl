@@ -45,7 +45,7 @@ series evaluated at a grid point).
 evaluate_integrand(f, x) = f(x)
 
 """
-    equispace_integration(f, l, npt; pre=nothing, equispace_pre_eval=generic_equispace_pre_eval, equispace_int_eval=generic_equispace_int_eval)
+    equispace_integration(f, l, npt; pre=nothing)
 
 Evaluate the integral of `f` over domain `l` using an equispace grid of `npt`
 points per dimension, optionally using precomputation `pre`

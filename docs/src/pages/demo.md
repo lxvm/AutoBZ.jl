@@ -82,7 +82,7 @@ D = WannierIntegrand(dos, H, (ω, μ, η))
     Unlike for adaptive integration, the caller is responsible for passing
     pre-computed grid values to the equispace integration routines, which is
     explained in the documentation for [Equispace integration](@ref) and
-    [`AutoBZ.Applications.pre_eval_contract`](@ref).
+    [`AutoBZ.Applications.equispace_pre_eval`](@ref).
 
 !!! warning "Mixing adaptive and equispace integrals"
     While it is possible to perform an integral where some variables are
