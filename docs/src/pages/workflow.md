@@ -1,9 +1,30 @@
 # Workflow
 
-Users of `AutoBZ` who would like to use the calculation scripts found in the
-`demos` folder of the repository can use the following workflow to run their
-jobs either locally or on a cluster. First, create a working directory for this
-project that will also serve as the home of its Julia environment
+## Installation
+
+To install Julia, download the latest binaries from <https://julialang.org/> and
+add them to your `PATH`.
+
+Since `AutoBZ.jl` is an [unregistered Julia
+package](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages),
+adding it to a Julia environment must be done with the repository URL and
+Julia's package manager
+```
+julia> using Pkg
+julia> Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git")
+```
+Or to download the repository with SSH use the git link:
+`git@github.com:lxvm/AutoBZ.jl.git`
+
+For users interested in keeping up to date with the latest developments in the
+package, the next section also describes a convenient setup.
+
+## Development installation
+
+The following workflow sets up an environment that makes it convenient to run
+`AutoBZ` either locally or on a cluster, as well as to update the repository.
+First, create a working directory for this project that will also serve as the
+home of its Julia environment
 ```
 $ mkdir workdir
 $ cd workdir
@@ -15,17 +36,21 @@ repository to the working directory can be done interactively as shown below
 julia> ] # enters the package manager
 (workdir) pkg> develop --local https://github.com/lxvm/AutoBZ.jl.git # clones repo into ./dev/AutoBZ
 ```
-(For documentation on unregistered packages, see
-[here](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages).)
-An equivalent shell script to set up the environment with SSH is the following
+An equivalent shell script to set up the environment is the following
 ```
 $ mkdir dev
-$ git clone git@github.com:lxvm/AutoBZ.jl.git dev/AutoBZ
+$ git clone https://github.com/lxvm/AutoBZ.jl.git dev/AutoBZ
 $ julia -e 'import Pkg; Pkg.activate("."); Pkg.develop(path="dev/AutoBZ")'
 ```
+Updating the repository can now be done with `cd dev/AutoBZ` and `git pull`.
 
-From the working directory, the scripts from the `demos` folder can be copied
-back, as well any coefficient files for the calculations that will be run.
+## Running jobs
+
+Users of `AutoBZ` who would like to use the `AutoBZ.Jobs` module will find
+scripts in the `demos` folder of the repository titled `OC_calculation_...` that
+demonstrate how to use those scripts. From the working directory configured
+above, the scripts from the `demos` folder can be copied back, as well any
+coefficient files for the calculations that will be run.
 ```
 julia> ; # enters a shell
 shell> cp -t . dev/AutoBZ/demos/svo_hr.dat dev/AutoBZ/demos/svo_r.dat dev/AutoBZ/demos/OC_berry.jl
@@ -45,6 +70,9 @@ include the line below in your bash script submitted to the scheduler.
 ```
 julia --project=. OC_berry.jl
 ```
+
+## Notes
+
 When `AutoBZ` is released as a registered package, it will be enough to `add
 AutoBZ` to the Julia environment and copy the scripts from the installation
 location, although the method described above conveniently saves the repository
