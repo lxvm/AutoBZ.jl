@@ -133,8 +133,8 @@ end
     run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
 
 Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
-errors, and timings for an optical conductivity calculation done at frequencies
-`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+errors, and timings for a kinetic coefficient calculation done at frequencies
+`Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs a
 `KineticIntegrand` for each parameter value and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
 results.
@@ -183,8 +183,8 @@ end
     run_kinetic_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; nthreads=Threads.nthreads())
 
 Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
-the results, errors, and timings for an optical conductivity calculation done at
-frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+the results, errors, and timings for a kinetic coefficient calculation done at
+frequencies `Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs a
 `KineticIntegrand` for each parameter value and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
 results. The calculation is parallelized over `Ωs` on `nthreads` threads.
@@ -225,8 +225,8 @@ end
     run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol; pre_eval=pre_eval_contract)
 
 Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
-errors, and timings for an optical conductivity calculation done at frequencies
-`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+errors, and timings for a kinetic coefficient calculation done at frequencies
+`Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs an
 `EquispaceKineticIntegrand` for each parameter value, and precomputes `HV` on an
 equispace ``k`` grid with `npt` points per dimension (which is reused for all
 parameter values), and calls `iterated_integration` on it over the domain of the
@@ -259,8 +259,8 @@ end
     run_kinetic_equispace_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol; pre_eval=pre_eval_contract, nthreads=Threads.nthreads())
 
 Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
-the results, errors, and timings for an optical conductivity calculation done at
-frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+the results, errors, and timings for a kinetic coefficient calculation done at
+frequencies `Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs an
 `EquispaceKineticIntegrand` for each parameter value, and precomputes `HV` on an
 equispace ``k`` grid with `npt` points per dimension (which is reused for all
 parameter values), and calls `iterated_integration` on it over the domain of the
@@ -306,11 +306,11 @@ end
     run_kinetic_auto(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
-errors, and timings for an optical conductivity calculation done at frequencies
-`Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
+errors, and timings for a kinetic coefficient calculation done at frequencies
+`Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs both an
 `AutoEquispaceKineticIntegrand` with wide tolerances `eatol` and `ertol` which
 estimates the integral, `int`, and then uses a narrow absolute tolerance set by
-`max(atol,rtol*norm(int))` to construct an `KineticIntegrand` for each parameter
+`max(atol,rtol*norm(int))` to construct a `KineticIntegrand` for each parameter
 value and calls `iterated_integration` on it over the domain of the IBZ and a
 safely truncated frequency integral to get the results.
 
@@ -348,11 +348,11 @@ end
     run_kinetic_auto_parallel(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; ertol=1.0, eatol=0.0, nthreads=Threads.nthreads())
 
 Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
-errors, and timings for an optical conductivity calculation done at frequencies
-`Ωs` with parameters `β, μ, atol, rtol`. This function constructs both an
+errors, and timings for a kinetic coefficient calculation done at frequencies
+`Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs both an
 `AutoEquispaceKineticIntegrand` with wide tolerances `eatol` and `ertol` which
 estimates the integral, `int`, and then use a narrow absolute tolerance set by
-`max(atol,rtol*norm(int))` to construct an `KineticIntegrand` for each parameter
+`max(atol,rtol*norm(int))` to construct a `KineticIntegrand` for each parameter
 value and calls `iterated_integration` on it over the domain of the IBZ and a
 safely truncated frequency integral to get the results. The calculation is
 parallelized over `Ωs` on `nthreads` threads.
@@ -422,8 +422,8 @@ end
     run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol)
 
 Returns a `NamedTuple` with names `A, err, t, Omega` containing the results,
-errors, and timings for an optical conductivity calculation done at frequencies
-`Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+errors, and timings for a kinetic coefficient calculation done at frequencies
+`Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs an
 `AutoEquispaceKineticIntegrand` for each parameter value, reusing ``k``-grids of `HV`
 values from previous calculations, and calls `iterated_integration` on it over
 the domain of the IBZ and a safely truncated frequency integral to get the
@@ -453,8 +453,8 @@ end
     run_kinetic_auto_equispace_parallel(filename, HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol; nthreads=1)
 
 Writes an h5 archive to `filename` with groups `A, err, t, Omega` containing
-the results, errors, and timings for an optical conductivity calculation done at
-frequencies `Ωs` with parameters `β, μ, atol, rtol`. This function constructs an
+the results, errors, and timings for a kinetic coefficient calculation done at
+frequencies `Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs an
 `AutoEquispaceKineticIntegrand` for each parameter value, reusing ``k``-grids of `HV`
 values from previous calculations, and calls `iterated_integration` on it
 over the domain of the IBZ and a safely truncated frequency integral to get the
