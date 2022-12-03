@@ -2,10 +2,25 @@
 
 This Julia package provides routines for multi-dimensional Brillouin zone (BZ)
 integration of both generic and Wannier-interpolated integrands.
+It aims to implement algorithms which automatically compute BZ integrals to a
+specified error tolerance by resolving smooth yet highly localized integrands.
+
+In many-body Green's function methods, BZ integrands are localized at a scale
+determined by a non-zero, but possibly small, system- and temperature-dependent
+scattering rate. For example, the single-particle retarded Green's function of
+an electronic system for frequency ``\omega`` and reciprocal space vector ``k``
+with chemical potential ``\mu``, Hermitian Hamiltonian matrix ``H(k)``, and
+self-energy matrix ``\Sigma(\omega)``, which is given by
+```math
+G(\omega) = \int_{\text{BZ}} dk\ \operatorname{Tr} \left[ (\hbar\omega + \mu - H(k) - \Sigma(\omega))^{-1} \right]
+```
+is localized about the manifold defined by ``\det(\omega + \mu - H(k))=0`` (i.e.
+the Fermi surface when ``\omega=0``) by a scattering rate depending on
+``\operatorname{Im}\ \Sigma(\omega)``.
+
+To start using the package, see the [Workflow](@ref) and [Demos](@ref) sections.
 
 ## Package features
-
-To start using the package, see the [Workflow](@ref) and [Demos](@ref) sections
 
 ### Implemented
 * Iterated adaptive integration (IAI) with nested calls to
@@ -51,5 +66,7 @@ For tree-adaptive integration (TAI) on the full BZ, see
 [HCubature.jl](https://github.com/JuliaMath/HCubature.jl)
 
 ## Contact the developer
+
+[Lorenzo Van Muñoz](https://web.mit.edu/lxvm/www/)
 
 [^1]: [Kaye et al. "Automatic, high-order, and adaptive algorithms for Brillouin zone integration"](http://arxiv.org/abs/2211.12959)
