@@ -32,6 +32,5 @@ int, err = iterated_integration(σ, CompositeLimits(t, f); atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
 Eσ = AutoEquispaceKineticIntegrand(σ, t, atol, rtol)
-# Eσ = AutoBZ.Applications.AutoEquispaceOCIntegrand(σ, c, atol, rtol)
 
 inte, erre = iterated_integration(Eσ, f; atol=atol, rtol=rtol)
