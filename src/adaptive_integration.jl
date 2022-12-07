@@ -1,5 +1,5 @@
 export tree_integration, iterated_integration,
-    iterated_tol_update, iterated_pre_eval
+    iterated_tol_update, iterated_pre_eval, iterated_segs
 
 """
     tree_integration(f, a, b)
@@ -63,6 +63,16 @@ thunk(f, x) = ThunkIntegrand(f, SVector(x))
 thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
 
 """
+    iterated_segs(f, l, d, initdivs)
+
+Returns a `Tuple` of integration nodes that are passed to `QuadGK` to initialize
+the segments for adaptive integration. By default, returns `initdivs` equally
+spaced panels on `(lower(l), upper(l))`. If `f` is localized, specializing this
+function can also help avoid errors when `QuadGK` fails to adapt.
+"""
+iterated_segs(f, l, d, initdivs) = Tuple(range(lower(l), upper(l), length=initdivs+1))
+
+"""
     iterated_integration(f, ::IntegrationLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> i == 1 ? 5 : 1, Val{d}()), segbufs=nothing)
     iterated_integration(f, a, b; kwargs...)
 
@@ -108,8 +118,7 @@ function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing,
 end
 
 function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
-    panels = Tuple(range(lower(l), upper(l), length=initdivs[1]+1))
-    QuadGK.do_quadgk(f, panels, order, atol, rtol, maxevals, norm, segbufs[1])
+    QuadGK.do_quadgk(f, iterated_segs(f, l, 1, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
 end
 function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs) where d
     # avoid runtime dispatch when capturing variables
@@ -117,8 +126,7 @@ function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals
     f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs
         x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs))
     end
-    panels = Tuple(range(lower(l), upper(l), length=initdivs[d]+1))
-    QuadGK.do_quadgk(f_, panels, order, atol, rtol, maxevals, norm, segbufs[d])
+    QuadGK.do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
 end
 
 """
