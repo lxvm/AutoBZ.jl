@@ -1,3 +1,4 @@
+# TODO: store function evaluations to avoid repeating evaluations at endpoints
 """
     AdaptChebInterp
 
@@ -106,10 +107,12 @@ function adaptchebinterp_(f, a::T, b::T, order, atol, rtol_, norm, maxevals, ini
     nvals = npanels = initdiv
     val_idx = collect(1:initdiv)
     val_idx_ = Int[]
-    panels = view(searchtree, 1:initdiv)
+    pan_idx = collect(1:initdiv)
+    pan_idx_ = Int[]
 
     while true
         npanels_ = npanels
+        panels = view(searchtree, pan_idx)
         for (i, (idx, panel)) in enumerate(zip(val_idx, panels))
             numevals > maxevals && break
 
@@ -130,28 +133,30 @@ function adaptchebinterp_(f, a::T, b::T, order, atol, rtol_, norm, maxevals, ini
             
             numevals += 2evals_per_panel
 
+            valtree[idx] = lc
+            push!(valtree, rc)
+            nvals += 1
+            push!(searchtree, Panel(lb, mid, idx, 0, 0))
+            push!(searchtree, Panel(mid, ub, nvals, 0, 0))
+            npanels += 2
+            panels[i] = Panel(panel.a, panel.b, 0, npanels-1, npanels)
+            
             E = evalerror(c, lc, rc, lb, mid, ub, order, norm, npoints)
             if E > max(atol, rtol*max(lf, rf))
-                valtree[idx] = lc
-                push!(valtree, rc)
-                nvals += 1
-                push!(searchtree, Panel(lb, mid, idx, 0, 0))
-                push!(searchtree, Panel(mid, ub, nvals, 0, 0))
-                panels[i] = Panel(panel.a, panel.b, 0, npanels+1, npanels+2)
-                
-                # these lines indicate that the algorithm should refine again
+                # these lines indicate where the algorithm should refine again
                 push!(val_idx_, idx, nvals)
-                npanels += 2
-                # other option is to accept the two subpanels, but stop refining
-                # in which case the lines above the preceding comment can be
-                # moved before the if statement
+                push!(pan_idx_, npanels-1, npanels)
+            else
+                npanels_ += 2
             end
         end
         npanels_ == npanels && break
         resize!(val_idx, length(val_idx_))
         val_idx .= val_idx_
         resize!(val_idx_, 0)
-        panels = view(searchtree, (npanels_+1):npanels)
+        resize!(pan_idx, length(pan_idx_))
+        pan_idx .= pan_idx_
+        resize!(pan_idx_, 0)
     end
     PanelPoly(valtree, searchtree, a, b, initdiv)
 end

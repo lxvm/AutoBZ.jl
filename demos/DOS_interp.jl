@@ -33,9 +33,17 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-# D = DOSEvaluator(H, Σ, μ, t; atol=atol, rtol=rtol)
-# p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)
-# p2 = fastadaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=fast_order)
+D = DOSEvaluator(H, Σ, μ, t; atol=atol, rtol=rtol)
+adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
+t_ = time()
+p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)
+@info "rigorous interpolation took $(time()-t_) s"
+
+
+fastadaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=fast_order)
+t_ = time()
+p2 = fastadaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=fast_order)
+@info "fast interpolation took $(time()-t_) s"
 
 nodes = Float64[]
 for panel in p1.searchtree
@@ -57,7 +65,7 @@ plot!(range(ω_lo, ω_hi, length=1000), p2; color=2, label="fast")
 scatter!(fast_nodes, fill(-0.6, length(order+1)); color=2, markerstrokewidth=0, markershape=:diamond, label="", alpha=0.25)
 savefig("DOS_interp.png")
 
-plot(range(ω_lo, ω_hi, length=1000), x -> abs(p1(x)-p2(x)); xguide="ω (eV)", color=:black, yguide="IDOS(ω) interpolant difference", yscale=:log10, title="Interpolation atol $interp_atol", ylim=(1e-5, 1), label="|fast-rigorous|", legend=:bottomright)
+plot(range(ω_lo, ω_hi, length=1000), x -> abs(p1(x)-p2(x)); xguide="ω (eV)", color=:black, yguide="DOS(ω) interpolant difference", yscale=:log10, title="Interpolation atol $interp_atol", ylim=(1e-5, 1), label="|fast-rigorous|", legend=:bottomright)
 scatter!(nodes, fill(0.8, length(nodes)); color=1, markerstrokewidth=0, markershape=:diamond, alpha=0.25, label="rigorous nodes")
 scatter!(fast_nodes, fill(0.5, length(fast_nodes)); color=2, markerstrokewidth=0, markershape=:diamond, alpha=0.25, label="fast nodes")
 savefig("DOS_interp_error.png")
