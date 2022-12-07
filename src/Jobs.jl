@@ -11,7 +11,7 @@ using ..AutoBZ
 using ..AutoBZ.Applications
 
 export read_h5_to_nt, write_nt_to_h5, import_self_energy
-export run_dos_parallel, run_dos_auto_parallel
+export run_dos_adaptive_parallel, run_dos_auto_equispace_parallel, run_dos_equispace_parallel, run_dos_parallel
 export run_kinetic, run_kinetic_equispace, run_kinetic_auto, run_kinetic_auto_equispace
 export run_kinetic_parallel, run_kinetic_equispace_parallel, run_kinetic_auto_parallel, run_kinetic_auto_equispace_parallel
 
@@ -96,7 +96,7 @@ Section: DOS calculations
 =#
 
 """
-    run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
+    run_dos_adaptive_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
 errors, and timings for a density of states calculation done at frequencies `ωs`
@@ -104,13 +104,14 @@ with parameters `μ, atol, rtol`. This function constructs a `DOSIntegrand` for
 each parameter value and calls `iterated_integration` on it over the domain of
 the IBZ to get the results.
 """
-function run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); order=7, initdivs=(1,1,1))
+function run_dos_adaptive_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=(1,1,1))
     T = eltype(DOSIntegrand{typeof(H)})
     BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
-    @info "using $nthreads threads"
+    @info "Beginning DOS frequency sweep using IAI"
+    @info "using $nthreads threads for frequency parallelization"
     batches = batch_smooth_param(ωs, nthreads)
     t = time()
     Threads.@threads for batch in batches
@@ -120,17 +121,94 @@ function run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthrea
             @info @sprintf "starting ω=%e" ω
             t_ = time()
             D = DOSIntegrand(H_, ω, Σ, μ)
-            ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=atol, rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
         end
     end
-    @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (D=ints, err=errs, t=ts, omega=ωs)
+    @info @sprintf "Finished DOS frequency sweep in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
+    (I=ints, E=errs, t=ts, omega=ωs)
 end
 
 """
-    run_dos_auto_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    run_dos_auto_equispace_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=1])
+
+Returns a `NamedTuple` with names `D, err, t, omega, npt1, npt2` containing the
+results, errors, timings, and number of kpts per dimension used for a density of
+states calculation done at frequencies `ωs` with parameters `μ, atol, rtol`.
+"""
+function run_dos_auto_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=1)
+    T = eltype(DOSIntegrand{typeof(H)})
+    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
+    ints = Vector{T}(undef, length(ωs))
+    errs = Vector{Float64}(undef, length(ωs))
+    ts = Vector{Float64}(undef, length(ωs))
+    npt1s = Vector{Int}(undef, length(ωs))
+    npt2s = Vector{Int}(undef, length(ωs))
+    
+    @info "Beginning DOS frequency sweep using automatic PTR"
+    @info "using $nthreads threads for frequency parallelization"
+    t = time()
+    batches = batch_smooth_param(ωs, nthreads)
+    Threads.@threads for batch in batches
+        pre_buf = (npt1=0, pre1=Tuple{eltype(H),Int}[], npt2=0, pre2=Tuple{eltype(H),Int}[])
+        for (i, ω) in batch
+            @info @sprintf "starting ω=%e" ω
+            t_ = time()
+            D = DOSIntegrand(H, ω, Σ, μ)
+            ints[i], errs[i], pre_buf = automatic_equispace_integration(D, BZ_lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
+            ts[i] = time() - t_
+            npt1s[i] = pre_buf.npt1
+            npt2s[i] = pre_buf.npt2
+            @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
+        end
+    end
+    @info @sprintf "Finished DOS frequency sweep in %e (s) wall clock time" (time()-t)
+    (I=ints, E=errs, t=ts, npt1=npt1s, npt2=npt2s, omega=ωs)
+end
+
+"""
+    run_dos_equispace_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, npt, [nthreads=Threads.nthreads()])
+
+Returns a `NamedTuple` with names `D, t, omega` containing the results and
+timings obtained for a density of states calculation done at frequencies `ωs`
+with parameters `μ, npt`, where `npt` is the number of ``k`` points per
+dimension. The caller should check that the result is converged with respect to
+`npt`.
+"""
+function run_dos_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
+    T = eltype(DOSIntegrand{typeof(H)})
+    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
+    ints = Vector{T}(undef, length(ωs))
+    ts = Vector{Float64}(undef, length(ωs))
+    
+    @info "Beginning DOS frequency sweep using PTR with $npt kpts per dim"
+    
+    @info "pre-evaluating Hamiltonian..."
+    t = time()
+    H_k = pre_eval(H, BZ_lims, npt)
+    @info "finished pre-evaluating Hamiltonian in $(time() - t) (s)"
+    
+    @info "using $nthreads threads for frequency parallelization"
+    t = time()
+    batches = batch_smooth_param(ωs, nthreads)
+    Threads.@threads for batch in batches
+        for (i, ω) in batch
+            @info @sprintf "starting ω=%e" ω
+            t_ = time()
+            D = DOSIntegrand(H, ω, Σ, μ)
+            ints[i], = equispace_integration(D, BZ_lims, npt; pre=H_k)
+            ts[i] = time() - t_
+            @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
+        end
+    end
+    @info @sprintf "Finished DOS frequency sweep in %e (s) wall clock time" (time()-t)
+    (I=ints, t=ts, omega=ωs)
+end
+
+
+"""
+    run_dos_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
 errors, and timings for a density of states calculation done at frequencies `ωs`
@@ -145,52 +223,13 @@ recommended to over-ride the default ``k``-grid refinement step to something
 
     AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
 """
-function run_dos_auto_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
-    T = eltype(DOSIntegrand{typeof(H)})
-    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
-    ints = Vector{T}(undef, length(ωs))
-    errs = Vector{Float64}(undef, length(ωs))
-    ts = Vector{Float64}(undef, length(ωs))
-    pre_ints = Vector{T}(undef, length(ωs))
-    pre_errs = Vector{Float64}(undef, length(ωs))
-    pre_ts = Vector{Float64}(undef, length(ωs))
-    npt1s = Vector{Int}(undef, length(ωs))
-    npt2s = Vector{Int}(undef, length(ωs))
-    
-    @info "using $nthreads threads"
-    t = time()
-    @info "Beginning equispace pre-estimate"
-    pre_buf = (npt1=0, pre1=Tuple{eltype(H),Int}[], npt2=0, pre2=Tuple{eltype(H),Int}[])
-    for (i, ω) in enumerate(ωs)
-        @info @sprintf "starting ω=%e" ω
-        t_ = time()
-        D = DOSIntegrand(H, ω, Σ, μ)
-        pre_ints[i], pre_errs[i], pre_buf = automatic_equispace_integration(D, BZ_lims; atol=eatol, rtol=ertol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
-        pre_ts[i] = time() - t_
-        npt1s[i] = pre_buf.npt1
-        npt2s[i] = pre_buf.npt2
-        @info @sprintf "finished ω=%e in %e (s) wall clock time" ω pre_ts[i]
-    end
-    @info @sprintf "Finished equispace pre-estimate in %e (s) wall clock time" (time()-t)
-
-    t = time()
-    @info "Beginning adaptive integration"
-    batches = batch_smooth_param(ωs, nthreads)
-    Threads.@threads for batch in batches
-        H_ = deepcopy(H) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(Float64, T, Float64, ndims(BZ_lims))
-        for (i, ω) in batch
-            @info @sprintf "starting ω=%e" ω
-            t_ = time()
-            D = DOSIntegrand(H_, ω, Σ, μ)
-            ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, order=order, initdivs=initdivs, segbufs=segbufs)
-            ts[i] = time() - t_
-            @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
-        end
-    end
-    @info @sprintf "Finished adaptive integration in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
-    (D=ints, err=errs, t=ts, pre_D=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, omega=ωs)
+function run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
+    rtol == 0 && return run_dos_adaptive_parallel(H, Σ, μ, ωs, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_dos_auto_equispace_parallel(H, Σ, μ, ωs, ertol, eatol)
+    results = run_dos_adaptive_parallel(H, Σ, μ, ωs, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+    (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, omega=ωs)
 end
+
 
 
 #=
@@ -299,7 +338,7 @@ function run_kinetic_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol,
     ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    @info "using $nthreads threads"
+    @info "using $nthreads threads for frequency parallelization"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
@@ -380,7 +419,7 @@ function run_kinetic_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, 
     ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    @info "using $nthreads threads"
+    @info "using $nthreads threads for frequency parallelization"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
@@ -479,7 +518,7 @@ function run_kinetic_auto_parallel_(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, 
     npt1s = Vector{Int}(undef, length(Ωs))
     npt2s = Vector{Int}(undef, length(Ωs))
     
-    @info "using $nthreads threads"
+    @info "using $nthreads threads for frequency parallelization"
     t = time()
     @info "Beginning equispace pre-estimate"
     equi_segbuf = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 1)
@@ -573,7 +612,7 @@ function run_kinetic_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, μ
     ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
-    @info "using $nthreads threads"
+    @info "using $nthreads threads for frequency parallelization"
     batches = batch_smooth_param(zip(freq_lims, Ωs), nthreads)
     t = time()
     Threads.@threads for batch in batches
@@ -593,8 +632,8 @@ function run_kinetic_auto_equispace_parallel_(HV, Σ::AbstractSelfEnergy, β, μ
     (A=ints, err=errs, t=ts, Omega=Ωs)
 end
 
-# enables kpt parallelization by default for transport and kinetic integrals
-function AutoBZ.equispace_int_eval(f::TransportIntegrand, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
+# enables kpt parallelization by default for DOS, transport, and kinetic integrals
+function AutoBZ.equispace_int_eval(f::Union{DOSIntegrand,TransportIntegrand}, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
     n = length(pre)
     acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
     runthreads = min(nthreads, div(n-1, min_per_thread)) # choose the actual number of threads

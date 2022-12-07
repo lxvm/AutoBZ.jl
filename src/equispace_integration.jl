@@ -88,7 +88,7 @@ function automatic_equispace_integration_(f, l, npt1, pre1, npt2, pre2, atol, rt
     atol_sym = atol/nsyms(l) # this tolerance on err_ibz is stricter than atol on err_fbz by triangle inequality
 
     while true
-        (err ≤ max(rtol*int2norm, atol_sym) || numevals ≥ maxevals || !isfinite(int1norm)) && break
+        (err ≤ max(rtol*int2norm, atol_sym) || numevals ≥ maxevals || !isfinite(err)) && break
         # update coarse result with finer result
         npt1 = npt2
         pre1 = pre2
