@@ -11,6 +11,7 @@ using ..AutoBZ
 using ..AutoBZ.Applications
 
 export read_h5_to_nt, write_nt_to_h5, import_self_energy
+export run_dos_parallel, run_dos_auto_parallel
 export run_kinetic, run_kinetic_equispace, run_kinetic_auto, run_kinetic_auto_equispace
 export run_kinetic_parallel, run_kinetic_equispace_parallel, run_kinetic_auto_parallel, run_kinetic_auto_equispace_parallel
 
@@ -65,6 +66,7 @@ write_nt_to_h5(nt::NamedTuple, filename) = h5open(filename, "w") do h5
         write(h5, string(key), vec_to_h5_dset(nt[key]))
     end
 end
+vec_to_h5_dset(x::AbstractVector) = collect(x)
 vec_to_h5_dset(x::Vector) = identity(x)
 vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype(T), x), size(T)..., :)
 

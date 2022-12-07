@@ -15,6 +15,8 @@ AutoBZ.Jobs.run_kinetic_auto_equispace
 ## Parallelized scripts
 
 ```@docs
+AutoBZ.Jobs.run_dos_parallel
+AutoBZ.Jobs.run_dos_auto_parallel
 AutoBZ.Jobs.run_kinetic_parallel
 AutoBZ.Jobs.run_kinetic_equispace_parallel
 AutoBZ.Jobs.run_kinetic_auto_parallel
