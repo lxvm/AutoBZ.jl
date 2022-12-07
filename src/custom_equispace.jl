@@ -109,13 +109,13 @@ end
 
 function equispace_npt_update(npt, D::DOSIntegrand, atol, rtol)
     η = im_sigma_to_eta(-imag(D.M))
-    npt_update_eta(npt, η, atol, rtol)
+    npt_update_eta(npt, η, period(D.H)[1])
 end
 
 function equispace_npt_update(npt, Γ::TransportIntegrand, atol, rtol)
     ηω₁ = im_sigma_to_eta(-imag(Γ.Mω₁))
     ηω₂ = im_sigma_to_eta(-imag(Γ.Mω₂))
-    npt_update_eta(npt, min(ηω₁, ηω₂))
+    npt_update_eta(npt, min(ηω₁, ηω₂), period(Γ.HV)[1])
 end
 
 im_sigma_to_eta(x::UniformScaling) = -x.λ
@@ -128,10 +128,8 @@ http://arxiv.org/abs/2211.12959. Choice of `n₀≈2π`, close to the period of 
 canonical BZ, approximately places a point in every box of size `η`. Choice of
 `Δn≈log(10)` should get an extra digit of accuracy from PTR upon refinement.
 """
-function npt_update_eta(npt, η, n₀=6.0, Δn=2.3)
-    npt == 0 && return round(Int, n₀/η)
-    npt + max(50, round(Int, Δn/η))
-end
+npt_update_eta(npt, η, n₀=6.0, Δn=2.3) = npt + npt_update_eta_(η, npt == 0 ? n₀ : Δn)
+npt_update_eta_(η, c) = max(50, round(Int, c/η))
 
 #=
 fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))

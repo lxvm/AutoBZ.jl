@@ -93,10 +93,106 @@ Section: DOS calculations
 - Convergence of PTR at various omega
 =#
 
+"""
+    run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
+
+Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
+errors, and timings for a density of states calculation done at frequencies `ωs`
+with parameters `μ, atol, rtol`. This function constructs a `DOSIntegrand` for
+each parameter value and calls `iterated_integration` on it over the domain of
+the IBZ to get the results.
+"""
+function run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); order=7, initdivs=(1,1,1))
+    T = eltype(DOSIntegrand{typeof(H)})
+    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
+    ints = Vector{T}(undef, length(ωs))
+    errs = Vector{Float64}(undef, length(ωs))
+    ts = Vector{Float64}(undef, length(ωs))
+    @info "using $nthreads threads"
+    batches = batch_smooth_param(ωs, nthreads)
+    t = time()
+    Threads.@threads for batch in batches
+        H_ = deepcopy(H) # to avoid data races for AbstractFourierSeries3D
+        segbufs = AutoBZ.alloc_segbufs(Float64, T, Float64, ndims(BZ_lims))
+        for (i, ω) in batch
+            @info @sprintf "starting ω=%e" ω
+            t_ = time()
+            D = DOSIntegrand(H_, ω, Σ, μ)
+            ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=atol, rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            ts[i] = time() - t_
+            @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
+        end
+    end
+    @info @sprintf "Finished in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
+    (D=ints, err=errs, t=ts, omega=ωs)
+end
+
+"""
+    run_dos_auto_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+
+Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
+errors, and timings for a density of states calculation done at frequencies `ωs`
+with parameters `μ, atol, rtol`. This function first estimates the integral,
+`int`, with an equispace method using wide tolerances `eatol` and `ertol`, and
+then uses a narrow absolute tolerance set by `max(atol,rtol*norm(int))` to
+evaluate the same integral adaptively.
+
+Since this is intended to compute a cheap equispace integral first, it is
+recommended to over-ride the default ``k``-grid refinement step to something
+``\\eta``-independent with a line like the one below before calling this script
+
+    AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
+"""
+function run_dos_auto_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
+    T = eltype(DOSIntegrand{typeof(H)})
+    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
+    ints = Vector{T}(undef, length(ωs))
+    errs = Vector{Float64}(undef, length(ωs))
+    ts = Vector{Float64}(undef, length(ωs))
+    pre_ints = Vector{T}(undef, length(ωs))
+    pre_errs = Vector{Float64}(undef, length(ωs))
+    pre_ts = Vector{Float64}(undef, length(ωs))
+    npt1s = Vector{Int}(undef, length(ωs))
+    npt2s = Vector{Int}(undef, length(ωs))
+    
+    @info "using $nthreads threads"
+    t = time()
+    @info "Beginning equispace pre-estimate"
+    pre_buf = (npt1=0, pre1=Tuple{eltype(H),Int}[], npt2=0, pre2=Tuple{eltype(H),Int}[])
+    for (i, ω) in enumerate(ωs)
+        @info @sprintf "starting ω=%e" ω
+        t_ = time()
+        D = DOSIntegrand(H, ω, Σ, μ)
+        pre_ints[i], pre_errs[i], pre_buf = automatic_equispace_integration(D, BZ_lims; atol=eatol, rtol=ertol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
+        pre_ts[i] = time() - t_
+        npt1s[i] = pre_buf.npt1
+        npt2s[i] = pre_buf.npt2
+        @info @sprintf "finished ω=%e in %e (s) wall clock time" ω pre_ts[i]
+    end
+    @info @sprintf "Finished equispace pre-estimate in %e (s) wall clock time" (time()-t)
+
+    t = time()
+    @info "Beginning adaptive integration"
+    batches = batch_smooth_param(ωs, nthreads)
+    Threads.@threads for batch in batches
+        H_ = deepcopy(H) # to avoid data races for AbstractFourierSeries3D
+        segbufs = AutoBZ.alloc_segbufs(Float64, T, Float64, ndims(BZ_lims))
+        for (i, ω) in batch
+            @info @sprintf "starting ω=%e" ω
+            t_ = time()
+            D = DOSIntegrand(H_, ω, Σ, μ)
+            ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=max(atol,rtol*norm(pre_ints[i])), rtol=0.0, order=order, initdivs=initdivs, segbufs=segbufs)
+            ts[i] = time() - t_
+            @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
+        end
+    end
+    @info @sprintf "Finished adaptive integration in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
+    (D=ints, err=errs, t=ts, pre_D=pre_ints, pre_err=pre_errs, pre_t=pre_ts, npt1=npt1s, npt2=npt2s, omega=ωs)
+end
 
 
 #=
-Section: A calculations
+Section: kinetic coefficient calculations
 - 
 =#
 
