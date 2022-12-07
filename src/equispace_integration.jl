@@ -83,12 +83,12 @@ function automatic_equispace_integration_(f, l, npt1, pre1, npt2, pre2, atol, rt
     int1 = equispace_int_eval(f, pre1, vol_sym/npt1^ndims(l))
     int2 = equispace_int_eval(f, pre2, vol_sym/npt2^ndims(l))
     numevals = length(pre1) + length(pre2)
-    int1norm = norm(int1)
+    int2norm = norm(int2)
     err = norm(int1 - int2)
     atol_sym = atol/nsyms(l) # this tolerance on err_ibz is stricter than atol on err_fbz by triangle inequality
 
     while true
-        (err ≤ max(rtol*int1norm, atol_sym) || numevals ≥ maxevals || !isfinite(int1norm)) && break
+        (err ≤ max(rtol*int2norm, atol_sym) || numevals ≥ maxevals || !isfinite(int1norm)) && break
         # update coarse result with finer result
         npt1 = npt2
         pre1 = pre2
@@ -99,8 +99,8 @@ function automatic_equispace_integration_(f, l, npt1, pre1, npt2, pre2, atol, rt
         int2 = equispace_int_eval(f, pre2, vol_sym/npt2^ndims(l))
         numevals += length(pre2)
         # self-convergence error estimate
-        int1norm = norm(int1)
+        int2norm = norm(int2)
         err = norm(int1 - int2)
     end
-    return symmetrize(l, int1, err)..., (npt1=npt1, pre1=pre1, npt2=npt2, pre2=pre2)
+    return symmetrize(l, int2, err)..., (npt1=npt1, pre1=pre1, npt2=npt2, pre2=pre2)
 end
