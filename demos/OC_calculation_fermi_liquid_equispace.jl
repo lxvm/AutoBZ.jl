@@ -37,4 +37,5 @@ rtol = 0.0
 npt = 79
 
 # run script
-results = AutoBZ.Jobs.run_kinetic_equispace_parallel("OC_results_fermi_liquid_equispace_$(npt)kpts.h5", HV, Σ, β, μ, n, Ωs, npt, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_equispace(HV, Σ, β, μ, n, Ωs, npt, rtol, atol)
+AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_fermi_liquid_equispace_$(npt)kpts.h5")

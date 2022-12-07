@@ -34,4 +34,5 @@ atol = 1e-3
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.run_kinetic_parallel("OC_results_fermi_liquid.h5", HV, Σ, β, μ, n, Ωs, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, rtol, atol)
+AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_fermi_liquid.h5")

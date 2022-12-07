@@ -1,33 +1,54 @@
 # Jobs
 
-The module `AutoBZ.Jobs` has batch functions that setup kinetic coefficient
-calculations.
-
-## Scripts
-
-```@docs
-AutoBZ.Jobs.run_kinetic
-AutoBZ.Jobs.run_kinetic_equispace
-AutoBZ.Jobs.run_kinetic_auto
-AutoBZ.Jobs.run_kinetic_auto_equispace
-```
+The module `AutoBZ.Jobs` has batch functions that setup calculations for
+`WannierIntegrand`s, `DOSIntegrand`s, and `KineticIntegrand`s.
 
 ## Parallelized scripts
 
-```@docs
+All of the following scripts have parallelization over parameter points
+(typically frequencies) enabled by default, except where noted. They also always
+use ``k`` point parallelization of equispace integrals.
 
-AutoBZ.Jobs.run_wannier_adaptive
-AutoBZ.Jobs.run_wannier_equispace
-AutoBZ.Jobs.run_wannier_auto_equispace
+### Recommended
+
+The scripts below are recommended because they return a result from adaptive
+integration, but when `rtol>0` they also do an automatic equispace integral as a
+precomputation to give appropriate absolute tolerances to the adaptive
+integrator, which performs better with absolute tolerances.
+```@docs
 AutoBZ.Jobs.run_wannier
-AutoBZ.Jobs.run_dos_adaptive
-AutoBZ.Jobs.run_dos_equispace
-AutoBZ.Jobs.run_dos_auto_equispace
 AutoBZ.Jobs.run_dos
-AutoBZ.Jobs.run_kinetic_parallel
-AutoBZ.Jobs.run_kinetic_equispace_parallel
-AutoBZ.Jobs.run_kinetic_auto_parallel
-AutoBZ.Jobs.run_kinetic_auto_equispace_parallel
+AutoBZ.Jobs.run_kinetic
+```
+
+### Adaptive
+
+```@docs
+AutoBZ.Jobs.run_wannier_adaptive
+AutoBZ.Jobs.run_dos_adaptive
+AutoBZ.Jobs.run_kinetic_adaptive
+```
+
+### Equispace
+
+The caller supplies a fixed number of ``k`` points per dimension, `npt`, and
+should check that the solution is converged with respect to this parameter. In
+general, these routines are useful to get fast results with small numbers of
+``k`` points (~100) at early stages of a project.
+```@docs
+AutoBZ.Jobs.run_wannier_equispace
+AutoBZ.Jobs.run_dos_equispace
+AutoBZ.Jobs.run_kinetic_equispace
+```
+
+### Automatic equispace
+
+Frequency parallelization is not enabled by default due to the likelihood of
+running out of memory large ``k`` point grids.
+```@docs
+AutoBZ.Jobs.run_wannier_auto_equispace
+AutoBZ.Jobs.run_dos_auto_equispace
+AutoBZ.Jobs.run_kinetic_auto_equispace
 ```
 
 ## I/O

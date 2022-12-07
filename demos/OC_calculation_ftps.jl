@@ -42,4 +42,5 @@ atol = 1e-1
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.run_kinetic_auto_parallel("OC_results_ftps.h5", HV, Σ, β, μ, n, Ωs, atol, rtol)
+results = AutoBZ.Jobs.run_kinetic(HV, Σ, β, μ, n, Ωs, atol, rtol)
+AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_ftps.h5")
