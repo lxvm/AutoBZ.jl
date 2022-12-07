@@ -1,5 +1,5 @@
 iterated_pre_eval(w::WannierIntegrand, x) = WannierIntegrand(w.f, contract(w.s, x), w.p)
-iterated_pre_eval(w::WannierIntegrand{<:AbstractFourierSeries3D}, x, dim) = (contract!(w.s, x, dim); return w)
+iterated_pre_eval(w::WannierIntegrand{<:Any,<:AbstractFourierSeries3D}, x, dim) = (contract!(w.s, x, dim); return w)
 
 
 iterated_pre_eval(D::DOSIntegrand, k) = DOSIntegrand(contract(D.H, k), D.M)

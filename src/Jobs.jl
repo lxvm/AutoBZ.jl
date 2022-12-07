@@ -11,7 +11,8 @@ using ..AutoBZ
 using ..AutoBZ.Applications
 
 export read_h5_to_nt, write_nt_to_h5, import_self_energy
-export run_dos_adaptive_parallel, run_dos_auto_equispace_parallel, run_dos_equispace_parallel, run_dos_parallel
+export run_wannier_adaptive, run_wannier_auto_equispace, run_wannier_equispace, run_wannier
+export run_dos_adaptive, run_dos_auto_equispace, run_dos_equispace, run_dos
 export run_kinetic, run_kinetic_equispace, run_kinetic_auto, run_kinetic_auto_equispace
 export run_kinetic_parallel, run_kinetic_equispace_parallel, run_kinetic_auto_parallel, run_kinetic_auto_equispace_parallel
 
@@ -91,20 +92,159 @@ function batch_smooth_param(xs, nthreads)
 end
 
 #=
+Section: User-defined integral calculations
+=#
+
+"""
+    run_wannier_adaptive(integrand, fs, ps, lims, rtol, atol, [nthreads=Threads.nthreads()])
+
+Returns a `NamedTuple` with names `I, E, t, p` containing the integrals,
+errors, and timings for a density of states calculation done at frequencies `ωs`
+with parameters `μ, atol, rtol`. This function constructs a `WannierIntegrand` for
+each parameter value and calls `iterated_integration` with limits of integration
+`lims` to get the results.
+"""
+function run_wannier_adaptive(integrand, fs, ps, lims, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ps)); order=7, initdivs=(1,1,1))
+    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+    ints = Vector{T}(undef, length(ps))
+    errs = Vector{Float64}(undef, length(ps))
+    ts = Vector{Float64}(undef, length(ps))
+    @info "Beginning parameter sweep using IAI"
+    @info "using $nthreads threads for frequency parallelization"
+    batches = batch_smooth_param(ps, nthreads)
+    t = time()
+    Threads.@threads for batch in batches
+        fs_ = deepcopy(fs) # to avoid data races for AbstractFourierSeries3D
+        segbufs = AutoBZ.alloc_segbufs(Float64, T, Float64, ndims(lims))
+        for (i, p) in batch
+            @info @sprintf "starting parameter %i" i
+            t_ = time()
+            w = WannierIntegrand(integrand, fs_, p)
+            ints[i], errs[i] = iterated_integration(w, lims; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            ts[i] = time() - t_
+            @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
+        end
+    end
+    @info @sprintf "Finished parameter sweep in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
+    (I=ints, E=errs, t=ts, p=ps)
+end
+
+"""
+    run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, [nthreads=1])
+
+Returns a `NamedTuple` with names `I, E, t, p, npt1, npt2` containing the
+integrals, errors, timings, and number of kpts per dimension obtained for a
+Wannier-interpolated integral from caller-supplied Fourier series `fs` and
+evaluator `integrand` done at parameters `ps, atol, rtol`.  This function
+constructs a `WannierIntegrand` for each parameter value and calls
+`automatic_equispace_integration` with limits of integration `lims` to get the
+results.
+"""
+function run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, nthreads=1)
+    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+    ints = Vector{T}(undef, length(ps))
+    errs = Vector{Float64}(undef, length(ps))
+    ts = Vector{Float64}(undef, length(ps))
+    npt1s = Vector{Int}(undef, length(ps))
+    npt2s = Vector{Int}(undef, length(ps))
+    
+    @info "Beginning parameter sweep using automatic PTR"
+    @info "using $nthreads threads for frequency parallelization"
+    t = time()
+    batches = batch_smooth_param(ps, nthreads)
+    Threads.@threads for batch in batches
+        fs_ = deepcopy(fs) # to avoid data races for AbstractFourierSeries3D
+        pre_buf = (npt1=0, pre1=Tuple{eltype(fs),Int}[], npt2=0, pre2=Tuple{eltype(fs),Int}[])
+        for (i, p) in batch
+            @info @sprintf "starting parameter %i" i
+            t_ = time()
+            w = WannierIntegrand(integrand, fs_, p)
+            ints[i], errs[i], pre_buf = automatic_equispace_integration(w, lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
+            ts[i] = time() - t_
+            npt1s[i] = pre_buf.npt1
+            npt2s[i] = pre_buf.npt2
+            @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
+        end
+    end
+    @info @sprintf "Finished parameter sweep in %e (s) wall clock time" (time()-t)
+    (I=ints, E=errs, t=ts, npt1=npt1s, npt2=npt2s, p=ps)
+end
+
+"""
+    run_wannier_equispace(integrand, fs, ps, lims, npt, [nthreads=Threads.nthreads()])
+
+Returns a `NamedTuple` with names `I, t, p` containing the integrals and timings
+obtained for a Wannier-interpolated integral from caller-supplied Fourier series
+`fs` and evaluator `integrand` done at parameters `ps, npt`, where `npt` is the
+number of ``k`` points per dimension. This function constructs a
+`WannierIntegrand` for each parameter value and calls `equispace_integration`
+with limits of integration `lims` to get the results. The caller should check
+that the result is converged with respect to `npt`.
+"""
+function run_wannier_equispace(integrand, fs, ps, lims, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
+    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+    ints = Vector{T}(undef, length(ps))
+    ts = Vector{Float64}(undef, length(ps))
+    
+    @info "Beginning parameter sweep using PTR with $npt kpts per dim"
+    
+    @info "pre-evaluating Fourier series..."
+    t = time()
+    f_k = pre_eval(fs, lims, npt)
+    @info "finished pre-evaluating Fourier series in $(time() - t) (s)"
+    
+    @info "using $nthreads threads for frequency parallelization"
+    t = time()
+    batches = batch_smooth_param(ps, nthreads)
+    Threads.@threads for batch in batches
+        for (i, p) in batch
+            @info @sprintf "starting parameter %i" i
+            t_ = time()
+            w = WannierIntegrand(integrand, fs, p)
+            ints[i], = equispace_integration(w, lims, npt; pre=f_k)
+            ts[i] = time() - t_
+            @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
+        end
+    end
+    @info @sprintf "Finished parameter sweep in %e (s) wall clock time" (time()-t)
+    (I=ints, t=ts, p=ps)
+end
+
+
+"""
+    run_wannier(integrand, fs, ps, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+
+Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
+and timings for obtained for a Wannier-interpolated integral from
+caller-supplied Fourier series `fs` and evaluator `integrand` done at parameters
+`ps, rtol, atol`. The integral is evaluated adaptively. However if `rtol` is
+nonzero, it is first estimated by an equispace method using wide tolerances
+`eatol` and `ertol`, and then uses a narrow absolute tolerance set by
+`max(atol,rtol*norm(int))` to evaluate and return the adaptive integral.
+"""
+function run_wannier(integrand, fs, ps, lims, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
+    rtol == 0 && return run_wannier_adaptive(integrand, fs, ps, lims, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_wannier_auto_equispace(integrand, fs, ps, lims, ertol, eatol)
+    results = run_wannier_adaptive(integrand, fs, ps, lims, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+    (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, p=ps)
+end
+
+
+#=
 Section: DOS calculations
 - Convergence of PTR at various omega
 =#
 
 """
-    run_dos_adaptive_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
+    run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
 
-Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
+Returns a `NamedTuple` with names `I, E, t, omega` containing the results,
 errors, and timings for a density of states calculation done at frequencies `ωs`
 with parameters `μ, atol, rtol`. This function constructs a `DOSIntegrand` for
 each parameter value and calls `iterated_integration` on it over the domain of
 the IBZ to get the results.
 """
-function run_dos_adaptive_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=(1,1,1))
+function run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=(1,1,1))
     T = eltype(DOSIntegrand{typeof(H)})
     BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
@@ -131,13 +271,13 @@ function run_dos_adaptive_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, ato
 end
 
 """
-    run_dos_auto_equispace_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=1])
+    run_dos_auto_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=1])
 
-Returns a `NamedTuple` with names `D, err, t, omega, npt1, npt2` containing the
-results, errors, timings, and number of kpts per dimension used for a density of
-states calculation done at frequencies `ωs` with parameters `μ, atol, rtol`.
+Returns a `NamedTuple` with names `I, E, t, omega, npt1, npt2` containing the
+integrals, errors, timings, and number of kpts per dimension used for a density
+of states calculation done at frequencies `ωs` with parameters `μ, atol, rtol`.
 """
-function run_dos_auto_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=1)
+function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=1)
     T = eltype(DOSIntegrand{typeof(H)})
     BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
@@ -151,11 +291,12 @@ function run_dos_auto_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rto
     t = time()
     batches = batch_smooth_param(ωs, nthreads)
     Threads.@threads for batch in batches
+        H_ = deepcopy(H) # to avoid data races for AbstractFourierSeries3D
         pre_buf = (npt1=0, pre1=Tuple{eltype(H),Int}[], npt2=0, pre2=Tuple{eltype(H),Int}[])
         for (i, ω) in batch
             @info @sprintf "starting ω=%e" ω
             t_ = time()
-            D = DOSIntegrand(H, ω, Σ, μ)
+            D = DOSIntegrand(H_, ω, Σ, μ)
             ints[i], errs[i], pre_buf = automatic_equispace_integration(D, BZ_lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
             ts[i] = time() - t_
             npt1s[i] = pre_buf.npt1
@@ -168,15 +309,15 @@ function run_dos_auto_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rto
 end
 
 """
-    run_dos_equispace_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, npt, [nthreads=Threads.nthreads()])
+    run_dos_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, npt, [nthreads=Threads.nthreads()])
 
-Returns a `NamedTuple` with names `D, t, omega` containing the results and
+Returns a `NamedTuple` with names `I, t, omega` containing the integrals and
 timings obtained for a density of states calculation done at frequencies `ωs`
 with parameters `μ, npt`, where `npt` is the number of ``k`` points per
 dimension. The caller should check that the result is converged with respect to
 `npt`.
 """
-function run_dos_equispace_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
+function run_dos_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
     T = eltype(DOSIntegrand{typeof(H)})
     BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
@@ -208,9 +349,9 @@ end
 
 
 """
-    run_dos_parallel(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    run_dos(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
-Returns a `NamedTuple` with names `D, err, t, omega` containing the results,
+Returns a `NamedTuple` with names `I, E, t, omega` containing the integrals,
 errors, and timings for a density of states calculation done at frequencies `ωs`
 with parameters `μ, atol, rtol`. This function first estimates the integral,
 `int`, with an equispace method using wide tolerances `eatol` and `ertol`, and
@@ -221,12 +362,12 @@ Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
 ``\\eta``-independent with a line like the one below before calling this script
 
-    AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
+    AutoBZ.equispace_npt_update(npt, ::DOSIntegrand, atol, rtol) = npt + 50
 """
-function run_dos_parallel(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
-    rtol == 0 && return run_dos_adaptive_parallel(H, Σ, μ, ωs, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = run_dos_auto_equispace_parallel(H, Σ, μ, ωs, ertol, eatol)
-    results = run_dos_adaptive_parallel(H, Σ, μ, ωs, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function run_dos(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
+    rtol == 0 && return run_dos_adaptive(H, Σ, μ, ωs, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_dos_auto_equispace(H, Σ, μ, ωs, ertol, eatol)
+    results = run_dos_adaptive(H, Σ, μ, ωs, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, omega=ωs)
 end
 

@@ -23,5 +23,5 @@ atol = 1e-3
 rtol = 1e-3
 
 # run script
-results = AutoBZ.Jobs.run_dos_parallel(H, Σ, μ, ωs, rtol, atol)
+results = AutoBZ.Jobs.run_dos(H, Σ, μ, ωs, rtol, atol)
 # AutoBZ.Jobs.write_nt_to_h5(results, "DOS_calculation.h5")

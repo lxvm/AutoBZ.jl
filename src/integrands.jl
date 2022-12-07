@@ -9,7 +9,7 @@ some input parameters `p`, which are preferrably contained in a tuple. The
 caller must be aware that their function, `f`, will be called at many evaluation
 points, `x`, in the following way: `f(s(x), p...)`. Therefore the caller is
 expected to know the type of `s(x)` (hint: `eltype(s)`) and the layout of the
-parameters in the tuple `p`.
+parameters in the tuple `p`. Additionally, `f` is assumed to be type-stable.
 """
 struct WannierIntegrand{TF,TS<:AbstractFourierSeries,TP}
     f::TF

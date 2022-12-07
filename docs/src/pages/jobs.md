@@ -15,10 +15,15 @@ AutoBZ.Jobs.run_kinetic_auto_equispace
 ## Parallelized scripts
 
 ```@docs
-AutoBZ.Jobs.run_dos_adaptive_parallel
-AutoBZ.Jobs.run_dos_equispace_parallel
-AutoBZ.Jobs.run_dos_auto_equispace_parallel
-AutoBZ.Jobs.run_dos_parallel
+
+AutoBZ.Jobs.run_wannier_adaptive
+AutoBZ.Jobs.run_wannier_equispace
+AutoBZ.Jobs.run_wannier_auto_equispace
+AutoBZ.Jobs.run_wannier
+AutoBZ.Jobs.run_dos_adaptive
+AutoBZ.Jobs.run_dos_equispace
+AutoBZ.Jobs.run_dos_auto_equispace
+AutoBZ.Jobs.run_dos
 AutoBZ.Jobs.run_kinetic_parallel
 AutoBZ.Jobs.run_kinetic_equispace_parallel
 AutoBZ.Jobs.run_kinetic_auto_parallel
