@@ -99,11 +99,16 @@ Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
 
 Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
+
+There is a special optimization when `dim=N`, `size(f.coeffs,dim)=2M+1` for an
+integer `M`, and `axes(f.coeffs,dim)=-M:M` that evaluates the Fourier series by
+recurrence. In this case, `f.coeffs` must be an `OffsetArray` with odd axis
+lengths and indices that are odd about the center of the array.
 """
-function contract(f::FourierSeries{N}, x::Number, dim::Int) where N
-    dim == N && return contract(f, x)
+function contract(f::FourierSeries{N}, x::Number, dim::Int=N) where N
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = f.coeffs
+    dim == N && -2first(axes(C,dim))+1 == size(C,dim) && return contract_(f, x)
     @inbounds ϕ = x/f.period[dim]
     C′ = mapreduce(+, CartesianIndices(C); dims=dim) do i
         @inbounds C[i]*cispi(2*i.I[dim]*ϕ)
@@ -112,7 +117,7 @@ function contract(f::FourierSeries{N}, x::Number, dim::Int) where N
 end
 # Fourier series evaluation by recurrence is faster, but we only implement
 # contraction of the outermost dimension
-function contract(f::FourierSeries{1}, x::Number)
+function contract_(f::FourierSeries{1}, x::Number)
     C = contract_(f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period)) # for consistency with N>1 edit C -> fill(C)
     # however, allocating a 0-dimensional array slows things down so I have
@@ -120,7 +125,7 @@ function contract(f::FourierSeries{1}, x::Number)
 end
 function contract_(C::AbstractVector, ϕ::Number)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
-    @inbounds r = C[0]
+    @inbounds r = complex(float(C[0]))
     if size(C,1) > 1
         z₀ = cispi(2ϕ)
         z = one(z₀)
@@ -132,10 +137,10 @@ function contract_(C::AbstractVector, ϕ::Number)
     r
 end
 # N-D implementation of recurrence
-@generated function contract(f::FourierSeries{N}, x::Number) where N
+@generated function contract_(f::FourierSeries{N}, x::Number) where N
 quote
     C_ = f.coeffs
-    C = (Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :)
+    C = complex(float(Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :))
     contract!(C, f.coeffs, x / last(f.period))
     FourierSeries(C, pop(f.period))
 end
@@ -211,11 +216,16 @@ Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 
 Contract index `dim` of the coefficients of `f` at the spatial point `x`.
 The default `dim` is the outermost dimension to preserve memory locality.
+
+There is a special optimization when `dim=N`, `size(f.f.coeffs,dim)=2M+1` for an
+integer `M`, and `axes(f.f.coeffs,dim)=-M:M` that evaluates the Fourier series
+by recurrence. In this case, `f.f.coeffs` must be an `OffsetArray` with odd axis
+lengths and indices that are odd about the center of the array.
 """
-function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where N
-    dim == N && return contract(dv, x)
+function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int=N) where N
     1 <= dim <= N || error("Choose dim=$dim in 1:$N")
     C = dv.f.coeffs
+    dim == N && -2first(axes(C,dim))+1 == size(C,dim) && return contract_(dv, x)
     @inbounds imk = im*2*pi/dv.f.period[dim]
     @inbounds ϕ = x/dv.f.period[dim]
     @inbounds a = dv.a[dim]
@@ -226,14 +236,14 @@ function contract(dv::FourierSeriesDerivative{N}, x::Number, dim::Int) where N
     FourierSeriesDerivative(f, deleteat(dv.a, dim))
 end
 # 1D recurrence is still faster
-function contract(dv::FourierSeriesDerivative{1}, x::Number)
+function contract_(dv::FourierSeriesDerivative{1}, x::Number)
     C = contract_(dv.f.coeffs, x, last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period)) # for consistency with higher dimensions, C -> fill(C)
     FourierSeriesDerivative(f, pop(dv.a))
 end
 function contract_(C::AbstractVector, x, a₀, a)
     -2first(axes(C,1))+1 == size(C,1) || throw("array indices are not of form -n:n")
-    @inbounds r = (0^a)*C[0]
+    @inbounds r = (0^a)*complex(float(C[0]))
     if size(C,1) > 1
         imk = im*2*pi/a₀
         z₀ = cispi(2*x/a₀)
@@ -246,10 +256,10 @@ function contract_(C::AbstractVector, x, a₀, a)
     r
 end
 # N-D implementation of recurrence
-@generated function contract(dv::FourierSeriesDerivative{N}, x::Number) where N
+@generated function contract_(dv::FourierSeriesDerivative{N}, x::Number) where N
 quote
     C_ = dv.f.coeffs
-    C = (Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :)
+    C = complex(float(Base.Cartesian.@nref $N C_ i -> i == $N ? 0 : :))
     contract!(C, dv.f.coeffs, x, last(dv.f.period), last(dv.a))
     f = FourierSeries(C, pop(dv.f.period))
     FourierSeriesDerivative(f, pop(dv.a))
