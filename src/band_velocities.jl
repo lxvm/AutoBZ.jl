@@ -85,7 +85,7 @@ after all the dimensions are contracted is a tuple containing `(H, ṽ₁, ṽ�
 ..., ṽₙ)`. The modified band velocities are defined by
 ```math
 \\tilde{\\nu}_{\\alpha} = \\frac{1}{\\hbar} \\partial_{k_{\\alpha}} H -
-\frac{i}{\\hbar} [H,(A_{\\alpha} + A_{\\alpha}^{\\dagger})/2]
+\\frac{i}{\\hbar} [H,(A_{\\alpha} + A_{\\alpha}^{\\dagger})/2]
 ```
 where ``k_{\\alpha}`` is one of three input dimensions of ``H`` and
 ``\\hbar=1``. Effectively, this type evaluates the Hamiltonian and its gradient
