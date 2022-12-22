@@ -10,7 +10,7 @@ using OffsetArrays
 using ..AutoBZ
 using ..AutoBZ.Applications
 
-export read_h5_to_nt, write_nt_to_h5, import_self_energy
+export read_h5_to_nt, write_nt_to_h5
 export run_wannier_adaptive, run_wannier_auto_equispace, run_wannier_equispace, run_wannier
 export run_dos_adaptive, run_dos_auto_equispace, run_dos_equispace, run_dos
 export run_kinetic_adaptive, run_kinetic_auto_equispace, run_kinetic_equispace, run_kinetic
@@ -26,28 +26,14 @@ Section: loading data from HDF5
     read_h5_to_nt(filename)
 
 Loads the h5 archive from `filename` and reads its datasets into a `NamedTuple`
+and its groups into `NamedTuple`s recursively.
 """
-read_h5_to_nt(filename) = h5open(filename, "r") do h5
-    NamedTuple([(Symbol(key) => h5_dset_to_vec(read(h5, key))) for key in keys(h5)])
-end
+read_h5_to_nt(filename) = h5open(read_h5_to_nt_, filename, "r")
+read_h5_to_nt_(h5) = NamedTuple([Pair(Symbol(key), ((val = h5[key]) isa HDF5.Group) ? read_h5_to_nt_(val) : h5_dset_to_vec(read(h5, key))) for key in keys(h5)])
 h5_dset_to_vec(x::Vector) = identity(x)
 function h5_dset_to_vec(A::Array{T,N}) where {T,N}
     S = size(A)[1:N-1]
     reinterpret(SArray{Tuple{S...},T,N-1,prod(S)}, vec(A))
-end
-
-"""
-    import_self_energy(filename)
-
-Reads the groups `omega` and `sigma` in the h5 archive in `filename` and tries
-save it to a `NamedTuple` with names `ω` and `Σ`. The array in `sigma` should be
-of size `(length(omega), 2)`, where the two columns are the real and imaginary
-parts of Σ.
-"""
-import_self_energy(filename) = h5open(import_self_energy_, filename)
-function import_self_energy_(f::HDF5.File)
-    dset = read(f, "sigma")
-    (ω = read(f, "omega"), Σ = complex.(dset[1, :], dset[2, :]))
 end
 
 #=
@@ -60,10 +46,18 @@ Section: saving data to HDF5
 
 Takes a `NamedTuple` and writes its values, which must be arrays, into an h5
 archive at `filename` with dataset names corresponding to the tuple names.
+If a value is a `NamedTuple`, its datasets are written to h5 groups recursively.
 """
 write_nt_to_h5(nt::NamedTuple, filename) = h5open(filename, "w") do h5
+    write_nt_to_h5_(nt, h5)
+end
+function write_nt_to_h5_(nt::NamedTuple, h5)
     for key in keys(nt)
-        write(h5, string(key), vec_to_h5_dset(nt[key]))
+        if (val = nt[key]) isa NamedTuple
+            write_nt_to_h5_(val, create_group(h5, string(key)))
+        else
+            write(h5, string(key), vec_to_h5_dset(val))
+        end
     end
 end
 vec_to_h5_dset(x::Number) = vec(collect(x))

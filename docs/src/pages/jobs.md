@@ -56,7 +56,6 @@ AutoBZ.Jobs.run_kinetic_auto_equispace
 ```@docs
 AutoBZ.Jobs.read_h5_to_nt
 AutoBZ.Jobs.write_nt_to_h5
-AutoBZ.Jobs.import_self_energy
 ```
 
 ## Internal
