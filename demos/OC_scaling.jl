@@ -17,7 +17,7 @@ HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 
 # initialize integrand and limits
-Σ = AutoBZ.Applications.EtaEnergy(η)
+Σ = AutoBZ.Applications.EtaSelfEnergy(η)
 σ = AutoBZ.Applications.KineticIntegrand(HV, Σ, β, μ, 0, Ω)
 f = AutoBZ.Applications.fermi_window_limits(Ω, β)
 c = AutoBZ.CubicLimits(H.period)

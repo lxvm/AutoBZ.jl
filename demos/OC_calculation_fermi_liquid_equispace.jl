@@ -25,7 +25,7 @@ Z  = 0.5
 c = kB*pi/(Z*T₀)
 
 # derived parameters
-Σ = EtaEnergy(η)
+Σ = EtaSelfEnergy(η)
 T = sqrt(η/c)
 β = inv(kB*T)
 

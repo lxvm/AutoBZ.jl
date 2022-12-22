@@ -16,7 +16,7 @@ H = load_hamiltonian("svo_hr.dat"; period=b)
 μ = 12.3958 # eV
 
 # initialize integrand and limits
-Σ = EtaEnergy(η)
+Σ = EtaSelfEnergy(η)
 D = DOSIntegrand(H, ω, Σ, μ)
 c = CubicLimits(period(H))
 t = TetrahedralLimits(c)

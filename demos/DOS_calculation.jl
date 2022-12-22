@@ -16,7 +16,7 @@ H = load_hamiltonian("svo_hr.dat"; period=b)
 η = 0.01 # eV
 
 # derived parameters
-Σ = EtaEnergy(η)
+Σ = EtaSelfEnergy(η)
 
 # set error tolerances
 atol = 1e-3

@@ -21,7 +21,7 @@ HV_intra = load_hamiltonian_velocities("sro_hr.dat", "sro_r.dat"; period=b, kind
 β = 200.0 # 1/eV
 
 # initialize integrand and limits
-Σ = EtaEnergy(η)
+Σ = EtaSelfEnergy(η)
 c = CubicLimits(period(HV_full))
 t = TetrahedralLimits(c)
 

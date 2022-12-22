@@ -28,7 +28,7 @@ function generate_dataset_adaptive(; atol=1e-3, rtol=1e-5)
         (0.01, 100.0, "optic_c_eta.01_beta100.dat"),
         (0.002, 200.0, "optic_c_eta.002_beta200.dat"),
     ]
-        Sigma = Applications.EtaEnergy(eta)
+        Sigma = Applications.EtaSelfEnergy(eta)
         data = load_dataset(filename)
         sigma = Vector{Float64}(undef, length(data.Omega))
 
@@ -73,7 +73,7 @@ function generate_dataset_equispace(; atol=1e-5, rtol=0.0)
         (0.01, 100.0, "optic_c_eta.01_beta100.dat"),
         (0.002, 200.0, "optic_c_eta.002_beta200.dat"),
     ]
-        Sigma = Applications.EtaEnergy(eta)
+        Sigma = Applications.EtaSelfEnergy(eta)
         data = load_dataset(filename)
         sigma = Vector{Float64}(undef, length(data.Omega))
 

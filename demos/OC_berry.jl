@@ -17,7 +17,7 @@ HV = load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=b)
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 
 # initialize integrand and limits
-Σ = EtaEnergy(η)
+Σ = EtaSelfEnergy(η)
 σ = KineticIntegrand(HV, Σ, β, μ, 0, Ω)
 f = fermi_window_limits(Ω, β)
 c = CubicLimits(period(HV))

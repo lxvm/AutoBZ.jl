@@ -1,4 +1,4 @@
-export AbstractSelfEnergy, lb, ub, EtaEnergy, ScalarEnergy
+export AbstractSelfEnergy, lb, ub, EtaSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
 
 """
     AbstractSelfEnergy
@@ -26,28 +26,46 @@ Return the least upper bound of the domain of the self energy evaluator
 function ub end
 
 """
-    EtaEnergy(η::Real)
+    EtaSelfEnergy(η::Real)
 
 Construct a self-energy evaluator which returns ``-i\\eta I`` for any frequency.
 """
-struct EtaEnergy{T<:Real} <: AbstractSelfEnergy
+struct EtaSelfEnergy{T<:Real} <: AbstractSelfEnergy
     η::T
 end
-(Σ::EtaEnergy)(::Number) = complex(zero(Σ.η), -Σ.η)*I
-lb(::EtaEnergy) = -Inf
-ub(::EtaEnergy) = Inf
+(Σ::EtaSelfEnergy)(::Number) = complex(zero(Σ.η), -Σ.η)*I
+lb(::EtaSelfEnergy) = -Inf
+ub(::EtaSelfEnergy) = Inf
 
 """
-    ScalarEnergy(interpolant, lb, ub)
+    ScalarSelfEnergy(interpolant, lb, ub)
 
 Construct a self-energy evaluator which for frequencies above `lb` and below
 `ub` returns the interpolant at that frequency times an identity matrix.
 """
-struct ScalarEnergy{T} <: AbstractSelfEnergy
+struct ScalarSelfEnergy{T} <: AbstractSelfEnergy
     interpolant::T
     lb::Float64
     ub::Float64
 end
-(Σ::ScalarEnergy)(ω::Number) = Σ.interpolant(ω)*I
-lb(Σ::ScalarEnergy) = Σ.lb
-ub(Σ::ScalarEnergy) = Σ.ub
+(Σ::ScalarSelfEnergy)(ω::Number) = Σ.interpolant(ω)*I
+lb(Σ::ScalarSelfEnergy) = Σ.lb
+ub(Σ::ScalarSelfEnergy) = Σ.ub
+
+
+"""
+    MatrixSelfEnergy(interpolant, lb, ub)
+
+Construct a self-energy evaluator which for frequencies above `lb` and below
+`ub` returns the matrix-valued interpolant at that frequency.
+"""
+struct MatrixSelfEnergy{T} <: AbstractSelfEnergy
+    interpolant::T
+    lb::Float64
+    ub::Float64
+end
+(Σ::MatrixSelfEnergy)(ω::Number) = Σ.interpolant(ω)
+lb(Σ::MatrixSelfEnergy) = Σ.lb
+ub(Σ::MatrixSelfEnergy) = Σ.ub
+
+
