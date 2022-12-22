@@ -15,6 +15,9 @@ include("IntegrationLimits.jl")
 include("adaptive_integration.jl")
 include("equispace_integration.jl")
 
+include("AdaptChebInterp.jl")
+include("EquiBaryInterp.jl")
+
 """
     Applications
 
@@ -30,6 +33,8 @@ using StaticArrays
 using OffsetArrays
 using Combinatorics: permutations
 # using FFTW
+
+using ..EquiBaryInterp: LocalEquiBaryInterp
 
 using  ..AutoBZ: IntegrationLimits, CubicLimits, 
     equispace_integration, automatic_equispace_integration, discretize_equispace_,
@@ -49,11 +54,11 @@ include("custom_equispace.jl")
 include("custom_adaptive.jl")
 include("evaluators.jl")
 include("wannier90io.jl")
+include("self_energies_io.jl")
+
 
 end
 
-include("AdaptChebInterp.jl")
-include("EquiBaryInterp.jl")
 include("Jobs.jl")
 
 end
