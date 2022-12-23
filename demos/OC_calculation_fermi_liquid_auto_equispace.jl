@@ -10,6 +10,8 @@ using AutoBZ.Applications
 b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
 HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
+# Load the (IBZ) limits of integration for the Brillouin zone
+BZ = TetrahedralLimits(CubicLimits(period(HV)))
 
 # define problem parameters
 μ = 12.3958 # eV
@@ -35,5 +37,5 @@ rtol = 1e-3
 atol = 1e-2
 
 # run calculation
-results = AutoBZ.Jobs.run_kinetic_auto_equispace(HV, Σ, β, μ, n, Ωs, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_auto_equispace(HV, Σ, β, μ, n, Ωs, BZ, rtol, atol)
 AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5")

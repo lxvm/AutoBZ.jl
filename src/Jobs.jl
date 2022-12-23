@@ -230,17 +230,16 @@ Section: DOS calculations
 =#
 
 """
-    run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()])
+    run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, E, t, omega` containing the results,
 errors, and timings for a density of states calculation done at frequencies `ωs`
 with parameters `μ, atol, rtol`. This function constructs a `DOSIntegrand` for
 each parameter value and calls `iterated_integration` on it over the domain of
-the IBZ to get the results.
+the `BZ_lims` to get the results.
 """
-function run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=(1,1,1))
+function run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=(1,1,1))
     T = eltype(DOSIntegrand{typeof(H)})
-    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
@@ -265,15 +264,15 @@ function run_dos_adaptive(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthrea
 end
 
 """
-    run_dos_auto_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=1])
+    run_dos_auto_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, [nthreads=1])
 
 Returns a `NamedTuple` with names `I, E, t, omega, npt1, npt2` containing the
 integrals, errors, timings, and number of kpts per dimension used for a density
 of states calculation done at frequencies `ωs` with parameters `μ, atol, rtol`.
+The domain of integration used is `BZ_lims`.
 """
-function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=1)
+function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, nthreads=1)
     T = eltype(DOSIntegrand{typeof(H)})
-    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
@@ -303,17 +302,16 @@ function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, 
 end
 
 """
-    run_dos_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, npt, [nthreads=Threads.nthreads()])
+    run_dos_equispace(HV, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, npt, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, t, omega` containing the integrals and
 timings obtained for a density of states calculation done at frequencies `ωs`
 with parameters `μ, npt`, where `npt` is the number of ``k`` points per
 dimension. The caller should check that the result is converged with respect to
-`npt`.
+`npt`. The domain of integration used is `BZ_lims`.
 """
-function run_dos_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
+function run_dos_equispace(H, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
     T = eltype(DOSIntegrand{typeof(H)})
-    BZ_lims = TetrahedralLimits(CubicLimits(period(H)))
     ints = Vector{T}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
     
@@ -341,7 +339,7 @@ end
 
 
 """
-    run_dos(HV, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    run_dos(HV, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `I, E, t, omega` containing the integrals,
 errors, and timings for a density of states calculation done at frequencies `ωs`
@@ -349,6 +347,7 @@ with parameters `μ, atol, rtol`. This function first estimates the integral,
 `int`, with an equispace method using wide tolerances `eatol` and `ertol`, and
 then uses a narrow absolute tolerance set by `max(atol,rtol*norm(int))` to
 evaluate the same integral adaptively.
+The domain of integration used is `BZ_lims`.
 
 Since this is intended to compute a cheap equispace integral first, it is
 recommended to over-ride the default ``k``-grid refinement step to something
@@ -356,10 +355,10 @@ recommended to over-ride the default ``k``-grid refinement step to something
 
     AutoBZ.equispace_npt_update(npt, ::DOSIntegrand, atol, rtol) = npt + 50
 """
-function run_dos(H, Σ::AbstractSelfEnergy, μ, ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
-    rtol == 0 && return run_dos_adaptive(H, Σ, μ, ωs, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = run_dos_auto_equispace(H, Σ, μ, ωs, ertol, eatol)
-    results = run_dos_adaptive(H, Σ, μ, ωs, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function run_dos(H, Σ::AbstractSelfEnergy, μ, ωs, BZ_lims, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1))
+    rtol == 0 && return run_dos_adaptive(H, Σ, μ, ωs, BZ_lims, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_dos_auto_equispace(H, Σ, μ, ωs, BZ_lims, ertol, eatol)
+    results = run_dos_adaptive(H, Σ, μ, ωs, BZ_lims, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, omega=ωs)
 end
 
@@ -422,18 +421,17 @@ end
 
 
 """
-    run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, [nthreads=Threads.nthreads()]; order=7, initdivs=(1,1,1,1))
+    run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, [nthreads=Threads.nthreads()]; order=7, initdivs=(1,1,1,1))
 
 
 Returns a `NamedTuple` with names `I, E, t, Omega` containing the integrals,
 errors, and timings for a kinetic coefficient calculation done at frequencies
 `Ωs` with parameters `β, μ, n, atol, rtol`. This function constructs a
 `KineticIntegrand` for each parameter value and calls `iterated_integration` on
-it over the domain of the IBZ and a safely truncated frequency integral to get
+it over the domain of the `BZ_lims` and a safely truncated frequency integral to get
 the results. The calculation is parallelized over `Ωs` on `nthreads` threads.
 """
-function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(Ωs)); order=7, initdivs=(1,1,1,1))
-    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
+function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(Ωs)); order=7, initdivs=(1,1,1,1))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -461,7 +459,7 @@ function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, 
 end
 
 """
-    run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol, [nthreads=Threads.nthreads(), pre_eval=pre_eval_contract])
+    run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, npt, rtol, atol, [nthreads=Threads.nthreads(), pre_eval=pre_eval_contract])
 
 Returns a `NamedTuple` with names `I, E, t, Omega` containing the
 integrals, errors, and timings for a kinetic coefficient calculation done at
@@ -469,11 +467,10 @@ frequencies `Ωs` with parameters `β, μ, n, atol, rtol`. This function constru
 an `EquispaceKineticIntegrand` for each parameter value, and precomputes `HV` on
 an equispace ``k`` grid with `npt` points per dimension (which is reused for all
 parameter values), and calls `iterated_integration` on it over the domain of the
-IBZ and a safely truncated frequency integral to get the results. The
+`BZ_lims` and a safely truncated frequency integral to get the results. The
 calculation is parallelized over `Ωs` on `nthreads` threads.
 """
-function run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, rtol, atol, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
-    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
+function run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, npt, rtol, atol, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     @info "Beginning OC frequency sweep using PTR with $npt kpts per dim"
     @info "pre-evaluating Hamiltonian..."
@@ -503,21 +500,20 @@ function run_kinetic_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, npt, 
 end
 
 """
-    run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, [nthreads=1]; order=7, initdivs=(1,))
+    run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, [nthreads=1]; order=7, initdivs=(1,))
 
 Returns a `NamedTuple` with names `I, E, t, Omega, npt1, npt2` containing the
 integrals, errors, timings, and kpts used  for a kinetic coefficient calculation
 done at frequencies `Ωs` with parameters `β, μ, n, atol, rtol`. This function
 constructs an `AutoEquispaceKineticIntegrand` for each parameter value, reusing
 ``k``-grids of `HV` values from previous calculations, and calls
-`iterated_integration` on it over the domain of the IBZ and a safely truncated
+`iterated_integration` on it over the domain of the `BZ_lims` and a safely truncated
 frequency integral to get the results. The calculation is parallelized over `Ωs`
 on `nthreads` threads. The default is set to 1 thread for frequency
 parallelization, although k-point parallelization is still enabled, to avoid
 duplicating calculations of the Hamiltonian and band velocities on the k-mesh.
 """
-function run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, nthreads=1; order=7, initdivs=(1,))
-    BZ_lims = TetrahedralLimits(CubicLimits(period(HV)))
+function run_kinetic_auto_equispace(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, nthreads=1; order=7, initdivs=(1,))
     freq_lims = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
     ints = Vector{eltype(KineticIntegrand)}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
@@ -549,7 +545,7 @@ end
 
 
 """
-    run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1,1))
+    run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1,1))
 
 Returns a `NamedTuple` with names `I, E, t, Omega` containing the integrals,
 errors, and timings for a kinetic coefficient calculation done at frequencies
@@ -557,7 +553,7 @@ errors, and timings for a kinetic coefficient calculation done at frequencies
 `AutoEquispaceKineticIntegrand` with wide tolerances `eatol` and `ertol` which
 estimates the integral, `int`, and then use a narrow absolute tolerance set by
 `max(atol,rtol*norm(int))` to construct a `KineticIntegrand` for each parameter
-value and calls `iterated_integration` on it over the domain of the IBZ and a
+value and calls `iterated_integration` on it over the domain of the `BZ_lims` and a
 safely truncated frequency integral to get the results. The calculation is
 parallelized over `Ωs` on `nthreads` threads.
 
@@ -567,10 +563,10 @@ recommended to over-ride the default ``k``-grid refinement step to something
 
     AutoBZ.equispace_npt_update(npt, ::TransportIntegrand, atol, rtol) = npt + 50
 """
-function run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1,1))
-    rtol == 0 && return run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = run_kinetic_auto_equispace(HV, Σ, β, μ, n, Ωs, ertol, eatol)
-    results = run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=(1,1,1,1))
+    rtol == 0 && return run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, BZ_lims, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_kinetic_auto_equispace(HV, Σ, β, μ, n, Ωs, BZ_lims, ertol, eatol)
+    results = run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, BZ_lims, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, Omega=Ωs)
 end
 

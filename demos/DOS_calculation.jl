@@ -9,6 +9,8 @@ using AutoBZ.Applications
 b = round(2π/3.858560, digits=6)
 # Load the Wannier Hamiltonian as a Fourier series
 H = load_hamiltonian("svo_hr.dat"; period=b)
+# Load the (IBZ) limits of integration for the Brillouin zone
+BZ = TetrahedralLimits(CubicLimits(period(H)))
 
 # define problem parameters
 μ = 12.3958 # eV
@@ -23,5 +25,5 @@ atol = 1e-3
 rtol = 1e-3
 
 # run script
-results = AutoBZ.Jobs.run_dos(H, Σ, μ, ωs, rtol, atol)
+results = AutoBZ.Jobs.run_dos(H, Σ, μ, ωs, BZ, rtol, atol)
 # AutoBZ.Jobs.write_nt_to_h5(results, "DOS_calculation.h5")
