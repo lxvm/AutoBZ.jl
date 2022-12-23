@@ -1,4 +1,4 @@
-export TetrahedralLimits, fermi_window_limits
+export TetrahedralLimits
 
 """
     TetrahedralLimits(a::SVector)
@@ -46,62 +46,3 @@ permutation_matrices(t::Val{n}) where {n} = (SparseArrays.sparse(Base.OneTo(n), 
 permutation_tuples(C::NTuple{N,T}) where {N,T} = @inbounds((C[i], p...)::NTuple{N,T} for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
 permutation_tuples(C::NTuple{1}) = C;
 =#
-
-"""
-    fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20, μ=0.0])
-
-These limits are designed for integrating over the cubic FBZ first, then over ω
-restricted to the interval where the Fermi window is larger than `atol`.
-Choosing `atol` wisely is important to integrating the entire region of
-interest, so i
-"""
-function fermi_window_limits(Ω, β; atol=0.0, rtol=1e-20, μ=0.0)
-    Δω = fermi_window_halfwidth(Ω, β, select_fermi_atol(β*Ω, atol, rtol))
-    CubicLimits(SVector(μ-Ω/2-Δω), SVector(μ-Ω/2+Δω))
-end
-select_fermi_atol(x, atol, rtol) = ifelse(x == zero(x), max(atol, 0.25rtol), max(atol, tanh(x/4)/x*rtol))
-"""
-    fermi_window_halfwidth(Ω, β, atol)
-    fermi_window_halfwidth(β, atol)
-
-One can show that β*Ω*fermi_window(ω, β, Ω) =
--tanh(β*Ω/2)/(cosh(β*(ω+Ω/2))/cosh(β*Ω/2)+1) >
--tanh(β*Ω/2)/(exp(abs(β*(ω+Ω/2)))/2cosh(β*Ω/2)+1)
-as well as when Ω==0, β*fermi_window(ω, β, 0.0) = 
-and these can be inverted to give a good bound on the width of the frequency
-window for which the Fermi window function is greater than `atol`. Returns half
-the width of this window.
-"""
-function fermi_window_halfwidth(Ω, β, atol)
-    x = β*Ω
-    if x == zero(x) || atol == zero(atol)
-        fermi_window_halfwidth(β, atol)
-    elseif tanh(x/4)/x > atol
-        inv(β)*fermi_window_halfwidth_(x, atol)
-    else
-        error("choose `atol` under tanh(β*Ω/4)/(β*Ω), the maximum of the Fermi window")
-    end
-end
-function fermi_window_halfwidth(β, atol)
-    if β == zero(β) || atol == zero(atol)
-        Inf
-    elseif 1/4 > atol
-        inv(β)*log(1/atol - 2)
-    else
-        error("choose `atol` under 1/4, the maximum of the Fermi window")
-    end
-end
-
-fermi_window_halfwidth_(x, atol) = fermi_window_halfwidth_(float(x), atol)
-function fermi_window_halfwidth_(x::AbstractFloat, atol)
-    y = x/2
-    log(2cosh(y)*(tanh(y)/(x*atol) - 1))
-end
-function fermi_window_halfwidth_(x::T, atol) where {T<:Union{Float32,Float64}}
-    y = x/2
-    abs_y = abs(y)
-    y_large = Base.Math.H_LARGE_X(T)-1.0 # subtract 1 so 2cosh(x) won't overflow
-    ifelse(abs_y > y_large, abs_y, log(2cosh(y))) + log(tanh(y)/(x*atol) - 1)
-    # to be exact, add log1p(exp(-2abs_y)) to abs_y, but this is lost to roundoff
-end
-fermi_window_halfwidth_(x::Float16, atol) = Float16(fermi_window_halfwidth_(Float32(x), atol))

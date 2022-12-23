@@ -104,51 +104,6 @@ Base.eltype(::Type{<:TransportIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (Γ::TransportIntegrand)(k) = evaluate_integrand(Γ, Γ.HV(k))
 evaluate_integrand(Γ::TransportIntegrand, HV_k) = transport_integrand(HV_k..., Γ.Mω₁, Γ.Mω₂)
 
-fermi(ω, β, μ) = fermi(ω-μ, β)
-fermi(ω, β) = fermi(β*ω)
-function fermi(x)
-    y = exp(x)
-    inv(one(y) + y)
-end
-
-fermi′(ω, β, μ) = fermi′(ω-μ, β)
-fermi′(ω, β) = β*fermi′(β*ω)
-function fermi′(x)
-    y = cosh(x)
-    -0.5inv(one(y)+y)
-end
-
-"Evaluates a unitless window function determined by the Fermi distribution"
-fermi_window(ω, Ω, β, μ) = fermi_window(ω-μ, Ω, β)
-fermi_window(ω, Ω, β) = fermi_window(β*ω, β*Ω)
-fermi_window(x, y) = ifelse(y == zero(y), -fermi′(x), fermi_window_(x, y))
-
-fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
-function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
-    half_y = y*T(0.5)
-    (tanh(half_y)/y)/(one(T)+cosh_ratio(x+half_y, half_y))
-end
-
-cosh_ratio(x, y) = cosh(x)/cosh(y)
-function cosh_ratio(x::T, y::T) where {T<:Union{Float32,Float64}}
-    abs_x = abs(x)
-    abs_y = abs(y)
-    arg_large = Base.Math.H_LARGE_X(T)
-    arg_small = EXP_P1_SMALL_X(T)
-    if max(abs_x, abs_y) < arg_large
-        cosh(x)/cosh(y)
-    elseif arg_large <= abs_x && -2*abs_y > arg_small
-        exp(abs_x-abs_y)/(one(T)+exp(-2*abs_y))
-    elseif arg_large <= abs_y && -2*abs_x > arg_small
-        exp(abs_x-abs_y)*(one(T)+exp(-2*abs_x))
-    else
-        exp(abs_x-abs_y)
-    end
-end
-
-# log(eps(T))
-EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
-EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
 kinetic_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ, n) = kinetic_integrand(transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω, ω+Ω, μ), ω, Ω, β, n)
 kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(ω, Ω, β) * Γ
