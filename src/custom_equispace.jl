@@ -31,7 +31,7 @@ function pre_eval_contract(f::AbstractFourierSeries3D, l::CubicLimits{3}, npt)
             end
         end
     end
-    return f_xs
+    return vec(f_xs)
 end
 
 #=
