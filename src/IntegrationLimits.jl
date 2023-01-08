@@ -1,4 +1,4 @@
-export IntegrationLimits, lower, upper, box, vol, nsyms, symmetrize, symmetries,
+export IntegrationLimits, limits, box, vol, nsyms, symmetrize, symmetries,
     CubicLimits, CompositeLimits
 
 """
@@ -28,22 +28,12 @@ lower and upper limits of the integration domain without symmetries applied.
 function box end
 
 """
-    lower(::IntegrationLimits)
+    limits(::IntegrationLimits, dim)
 
-Return the lower limit of the next variable of integration. If a vector is
-returned, then the integration routine may attempt to multidimensional
+Return a tuple with the lower and upper limit of the `dim`th variable of
 integration.
 """
-function lower end
-
-"""
-    upper(::IntegrationLimits)
-
-Return the upper limit of the next variable of integration. If a vector is
-returned, then the integration routine may attempt to multidimensional
-integration.
-"""
-function upper end
+function limits end
 
 """
     nsyms(::IntegrationLimits)
@@ -201,18 +191,15 @@ CubicLimits(u::NTuple{N,T}) where {N,T} = CubicLimits(SVector{N,T}(u))
 box(c::CubicLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, zip(c.l, c.u))
 
 """
-    lower(::CubicLimits)
+    limits(::CubicLimits, dim)
 
-Returns the lower limit of the outermost variable of integration.
+Returns a tuple with the lower and upper limit of the outermost variable of
+integration.
 """
-lower(c::CubicLimits) = last(c.l)
-
-"""
-    upper(::CubicLimits)
-
-Returns the upper limit of the outermost variable of integration.
-"""
-upper(c::CubicLimits) = last(c.u)
+function limits(c::CubicLimits{d}, dim) where d
+    1 <= dim <= d || throw(ArgumentError("pick dim=$(dim) in 1:$d"))
+    return (c.l[dim], c.u[dim])
+end
 
 """
     nsyms(::CubicLimits)
@@ -254,7 +241,7 @@ struct CompositeLimits{d,T,L<:Tuple{Vararg{IntegrationLimits}}} <: IntegrationLi
 end
 CompositeLimits(lims::IntegrationLimits...) = CompositeLimits(lims)
 function CompositeLimits(lims::L) where {L<:Tuple{Vararg{IntegrationLimits}}}
-    CompositeLimits{mapreduce(ndims, +, L.parameters; init=0),mapreduce(eltype, promote_type, L.parameters),L}(lims)
+    CompositeLimits{mapreduce(ndims, +, lims; init=0),mapreduce(eltype, promote_type, lims),L}(lims)
 end
 CompositeLimits{d,T}(lims::IntegrationLimits...) where {d,T} = CompositeLimits{d,T}(lims)
 CompositeLimits{d,T}(lims::L) where {d,T,L} = CompositeLimits{d,T,L}(lims)
@@ -263,8 +250,7 @@ CompositeLimits{d,T}(lims::L) where {d,T,L} = CompositeLimits{d,T,L}(lims)
 Base.eltype(::Type{<:CompositeLimits{d,T}}) where {d,T} = T
 
 box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
-lower(l::CompositeLimits{L,T}) where {L,T} = T(lower(first(l.lims)))
-upper(l::CompositeLimits{L,T}) where {L,T} = T(upper(first(l.lims)))
+limits(l::CompositeLimits{d,T,L}, dim) where {d,T,L} = T.(limits(first(l.lims), dim-mapreduce(ndims, +, Base.rest(l.lims, 2); init=0)))
 nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
 function symmetrize(l::CompositeLimits, x)
     r = x
