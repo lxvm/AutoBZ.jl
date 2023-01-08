@@ -1,4 +1,4 @@
-export load_hamiltonian, load_position_operator, load_hamiltonian_velocities
+export load_wannier90_data
 
 """
     parse_hamiltonian(filename)
@@ -196,4 +196,117 @@ function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compac
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
     Ax, Ay, Az = load_position_operator(f_pos_op; period=period, compact=compact)
     BandEnergyBerryVelocity3D(H, Ax, Ay, Az, kind)
+end
+
+"""
+    parse_wout(filename; iprint=1)
+
+returns the lattice vectors `a` and reciprocal lattice vectors `b`
+"""
+parse_wout(filename; iprint=1) = open(filename) do file
+    iprint != 1 && throw(ArgumentError("Verbosity setting iprint not implemented"))
+
+    # header
+    while (l = strip(readline(file))) != "SYSTEM"
+        continue
+    end
+
+    # system
+    readline(file)
+    readline(file)
+    readline(file)
+    ## lattice vectors
+    a = Vector{SVector{3,Float64}}(undef, 3)
+    for i in 1:3
+        col = split(readline(file))
+        popfirst!(col)
+        a[i] = parse.(Float64, col)
+    end
+
+    readline(file)
+    readline(file)
+    readline(file)
+    readline(file)
+    ## reciprocal lattice vectors
+    b = Vector{SVector{3,Float64}}(undef, 3)
+    for i in 1:3
+        col = split(readline(file))
+        popfirst!(col)
+        b[i] = parse.(Float64, col)
+    end
+
+    # projections
+    # k-point grid
+    # main
+    # wannierise
+    # disentangle
+    # plotting
+    # k-mesh
+    # etc...
+
+    return a, b
+end
+
+parse_sym(filename) = open(filename) do file
+    nsymmetry = parse(Int, readline(file))
+    readline(file)
+    syms = Vector{AffineTransform{3,Float64}}(undef, nsymmetry)
+    S = Matrix{Float64}(undef, (3,4))
+    for i in 1:nsymmetry
+        for j in 1:4
+            col = split(readline(file))
+            S[:,j] .= parse.(Float64, col)
+        end
+        syms[i] = AffineTransform(S[:,1:3], S[:,4])
+        readline(file)
+    end
+    return nsymmetry, syms
+end
+
+"""
+    load_wannier90_data(seedname; velocity_kind=:none, read_pos_op=true, compact=:N)
+
+Reads Wannier90 output files with the given `seedname` to return the Hamiltonian
+(optionally with band velocities if `velocity_kind` is specified, and anomalous
+band velocities if `read_pos_op` is true) and the full Brillouin zone limits.
+The keyword `compact` is available if to compress the Fourier series if its
+Fourier coefficients are known to be Hermitian.
+"""
+function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N)
+    a, b = try
+        parse_wout(seedname * ".wout")
+    catch
+        @info "Couldn't find $(seedname).wout so using Cartesian unit lattice instead"
+        (SVector{3,Float64}[[1,0,0], [0,1,0], [0,0,1]], SVector{3,Float64}[[2π,0,0], [0,2π,0], [0,0,2π]])
+    end
+
+    periods = ntuple(i -> norm(b[i]), Val{3}())
+    HV = if velocity_kind == :none
+        load_hamiltonian(seedname * "_hr.dat"; period=periods, compact=compact)
+    else
+        try
+            read_pos_op || error()
+            @info "Using anomalous band velocities"
+            load_hamiltonian_velocities(seedname * "_hr.dat", seedname * "_r.dat"; period=periods, compact=compact, kind=velocity_kind)
+        catch
+            @info "Using band velocities"
+            load_hamiltonian_velocities(seedname * "_hr.dat"; period=periods, compact=compact, kind=velocity_kind)
+        end
+    end
+
+    BZ = try
+        read_sym || error()
+        @info "IBZ not implemented automatically -- construct one manually from FBZ"
+        error()
+        #=
+        nsymmetry, syms = parse_sym(seedname * ".sym")
+        @info "Using irreducible Brillouin zone"
+        IrreducibleBZ(a, b, syms)
+        =#
+    catch
+        @info "Using full Brillouin zone"
+        FullBZ(a, b)
+    end
+
+    return HV, BZ
 end
