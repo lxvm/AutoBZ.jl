@@ -69,25 +69,25 @@ index as the faster index than the frequency. For example
 ### Routines
 
 ```@docs
-AutoBZ.Applications.load_self_energy
-AutoBZ.Applications.parse_self_energy_scalar
-AutoBZ.Applications.parse_self_energy_diagonal
-AutoBZ.Applications.parse_self_energy_matrix
-AutoBZ.Applications.get_self_energy_format
+AutoBZ.load_self_energy
+AutoBZ.parse_self_energy_scalar
+AutoBZ.parse_self_energy_diagonal
+AutoBZ.parse_self_energy_matrix
+AutoBZ.get_self_energy_format
 ```
 
 ## Interface
 
 ```@docs
-AutoBZ.Applications.AbstractSelfEnergy
-AutoBZ.Applications.lb
-AutoBZ.Applications.ub
+AutoBZ.AbstractSelfEnergy
+AutoBZ.lb
+AutoBZ.ub
 ```
 
 ## Types 
 
 ```@docs
-AutoBZ.Applications.EtaSelfEnergy
-AutoBZ.Applications.ScalarSelfEnergy
-AutoBZ.Applications.MatrixSelfEnergy
+AutoBZ.EtaSelfEnergy
+AutoBZ.ScalarSelfEnergy
+AutoBZ.MatrixSelfEnergy
 ```

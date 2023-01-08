@@ -3,12 +3,12 @@
 ## Interface
 
 ```@docs
-IntegrationLimits
-limits
-box
-symmetries
-ndims
-nsyms
+AutoBZ.AutoBZCore.IntegrationLimits
+AutoBZ.AutoBZCore.limits
+AutoBZ.AutoBZCore.box
+AutoBZ.AutoBZCore.symmetries
+AutoBZ.AutoBZCore.ndims
+AutoBZ.AutoBZCore.nsyms
 ```
 
 Additionally, all `IntegrationLimits` must extend `Base.eltype` to return the
@@ -18,14 +18,14 @@ coordinates in the domain.
 ## Types
 
 ```@docs
-CubicLimits
-CompositeLimits
+AutoBZ.AutoBZCore.CubicLimits
+AutoBZ.AutoBZCore.CompositeLimits
 ```
 
 ## Routines
 
 ```@docs
-vol
-symmetrize
-AutoBZ.discretize_equispace
+AutoBZ.AutoBZCore.vol
+AutoBZ.AutoBZCore.symmetrize
+AutoBZ.AutoBZCore.discretize_equispace
 ```

@@ -65,10 +65,10 @@ The recipe to write it as a Fourier series has two-steps
 ## Interface
 
 ```@docs
-AutoBZ.Applications.AbstractFourierSeries
-AutoBZ.Applications.period
-AutoBZ.Applications.contract
-AutoBZ.Applications.value
+AutoBZ.AbstractFourierSeries
+AutoBZ.period
+AutoBZ.contract
+AutoBZ.value
 ```
 
 Additonally, concrete subtypes of `AbstractFourierSeries` must have an element
@@ -93,19 +93,19 @@ The concrete types listed below all implement the `AbstractFourierSeries`
 interface and should cover most use cases.
 
 ```@docs
-AutoBZ.Applications.FourierSeries
-AutoBZ.Applications.FourierSeriesDerivative
-AutoBZ.Applications.OffsetFourierSeries
-AutoBZ.Applications.ManyFourierSeries
-AutoBZ.Applications.ManyOffsetsFourierSeries
-AutoBZ.Applications.BandEnergyVelocity
-AutoBZ.Applications.BandEnergyBerryVelocity
+AutoBZ.FourierSeries
+AutoBZ.FourierSeriesDerivative
+AutoBZ.OffsetFourierSeries
+AutoBZ.ManyFourierSeries
+AutoBZ.ManyOffsetsFourierSeries
+AutoBZ.BandEnergyVelocity
+AutoBZ.BandEnergyBerryVelocity
 ```
 
 ## Methods
 
 ```@docs
-AutoBZ.Applications.contract(::AutoBZ.Applications.AbstractFourierSeries)
+AutoBZ.contract(::AutoBZ.AbstractFourierSeries)
 ```
 
 # Optimized 3D evaluators
@@ -116,21 +116,22 @@ evaluators are optimized to improve performance by reducing allocations.
 ## Interface
 
 ```@docs
-AutoBZ.Applications.AbstractFourierSeries3D
-AutoBZ.Applications.contract!
+AutoBZ.AbstractFourierSeries3D
+AutoBZ.contract!
+AutoBZ.shift!
 ```
 
 ## Types
 
 ```@docs
-AutoBZ.Applications.FourierSeries3D
-AutoBZ.Applications.BandEnergyVelocity3D
-AutoBZ.Applications.BandEnergyBerryVelocity3D
+AutoBZ.FourierSeries3D
+AutoBZ.BandEnergyVelocity3D
+AutoBZ.BandEnergyBerryVelocity3D
 ```
 
 ## Methods
 
 ```@docs
-AutoBZ.Applications.contract!(::AutoBZ.Applications.AbstractFourierSeries3D)
-AutoBZ.Applications.fourier_kernel!
+AutoBZ.contract!(::AutoBZ.AbstractFourierSeries3D)
+AutoBZ.fourier_kernel!
 ```

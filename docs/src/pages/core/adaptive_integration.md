@@ -3,11 +3,10 @@
 ## Routines
 
 ```@docs
-tree_integration
-iterated_integration
-AutoBZ.alloc_segbufs
-AutoBZ.thunk
-AutoBZ.ThunkIntegrand
+AutoBZ.AutoBZCore.iterated_integration
+AutoBZ.AutoBZCore.alloc_segbufs
+AutoBZ.AutoBZCore.thunk
+AutoBZ.AutoBZCore.ThunkIntegrand
 ```
 
 ## Customization
@@ -15,8 +14,8 @@ AutoBZ.ThunkIntegrand
 The methods below can be extended/customized to integrand types
 
 ```@docs
-iterated_tol_update
-iterated_pre_eval
-iterated_segs
-AutoBZ.infer_f
+AutoBZ.AutoBZCore.iterated_tol_update
+AutoBZ.AutoBZCore.iterated_pre_eval
+AutoBZ.AutoBZCore.iterated_segs
+AutoBZ.AutoBZCore.infer_f
 ```

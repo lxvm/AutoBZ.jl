@@ -38,7 +38,6 @@ exponentials. Finally we fill the array of coefficients by taking each
 using OffsetArrays
 
 using AutoBZ
-using AutoBZ.Applications
 
 n = 3 # arbitrary positive integer representing the number of k-space dimensions
 a = 1.0 # lattice spacing
@@ -61,7 +60,7 @@ integral
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
 rate. We implement our own user-defined integrand with the
-[`AutoBZ.Applications.WannierIntegrand`](@ref) type:
+[`AutoBZ.WannierIntegrand`](@ref) type:
 ```julia
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
@@ -73,12 +72,11 @@ D = WannierIntegrand(dos_integrand, H, (ω, η, μ)) # user-defined integrand
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
 ```julia
-c = CubicLimits(period(H)) # Full BZ limits
-t = TetrahedralLimits(c) # Irreducible BZ limits
+IBZ = TetrahedralLimits(period(H)) # Irreducible BZ for cubic symmetries is tetrahedron
 
 atol = 1e-3 # absolute error tolerance requests the result to within ±atol
 
-I, E = iterated_integration(D, t; atol=atol)
+I, E = iterated_integration(D, IBZ; atol=atol)
 ```
 The routine returns the estimate of the integral `I` and an error estimate `E`.
 
@@ -147,7 +145,6 @@ using StaticArrays
 using OffsetArrays
 
 using AutoBZ
-using AutoBZ.Applications
 
 a = 1.0 # length of Bravais lattice vectors
 t = 1.0 # hopping amplitude
@@ -158,7 +155,7 @@ H = FourierSeries(C, 2*pi/a)
 ```
 The DOS integrand can be formulated as before, except it must also compute the
 trace since this Hamiltonian is matrix-valued. Another option would be to use
-the pre-defined [`AutoBZ.Applications.DOSIntegrand`](@ref).
+the pre-defined [`AutoBZ.DOSIntegrand`](@ref).
 
 ## Graphene example with `ManyOffsetsFourierSeries`
 
@@ -180,7 +177,6 @@ and we can construct the Fourier series in `AutoBZ` as
 using OffsetArrays
 
 using AutoBZ
-using AutoBZ.Applications
 
 C = OffsetArray(zeros(3, 3), -1:1, -1:1)
 C[1,0] = C[-1,0] = C[0,1] = C[0,-1] = C[1,-1] = C[-1,1] = 1
