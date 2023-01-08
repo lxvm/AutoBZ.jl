@@ -16,16 +16,16 @@ makedocs(
     modules=[AutoBZ, AutoBZ.Applications],
     pages = [
         "Home" => "index.md",
-        "Manual" => [
-            "pages/man/adaptive_integration.md",
-            "pages/man/equispace_integration.md",
-            "pages/man/integration_limits.md",
+        "Core" => [
+            "pages/core/adaptive_integration.md",
+            "pages/core/equispace_integration.md",
+            "pages/core/integration_limits.md",
             ],
-        "Applications" => [
-            "pages/app/fourier.md",
-            "pages/app/integrands.md",
-            "pages/app/interfaces.md",
-            "pages/app/self_energy.md",
+        "Manual" => [
+            "pages/man/fourier.md",
+            "pages/man/integrands.md",
+            "pages/man/interfaces.md",
+            "pages/man/self_energy.md",
         ],
         "Jobs" => "pages/jobs.md",
         "AdaptChebInterp" => "pages/adaptinterp.md",
