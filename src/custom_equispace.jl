@@ -39,7 +39,7 @@ Using anonymous function expressions is impure so can't use them in @generated
 https://docs.julialang.org/en/v1/devdocs/cartesian/#Anonymous-function-expressions-as-macro-arguments
 https://docs.julialang.org/en/v1/manual/metaprogramming/#Generated-functions
 =#
-function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3}, npt)
+function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::IntegrationLimits{3}, npt)
     @assert period(f_3) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     flag, wsym, nsym = discretize_equispace_(l, npt)
     n = 0
@@ -56,7 +56,7 @@ function pre_eval_contract(f_3::AbstractFourierSeries{3}, l::TetrahedralLimits{3
     end
     return pre
 end
-function pre_eval_contract(f::AbstractFourierSeries3D, l::TetrahedralLimits{3}, npt)
+function pre_eval_contract(f::AbstractFourierSeries3D, l::IntegrationLimits{3}, npt)
     @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     flag, wsym, nsym = discretize_equispace_(l, npt)
     n = 0
