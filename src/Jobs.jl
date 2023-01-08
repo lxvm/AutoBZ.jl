@@ -8,7 +8,6 @@ using StaticArrays
 using OffsetArrays
 
 using ..AutoBZ
-using ..AutoBZ.Applications
 
 export read_h5_to_nt, write_nt_to_h5
 export run_wannier_adaptive, run_wannier_auto_equispace, run_wannier_equispace, run_wannier
@@ -571,9 +570,9 @@ function run_kinetic(HV, Σ::AbstractSelfEnergy, β, μ, n, Ωs, BZ_lims, rtol, 
 end
 
 # enables kpt parallelization by default for Wannier, DOS, transport, and kinetic integrals
-function AutoBZ.equispace_int_eval(f::Union{WannierIntegrand,DOSIntegrand,TransportIntegrand}, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
+function AutoBZ.AutoBZCore.equispace_int_eval(f::Union{WannierIntegrand,DOSIntegrand,TransportIntegrand}, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
     n = length(pre)
-    acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
+    acc = pre[n][2]*AutoBZ.AutoBZCore.evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
     runthreads = min(nthreads, div(n-1, min_per_thread)) # choose the actual number of threads
     d, r = divrem(n-1, runthreads)
     partial_sums = zeros(typeof(acc), runthreads) # allocations :(
@@ -584,7 +583,7 @@ function AutoBZ.equispace_int_eval(f::Union{WannierIntegrand,DOSIntegrand,Transp
         # partial_sums[i] = sum(x -> x[2]*evaluate_integrand(f, x[1]), view(pre, (offset+1):(offset+jmax)); init=zero(acc))
         @inbounds for j in 1:jmax
             x, w = pre[offset + j]
-            partial_sums[i] += w*evaluate_integrand(f, x)
+            partial_sums[i] += w*AutoBZ.AutoBZCore.evaluate_integrand(f, x)
         end
     end
     # dvol*sum(partial_sums; init=acc)

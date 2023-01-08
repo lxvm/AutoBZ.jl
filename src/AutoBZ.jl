@@ -1,31 +1,15 @@
 """
     AutoBZ
 
-A small package implementing adaptive iterated integration and equispace
-integration for Brillouin-zone integration of sharply-peaked functions.
-"""
-module AutoBZ
-
-using LinearAlgebra
-using StaticArrays
-using HCubature
-using QuadGK
-
-include("IntegrationLimits.jl")
-include("adaptive_integration.jl")
-include("equispace_integration.jl")
-
-include("AdaptChebInterp.jl")
-include("EquiBaryInterp.jl")
-
-"""
-    Applications
-
-A small module depending on AutoBZ that calculates density of states and optical
+A package that calculates integrals for density of states and optical
 conductivity, and also provides tools for custom integrands evaluated by Wannier
 interpolation.
 """
-module Applications
+module AutoBZ
+
+include("AutoBZCore.jl")
+include("AdaptChebInterp.jl")
+include("EquiBaryInterp.jl")
 
 using LinearAlgebra
 
@@ -36,10 +20,10 @@ using Combinatorics: permutations
 
 using ..EquiBaryInterp: LocalEquiBaryInterp
 
-using  ..AutoBZ: IntegrationLimits, CubicLimits, 
+using  .AutoBZCore: IntegrationLimits, CubicLimits, CompositeLimits,
     equispace_integration, automatic_equispace_integration, discretize_equispace_,
     iterated_integration, alloc_segbufs
-import ..AutoBZ: box, lower, upper, nsyms, symmetries,
+import .AutoBZCore: box, limits, nsyms, symmetries,
     equispace_pre_eval, equispace_npt_update, evaluate_integrand,
     iterated_pre_eval, infer_f
 
@@ -56,9 +40,6 @@ include("custom_adaptive.jl")
 include("evaluators.jl")
 include("wannier90io.jl")
 include("self_energies_io.jl")
-
-
-end
 
 include("Jobs.jl")
 

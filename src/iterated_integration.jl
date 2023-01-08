@@ -1,14 +1,4 @@
-export tree_integration, iterated_integration,
-    iterated_tol_update, iterated_pre_eval, iterated_segs
-
-"""
-    tree_integration(f, a, b)
-    tree_integration(f, ::CubicLimits)
-
-Calls `HCubature` to perform multi-dimensional integration of `f` over a cube.
-"""
-tree_integration(f, a, b; kwargs...) = hcubature(f, a, b; kwargs...)
-tree_integration(f, c::CubicLimits; kwargs...) = tree_integration(f, c.l, c.u; kwargs...)
+export iterated_integration, iterated_tol_update, iterated_pre_eval, iterated_segs
 
 """
     iterated_tol_update(f, l, atol, rtol)
@@ -70,10 +60,14 @@ the segments for adaptive integration. By default, returns `initdivs` equally
 spaced panels on `(lower(l), upper(l))`. If `f` is localized, specializing this
 function can also help avoid errors when `QuadGK` fails to adapt.
 """
-iterated_segs(f, l, d, initdivs) = Tuple(range(lower(l), upper(l), length=initdivs+1))
+function iterated_segs(f, l, d, ::Val{initdivs}) where initdivs
+    lb, ub = limits(l, d)
+    r = range(lb, ub, length=initdivs+1)
+    ntuple(i -> r[i], Val{initdivs+1}())
+end
 
 """
-    iterated_integration(f, ::IntegrationLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> i == 1 ? 5 : 1, Val{d}()), segbufs=nothing)
+    iterated_integration(f, ::IntegrationLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing)
     iterated_integration(f, a, b; kwargs...)
 
 Calls `QuadGK` to perform iterated 1D integration of `f` over a domain
@@ -108,7 +102,7 @@ argument. This buffer can be used across multiple calls to avoid repeated
 allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> 2(d+1-i), Val{d}()), segbufs=nothing) where d
+function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
     Tfx, Tnfx = infer_f(f, SVector{ndims(l),eltype(l)})
     segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
     atol_ = something(atol, zero(Tnfx))/nsyms(l)
