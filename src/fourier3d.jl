@@ -3,7 +3,7 @@ This file contains specialized in-place Fourier series evaluators that define
 the method contract!, instead of contract, and are limited to 3D series.
 =#
 
-export AbstractFourierSeries3D, contract!,
+export AbstractFourierSeries3D, contract!, shift!,
     FourierSeries3D, BandEnergyVelocity3D, BandEnergyBerryVelocity3D
 
 """
@@ -155,6 +155,18 @@ end
 (f::FourierSeries3D{T,a1})(x::Number) where {T,a1} = fourier_kernel(f.coeffs_yz, x, inv(f.period[1]), Val{a1}())
 
 """
+    shift!(f::FourierSeries3D, λ::Number)
+
+Modifies and returns `f` such that it returns `f - λ*I`.
+"""
+function shift!(f::FourierSeries3D{T}, λ_::Number) where T
+    λ = convert(eltype(T), λ_)
+    i = div.(size(f.coeffs), 2) .+ 1
+    f.coeffs[i...] -= λ*I
+    return f
+end
+
+"""
     BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0), kind=:full])
     BandEnergyVelocity3D(H::FourierSeries3D, [kind=:full])
 
@@ -185,11 +197,11 @@ function BandEnergyVelocity3D(H::FourierSeries3D{T,0,0,0}, kind=:full) where T
 end
 
 function band_velocity_types(kind, T)
-    if kind == :full
+    if kind == :orbital
         return T, T
-    elseif kind == :inter
+    elseif kind == :band || kind == :interband
         return diagonal_type(real(T)), T
-    elseif kind == :intra
+    elseif kind == :intraband
         return diagonal_type(real(T)), diagonal_type(T)
     else
         error("band velocity kind not recognized")
@@ -288,4 +300,9 @@ function contract!(b::BandEnergyBerryVelocity3D{kind}, x::Number, dim) where kin
         error("dim=$dim is out of bounds")
     end
     return b
+end
+
+function shift!(HV::Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D}, λ)
+    shift!(HV.H, λ)
+    return HV
 end
