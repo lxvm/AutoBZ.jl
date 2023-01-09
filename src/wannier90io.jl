@@ -188,11 +188,11 @@ part (i.e. the off-diagonal/diagonal part of the band velocities, respectively).
 
 Warning: a `kind` of `:inter` or `:intra` is incompatible with a non-scalar Σ
 """
-function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:full)
+function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:orbital)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
     BandEnergyVelocity3D(H, kind)
 end
-function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, kind=:full)
+function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, kind=:orbital)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
     Ax, Ay, Az = load_position_operator(f_pos_op; period=period, compact=compact)
     BandEnergyBerryVelocity3D(H, Ax, Ay, Az, kind)
