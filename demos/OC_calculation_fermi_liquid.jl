@@ -17,7 +17,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 # Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
 η = 0.5 # eV
 
-shift!(H, μ) # shift the Fermi energy to zero
+shift!(HV, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # define constants

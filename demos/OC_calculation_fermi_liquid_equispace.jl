@@ -18,7 +18,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 η = 0.005 # eV
 n = 0 # zeroth kinetic coefficient == OC
 
-shift!(H, μ) # shift the Fermi energy to zero
+shift!(HV, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # define constants

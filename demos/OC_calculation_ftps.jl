@@ -21,7 +21,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 # T = 0.0 # K # this will break my window functions
 T = 50.0 # K # guess of the effective temperature
 
-shift!(H, μ) # shift the Fermi energy to zero
+shift!(HV, μ) # shift the Fermi energy to zero
 
 # define constants
 kB = 8.617333262e-5 # eV/K
