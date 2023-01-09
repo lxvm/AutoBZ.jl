@@ -22,7 +22,6 @@ IBZ = IrreducibleBZ(FBZ_orbit.a, FBZ_orbit.b, ibz_limits)
 μ = 11.366595 # eV
 β = 200.0 # 1/eV
 
-# initialize self energy
 Σ = EtaSelfEnergy(η)
 shift!(HV_orbit, μ)
 shift!(HV_inter, μ)

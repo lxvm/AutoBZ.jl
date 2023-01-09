@@ -16,9 +16,11 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 μ = 12.3958 # eV
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 
-# initialize integrand and limits
 Σ = EtaSelfEnergy(η)
-σ = KineticIntegrand(shift!(HV, μ), Σ, β, 0, Ω)
+shift!(HV, μ)
+
+# initialize integrand and limits
+σ = KineticIntegrand(HV, Σ, β, 0, Ω)
 f = fermi_window_limits(Ω, β)
 
 # set error tolerances

@@ -21,17 +21,17 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 # T = 0.0 # K # this will break my window functions
 T = 50.0 # K # guess of the effective temperature
 
+shift!(H, μ) # shift the Fermi energy to zero
+
 # define constants
 kB = 8.617333262e-5 # eV/K
-n = 0 # zeroth kinetic coefficient == OC
-
-# derived parameters
 β = inv(kB*T)
+n = 0 # zeroth kinetic coefficient == OC
 
 # set error tolerances
 atol = 1e-1
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.run_kinetic(shift!(HV, μ), Σ, β, n, Ωs, IBZ, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic(HV, Σ, β, n, Ωs, IBZ, rtol, atol)
 AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_ftps.h5")

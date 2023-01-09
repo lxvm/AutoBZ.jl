@@ -19,7 +19,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 η = 0.1 # eV
 μ = 12.3958 # eV
 
-# initialize integrand and limits
+shift!(H, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # set error tolerances
@@ -31,7 +31,7 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-D = DOSEvaluator(shift!(H, μ), Σ, IBZ; atol=atol, rtol=rtol)
+D = DOSEvaluator(H, Σ, IBZ; atol=atol, rtol=rtol)
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
 p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)

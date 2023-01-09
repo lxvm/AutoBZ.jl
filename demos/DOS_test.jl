@@ -15,10 +15,10 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 η = 0.1 # eV
 μ = 12.3958 # eV
 
-# initialize integrand and limits
+shift!(H, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
-D = DOSIntegrand(shift!(H, μ), ω, Σ)
+D = DOSIntegrand(H, ω, Σ)
 
 # set error tolerances
 atol = 1e-3

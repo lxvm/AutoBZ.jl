@@ -18,6 +18,9 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 η = 0.5 # eV
 n = 0 # zeroth kinetic coefficient == OC
 
+shift!(H, μ) # shift the Fermi energy to zero
+Σ = EtaSelfEnergy(η)
+
 # define constants
 kB = 8.617333262e-5 # eV/K
 
@@ -26,7 +29,6 @@ Z  = 0.5
 c = kB*pi/(Z*T₀)
 
 # derived parameters
-Σ = EtaSelfEnergy(η)
 T = sqrt(η/c)
 β = inv(kB*T)
 
@@ -35,5 +37,5 @@ rtol = 1e-3
 atol = 1e-2
 
 # run calculation
-results = AutoBZ.Jobs.run_kinetic_auto_equispace(shift!(HV, μ), Σ, β, n, Ωs, IBZ, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_auto_equispace(HV, Σ, β, n, Ωs, IBZ, rtol, atol)
 AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_fermi_auto_equispace_rtol$(-floor(Int, log10(rtol))).h5")

@@ -15,7 +15,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 ωs = range(-1, 1, length=10)
 η = 0.01 # eV
 
-# derived parameters
+shift!(H, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # set error tolerances
@@ -23,5 +23,5 @@ atol = 1e-3
 rtol = 1e-3
 
 # run script
-results = AutoBZ.Jobs.run_dos(shift!(H, μ), Σ, ωs, IBZ, rtol, atol)
+results = AutoBZ.Jobs.run_dos(H, Σ, ωs, IBZ, rtol, atol)
 # AutoBZ.Jobs.write_nt_to_h5(results, "DOS_calculation.h5")
