@@ -13,7 +13,7 @@ Documenter.HTML(
 
 makedocs(
     sitename="AutoBZ.jl",
-    modules=[AutoBZ, AutoBZ.Applications],
+    modules=[AutoBZ],
     pages = [
         "Home" => "index.md",
         "Core" => [

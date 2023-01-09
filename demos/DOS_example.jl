@@ -3,7 +3,6 @@ using OffsetArrays
 using Plots
 
 using AutoBZ
-using AutoBZ.Applications
 
 ns = 2:3
 plt = plot(; xguide="ω", yguide="DOS")
@@ -21,11 +20,9 @@ for (j, n) in enumerate(ns)
 
     ωs = range(-sqrt(2), sqrt(2), length=nω)
     ηs = (0.2, 0.1, 0.05)
-    μ = 0.0
     
-    # construct IBZ integration limits
-    c = CubicLimits(period(H))
-    t = TetrahedralLimits(c)
+    # construct IBZ integration limits for the cubic symmetries
+    IBZ = AutoBZ.TetrahedralLimits(period(H))
     
     # set error tolerances
     atol = 1e-4
@@ -33,8 +30,8 @@ for (j, n) in enumerate(ns)
     
     for (k,η) in enumerate(ηs)
         Threads.@threads for (i, ω) in collect(enumerate(ωs))
-            D = DOSIntegrand(H, ω, EtaSelfEnergy(η), μ)
-            ints[i], = iterated_integration(D, t; atol=atol, rtol=rtol)
+            D = DOSIntegrand(H, ω, EtaSelfEnergy(η))
+            ints[i], = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
         end
         plot!(plt, ωs, ints; label=k == length(ηs) ? "n=$n" : "", color=j, alpha=k/length(ηs))#(1/(1+η^3)))
     end

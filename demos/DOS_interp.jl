@@ -5,13 +5,13 @@ In this script we interpolate DOS over a frequency interval using the interface 
 using Plots
 
 using AutoBZ
-using AutoBZ.Applications
 using AutoBZ.AdaptChebInterp
 
-# define the periods of the axes of the Brillouin zone for example material
-b = round(2π/3.858560, digits=6)
-# Load the Wannier Hamiltonian as a Fourier series
-H = load_hamiltonian("svo_hr.dat"; period=b)
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+H, FBZ = load_wannier90_data("svo")
+
+ibz_limits = AutoBZ.TetrahedralLimits(period(H)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 
 # Define problem parameters
 ω_lo = -2.0 # eV
@@ -21,8 +21,6 @@ H = load_hamiltonian("svo_hr.dat"; period=b)
 
 # initialize integrand and limits
 Σ = EtaSelfEnergy(η)
-c = CubicLimits(period(H))
-t = TetrahedralLimits(c)
 
 # set error tolerances
 atol = 1e-3
@@ -33,7 +31,7 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-D = DOSEvaluator(H, Σ, μ, t; atol=atol, rtol=rtol)
+D = DOSEvaluator(shift!(H, μ), Σ, IBZ; atol=atol, rtol=rtol)
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
 p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)

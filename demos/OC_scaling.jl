@@ -5,10 +5,11 @@ eta
 
 using AutoBZ
 
-# define the periods of the axes of the Brillouin zone for example material
-period = round(2π/3.858560, digits=6)
-# Load the Wannier Hamiltonian as a Fourier series
-HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period)
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)
+
+ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 
 # Define problem parameters
 Ω = 0.0 # eV
@@ -17,16 +18,14 @@ HV = AutoBZ.Applications.load_hamiltonian_velocities("svo_hr.dat"; period=period
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 
 # initialize integrand and limits
-Σ = AutoBZ.Applications.EtaSelfEnergy(η)
-σ = AutoBZ.Applications.KineticIntegrand(HV, Σ, β, μ, 0, Ω)
-f = AutoBZ.Applications.fermi_window_limits(Ω, β)
-c = AutoBZ.CubicLimits(H.period)
-t = AutoBZ.Applications.TetrahedralLimits(c)
+Σ = EtaSelfEnergy(η)
+σ = KineticIntegrand(shift!(HV, μ), Σ, β, 0, Ω)
+f = fermi_window_limits(Ω, β)
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
-int, err = AutoBZ.iterated_integration(σ, AutoBZ.CompositeLimits(t, f); atol=atol, rtol=rtol)
-Eσ = AutoBZ.Applications.AutoEquispaceKineticIntegrand(σ, t, atol, rtol)
+int, err = AutoBZ.iterated_integration(σ, AutoBZ.CompositeLimits(IBZ, f); atol=atol, rtol=rtol)
+Eσ = AutoEquispaceKineticIntegrand(σ, IBZ, atol, rtol)
 inte, erre = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)

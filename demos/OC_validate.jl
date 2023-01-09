@@ -2,7 +2,6 @@ using Plots
 using ProgressBars
 
 using AutoBZ
-using AutoBZ.Applications
 
 function load_dataset(filename)
     data = readlines(filename)
@@ -14,12 +13,12 @@ function load_dataset(filename)
     return (Omega=Omega, sigma=sigma)
 end
 
-function generate_dataset_adaptive(; atol=1e-3, rtol=1e-5)
-    b = round(2π/3.858560, digits=6) # 1/angstroms
-    HVnoA = Applications.load_hamiltonian_velocities("svo_hr.dat"; period=b)
-    HVwA = Applications.load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=b)
+function generate_dataset_adaptive(seedname="svo", mu=12.3958; atol=1e-3, rtol=1e-5)
+    HVnoA, = load_wannier90_data(seedname; velocity_kind=:orbital, read_pos_op=false)
+    HVwA,  = load_wannier90_data(seedname; velocity_kind=:orbital)
 
-    mu = 12.3958 # eV
+    shift!(HVnoA, mu)
+    shift!(HVwA,  mu)
     
     segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, 4)
 
@@ -28,19 +27,18 @@ function generate_dataset_adaptive(; atol=1e-3, rtol=1e-5)
         (0.01, 100.0, "optic_c_eta.01_beta100.dat"),
         (0.002, 200.0, "optic_c_eta.002_beta200.dat"),
     ]
-        Sigma = Applications.EtaSelfEnergy(eta)
+        Sigma = AutoBZ.EtaSelfEnergy(eta)
         data = load_dataset(filename)
         sigma = Vector{Float64}(undef, length(data.Omega))
 
         for (HV, label) in [(HVnoA, ""), (HVwA, "_berry")]
-            c = CubicLimits(period(HV))
-            t = TetrahedralLimits(c)
+            IBZ = AutoBZ.TetrahedralLimits(period(HV)) # cubic symmetries
 
             for (i, Om) in ProgressBar(enumerate(data.Omega))
-                σ = KineticIntegrand(HV, Sigma, beta, mu, 0, Om)
+                σ = KineticIntegrand(HV, Sigma, beta, 0, Om)
                 f = fermi_window_limits(Om, beta)
-                l = CompositeLimits(t, f)
-                int, err = iterated_integration(σ, l; atol=max(atol, rtol*abs(data.sigma[1])), segbufs=segbufs)
+                l = AutoBZ.CompositeLimits(IBZ, f)
+                int, err = AutoBZ.iterated_integration(σ, l; atol=max(atol, rtol*abs(data.sigma[1])), segbufs=segbufs)
                 sigma[i] = 616.57354879193*real(int[1,1])
             end
 
@@ -53,37 +51,32 @@ function generate_dataset_adaptive(; atol=1e-3, rtol=1e-5)
     end
 end
 
-function generate_dataset_equispace(; atol=1e-5, rtol=0.0)
-    mu = 12.3958 # eV
-    b = round(2π/3.858560, digits=6) # 1/angstroms
-    npt = 40
+function generate_dataset_equispace(npt=40, seedname="svo", mu=12.3958; atol=1e-5, rtol=0.0)
+    HVnoA, = load_wannier90_data(seedname; velocity_kind=:orbital, read_pos_op=false)
+    shift!(HVnoA, mu)
+    IBZ = AutoBZ.TetrahedralLimits(period(HVnoA))
+    prenoA = pre_eval_contract(HVnoA, IBZ, npt)
     
-    HVnoA = Applications.load_hamiltonian_velocities("svo_hr.dat"; period=b)
-    cnoA = CubicLimits(period(HVnoA))
-    tnoA = TetrahedralLimits(cnoA)
-    prenoA = pre_eval_contract(HVnoA, tnoA, npt)
-    
-    HVwA = Applications.load_hamiltonian_velocities("svo_hr.dat", "svo_r.dat"; period=b)
-    cwA = CubicLimits(period(HVwA))
-    twA = TetrahedralLimits(cwA)
-    prewA = pre_eval_contract(HVwA, twA, npt)
+    HVwA, = load_wannier90_data(seedname; velocity_kind=:orbital)
+    shift!(HVwA,  mu)
+    prewA = pre_eval_contract(HVwA, IBZ, npt)
     
     for (eta, beta, filename) in [
         (0.1, 1.0, "optic_c_eta.1_beta1_new.dat"),
         (0.01, 100.0, "optic_c_eta.01_beta100.dat"),
         (0.002, 200.0, "optic_c_eta.002_beta200.dat"),
     ]
-        Sigma = Applications.EtaSelfEnergy(eta)
+        Sigma = AutoBZ.EtaSelfEnergy(eta)
         data = load_dataset(filename)
         sigma = Vector{Float64}(undef, length(data.Omega))
 
         for (HV, pre, label) in [(HVnoA, prenoA, ""), (HVwA, prewA, "_berry")]
 
             for (i, Om) in ProgressBar(enumerate(data.Omega))
-                σ = KineticIntegrand(HV, Sigma, beta, mu, 0, Om)
+                σ = KineticIntegrand(HV, Sigma, beta, 0, Om)
                 f = fermi_window_limits(Om, beta)
-                Eσ = EquispaceKineticIntegrand(σ, t, npt, pre)
-                int, err = iterated_integration(Eσ, f; atol=atol, rtol=rtol)
+                Eσ = EquispaceKineticIntegrand(σ, IBZ, npt, pre)
+                int, err = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)
                 sigma[i] = 616.57354879193*real(int[1,1])
             end
 

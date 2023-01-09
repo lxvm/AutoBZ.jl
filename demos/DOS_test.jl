@@ -3,12 +3,12 @@ In this script we compute DOS at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
-using AutoBZ.Applications
 
-# define the periods of the axes of the Brillouin zone for example material
-b = round(2π/3.858560, digits=6)
-# Load the Wannier Hamiltonian as a Fourier series
-H = load_hamiltonian("svo_hr.dat"; period=b)
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+H, FBZ = load_wannier90_data("svo")
+
+ibz_limits = AutoBZ.TetrahedralLimits(period(H)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 
 # Define problem parameters
 ω = 0.0 # eV
@@ -17,13 +17,12 @@ H = load_hamiltonian("svo_hr.dat"; period=b)
 
 # initialize integrand and limits
 Σ = EtaSelfEnergy(η)
-D = DOSIntegrand(H, ω, Σ, μ)
-c = CubicLimits(period(H))
-t = TetrahedralLimits(c)
+
+D = DOSIntegrand(shift!(H, μ), ω, Σ)
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
-int, err = iterated_integration(D, t; atol=atol, rtol=rtol)
-inte, erre, other = automatic_equispace_integration(D, t; atol=atol, rtol=rtol)
+int, err = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
+inte, erre, other = AutoBZ.automatic_equispace_integration(D, IBZ; atol=atol, rtol=rtol)

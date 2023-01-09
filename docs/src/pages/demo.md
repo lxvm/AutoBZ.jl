@@ -65,9 +65,8 @@ rate. We implement our own user-defined integrand with the
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-μ = 0.0 # chemical potential
-dos_integrand(H_k, ω, η, μ) = -imag(inv(ħ*ω + μ - H_k + im*η))/pi # integrand evaluator
-D = WannierIntegrand(dos_integrand, H, (ω, η, μ)) # user-defined integrand
+dos_integrand(H_k, ω, η) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
+D = WannierIntegrand(dos_integrand, H, (ω, η)) # user-defined integrand
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
@@ -189,8 +188,8 @@ g(\bm{q}) = \int_{\text{BZ}} d\bm{k} \frac{\lambda(\xi(\bm{k})) - \lambda(\xi(\b
 where ``\lambda(\omega) = \partial_T f(\omega)`` is the temperature derivative
 of the Fermi distribution. Since the integrand requires evaluation of the
 Hamiltonian at various ``k``-points simultaneously, we can express this with a
-[`AutoBZ.Applications.ManyOffsetsFourierSeries`](@ref). Moreover,
-`AutoBZ.Applications` has functions to evaluate Fermi functions and their
+[`AutoBZ.ManyOffsetsFourierSeries`](@ref). Moreover,
+`AutoBZ` has functions to evaluate Fermi functions and their
 derivatives. Putting these pieces together gives the following integrand definition
 ```julia
 T = 100.0 # K
@@ -199,12 +198,12 @@ q = rand(SVector{2,Float64}) # arbitrary q point to integrate
 f = ManyOffsetsFourierSeries(ξ, q) # makes a new Fourier series from ξ offset by q
 
 # define the function to integrate and wrap it in an integrand type
-lambda(x, T, kB) = -AutoBZ.Applications.fermi′(inv(kB*T), x)/(kB*T^2)
+lambda(x, T, kB) = -x*fermi′(inv(kB*T)*x)/(kB*T^2)
 function evaluate_integrand(f, T, kB)
     ξ_k, ξ_q = f
     if ξ_k == ξ_q
         # when the integrand is ill defined, return its limiting value ∂λ/∂ξ
-        return lambda(ξ_k, T, kB)*(2*fermi′(ξ_k, inv(kB*T))/fermi(ξ_k, inv(kB*T)) - inv(ξ_k) - inv(kB*T))
+        return lambda(ξ_k, T, kB)*(2*inv(kB*T)*fermi′(ξ_k*inv(kB*T))/fermi(ξ_k, inv(kB*T)) - inv(ξ_k) - inv(kB*T))
     else
         return (lambda(ξ_k, T, kB) - lambda(ξ_q, T, kB))/(ξ_k-ξ_q)
     end

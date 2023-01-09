@@ -267,10 +267,10 @@ end
     load_wannier90_data(seedname; velocity_kind=:none, read_pos_op=true, compact=:N)
 
 Reads Wannier90 output files with the given `seedname` to return the Hamiltonian
-(optionally with band velocities if `velocity_kind` is specified, and anomalous
-band velocities if `read_pos_op` is true) and the full Brillouin zone limits.
-The keyword `compact` is available if to compress the Fourier series if its
-Fourier coefficients are known to be Hermitian.
+(optionally with band velocities if `velocity_kind` is specified, and orbital
+velocities if `read_pos_op` is true) and the full Brillouin zone limits. The
+keyword `compact` is available if to compress the Fourier series if its Fourier
+coefficients are known to be Hermitian.
 """
 function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N)
     a, b = try
@@ -286,7 +286,7 @@ function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true,
     else
         try
             read_pos_op || error()
-            @info "Using anomalous band velocities"
+            @info "Using orbital velocities"
             load_hamiltonian_velocities(seedname * "_hr.dat", seedname * "_r.dat"; period=periods, compact=compact, kind=velocity_kind)
         catch
             @info "Using band velocities"

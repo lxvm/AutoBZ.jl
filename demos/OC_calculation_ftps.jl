@@ -4,15 +4,13 @@ data that we interpolate with a high-order Chebyshev regression
 =#
 
 using AutoBZ
-using AutoBZ.Applications
 
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)
 
-# define the periods of the axes of the Brillouin zone for example material
-b = round(2π/3.858560, digits=6)
-# Load the Wannier Hamiltonian as a Fourier series
-HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
-# Load the (IBZ) limits of integration for the Brillouin zone
-BZ = TetrahedralLimits(CubicLimits(period(HV)))
+ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
+
 # load the self energy data
 Σ = load_self_energy("svo_self_energy_scalar.txt")
 
@@ -35,5 +33,5 @@ atol = 1e-1
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.run_kinetic(HV, Σ, β, μ, n, Ωs, BZ, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic(shift!(HV, μ), Σ, β, n, Ωs, IBZ, rtol, atol)
 AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_ftps.h5")

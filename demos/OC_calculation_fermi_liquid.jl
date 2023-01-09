@@ -4,18 +4,17 @@ is inferred from a Fermi liquid scaling, i.e. η = c*T^2
 =#
 
 using AutoBZ
-using AutoBZ.Applications
 
-# define the periods of the axes of the Brillouin zone for example material
-b = round(2π/3.858560, digits=6)
-# Load the Wannier Hamiltonian as a Fourier series
-HV = load_hamiltonian_velocities("svo_hr.dat"; period=b)
-# Load the (IBZ) limits of integration for the Brillouin zone
-BZ = TetrahedralLimits(CubicLimits(period(HV)))
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)
+
+ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 
 # define problem parameters
 μ = 12.3958 # eV
-Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
+Ωs = 0.0
+# Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
 η = 0.5 # eV
 n = 0 # zeroth kinetic coefficient == OC
 
@@ -36,5 +35,5 @@ atol = 1e-3
 rtol = 0.0
 
 # run script
-results = AutoBZ.Jobs.run_kinetic_adaptive(HV, Σ, β, μ, n, Ωs, BZ, rtol, atol)
+results = AutoBZ.Jobs.run_kinetic_adaptive(shift!(HV, μ), Σ, β, n, Ωs, IBZ, rtol, atol)
 AutoBZ.Jobs.write_nt_to_h5(results, "OC_results_fermi_liquid.h5")

@@ -12,10 +12,10 @@ an electronic system for frequency ``\omega`` and reciprocal space vector
 ``\bm{k}`` with chemical potential ``\mu``, Hermitian Hamiltonian matrix
 ``H(\bm{k})``, and self-energy matrix ``\Sigma(\omega)``, which is given by
 ```math
-G(\omega) = \int_{\text{BZ}} d\bm{k}\ \operatorname{Tr} \left[ (\hbar\omega + \mu - H(\bm{k}) - \Sigma(\omega))^{-1} \right]
+G(\omega) = \int_{\text{BZ}} d\bm{k}\ \operatorname{Tr} \left[ (\hbar\omega - H(\bm{k}) - \Sigma(\omega))^{-1} \right]
 ```
-is localized about the manifold defined by ``\det(\omega + \mu - H(\bm{k}))=0`` (i.e.
-the Fermi surface when ``\omega=0``) by a scattering rate depending on
+is localized about the manifold defined by ``\det(\hbar\omega - H(\bm{k}))=0`` (i.e.
+the Fermi surface when ``\hbar\omega=\mu``) by a scattering rate depending on
 ``\operatorname{Im}\ \Sigma(\omega)``.
 
 To start using the package, see the [Workflow](@ref) and [Demos](@ref) sections.

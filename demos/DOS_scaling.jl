@@ -3,27 +3,24 @@ In this script, we extract timings for adaptive and equispace OC for diminishing
 eta
 =#
 
+using LinearAlgebra
 using ProgressBars
 using HDF5
 using Plots
 
 using AutoBZ
-using AutoBZ.Applications
 
-function initialize_data()
-# define the periods of the axes of the Brillouin zone for example material
-b = round(2π/3.858560, digits=6)
+function initialize_data(seedname="svo", μ=12.3958)
 # Load the Wannier Hamiltonian as a Fourier series
-H = load_hamiltonian("svo_hr.dat"; period=b, compact=:S)
+H, FBZ = load_wannier90_data(seedname; compact=:S)
+shift!(HV, μ)
+
+ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
+IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 
 # Define problem parameters
-omegas = collect(range(-1, 1; length=300)) # eV
+omegas = collect(range(-1, 1; length=3))#00)) # eV
 etas = collect(2.0 .^ (-1:-1:-10)) # eV
-μ = 12.3958 # eV (SrVO3)
-
-# initialize integration limits
-c = CubicLimits(period(H))
-t = TetrahedralLimits(c)
 
 # set error tolerances (the most generous is always chosen)
 atol_ = 3 # decimal places
@@ -36,7 +33,7 @@ ints = Matrix{Float64}(undef, length(omegas), length(etas))
 errs = Matrix{Float64}(undef, length(omegas), length(etas))
 times = Matrix{Float64}(undef, length(omegas), length(etas))
 
-H, omegas, etas, μ, t, "atol-$(atol_)_rtol-$(rtol_)", atol, rtol, ints, errs, times
+H, omegas, etas, IBZ, "atol-$(atol_)_rtol-$(rtol_)", atol, rtol, ints, errs, times
 end
 
 function write_h5(filename, etas, omegas, ints, errs, times)
@@ -82,7 +79,7 @@ end
 
 
 function equispace_scaling()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     equi_save = (npt1=0, pre1=nothing, npt2=0, pre2=nothing)
     npt1 = Matrix{Int64}(undef, length(omegas), length(etas))
     npt2 = Matrix{Int64}(undef, length(omegas), length(etas))
@@ -90,8 +87,8 @@ function equispace_scaling()
         @info "starting log2(eta)=$(log2(eta))"
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = DOSIntegrand(H, omega, Σ, μ)
-            r = @timed automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
+            D = DOSIntegrand(H, omega, Σ)
+            r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
             ints[i,j], errs[i,j], equi_save = r.value
             times[i,j] = r.time
             npt1[i,j] = equi_save.npt1
@@ -104,14 +101,14 @@ function equispace_scaling()
 end
 
 function adaptive_scaling()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
 
     for (j, eta) in enumerate(etas)
         @info "starting log2(eta)=$(log2(eta))"
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = DOSIntegrand(H, omega, Σ, μ)
-            r = @timed iterated_integration(D, t; atol=atol, rtol=rtol)
+            D = DOSIntegrand(H, omega, Σ)
+            r = @timed AutoBZ.iterated_integration(D, t; atol=atol, rtol=rtol)
             ints[i,j], errs[i,j] = r.value
             times[i,j] = r.time
         end
@@ -120,14 +117,14 @@ function adaptive_scaling()
 end
 
 function auto_adaptive_scaling(; eatol=0.0, ertol=1.0)
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
-
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
+    equi_save = (npt1=0, pre1=Tuple{eltype(H),Int}[], npt2=0, pre2=Tuple{eltype(H),Int}[])
     for (j, eta) in enumerate(etas)
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in enumerate(omegas)
-            D = DOSIntegrand(H, omega, Σ, μ)
-            int_, = automatic_equispace_integration(D, t; atol=eatol, rtol=ertol, equi_save...)
-            r = @timed iterated_integration(D, t; atol=max(atol, rtol*norm(int_)), rtol=0.0)
+            D = DOSIntegrand(H, omega, Σ)
+            int_, = AutoBZ.automatic_equispace_integration(D, t; atol=eatol, rtol=ertol, equi_save...)
+            r = @timed AutoBZ.iterated_integration(D, t; atol=max(atol, rtol*norm(int_)), rtol=0.0)
             ints[i,j], errs[i,j] = r.value
             times[i,j] = r.time
         end
@@ -136,7 +133,7 @@ function auto_adaptive_scaling(; eatol=0.0, ertol=1.0)
 end
 
 function plot_scaling()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     plt = plot(; scale=:log10, xguide="η (eV)", yguide="Wall time (s)", title="DOS scaling for $(length(omegas)) frequencies, atol=$atol, rtol=$rtol", legend=:bottomleft)
 
     aetas, aomegas, ints, errs, atimes = read_h5("DOS_scaling_adaptive_$(id).h5")
@@ -172,7 +169,7 @@ function plot_scaling()
 end
 
 function plot_result()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     
     plt = plot(; xguide="ω (eV)", yguide="DOS(ω)", title="DOS adaptive result, atol=$atol, rtol=$rtol", legend=:topleft)
     aetas, aomegas, aints, errs, times = read_h5("DOS_scaling_adaptive_$(id).h5")
@@ -190,7 +187,7 @@ function plot_result()
 end
 
 function plot_error()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
 
     aetas, aomegas, aints, aerrs, times = read_h5("DOS_scaling_adaptive_$(id).h5")
     eetas, eomegas, eints, eerrs, times = read_h5("DOS_scaling_equispace_$(id).h5")
@@ -238,7 +235,7 @@ end
 initialize_order() = 3:7
 
 function oadaptive_scaling()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     orders = initialize_order()
     for o in orders
         @info "using order $o GK rule"
@@ -257,7 +254,7 @@ function oadaptive_scaling()
 end
 
 function plot_order()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     orders = initialize_order()
     plt = plot(; xscale=:log10, xguide="η (eV)", yguide="Wall time (s)", title="DOS scaling for $(length(omegas)) frequencies, atol=$atol, rtol=$rtol", legend=:bottomleft)
 
@@ -278,7 +275,7 @@ function plot_order()
 end
 
 function plot_order_error()
-    H, omegas, etas, μ, t, id, atol, rtol, ints, errs, times = initialize_data()
+    H, omegas, etas, t, id, atol, rtol, ints, errs, times = initialize_data()
     orders = initialize_order()
 
     # validation dataset
