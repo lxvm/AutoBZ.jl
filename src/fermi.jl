@@ -1,23 +1,44 @@
 export fermi, fermi′, fermi_window, fermi_window_limits
 
-fermi(ω, β, μ) = fermi(ω-μ, β)
-fermi(ω, β) = fermi(β*ω)
+"""
+    fermi(x)
+
+Evaluates a Fermi distribution with unitless input
+```math
+f(x) = \\frac{1}{e^{x}+1}
+```
+"""
 function fermi(x)
     y = exp(x)
     inv(one(y) + y)
 end
 
-fermi′(ω, β, μ) = fermi′(ω-μ, β)
-fermi′(ω, β) = β*fermi′(β*ω)
+"""
+    fermi′(x)
+
+Evaluates a first derivative of the Fermi distribution with unitless input
+```math
+\\partial_{x} f(x) = -\\frac{1}{2(\\cosh(x)+1)}
+```
+Note that the analytic expression above can be rewritten many ways using
+hypertrigonometric identities.
+"""
 function fermi′(x)
     y = cosh(x)
     -0.5inv(one(y)+y)
 end
 
-"Evaluates a unitless window function determined by the Fermi distribution"
-fermi_window(ω, Ω, β, μ) = fermi_window(ω-μ, Ω, β)
-fermi_window(ω, Ω, β) = fermi_window(β*ω, β*Ω)
-fermi_window(x, y) = ifelse(y == zero(y), -fermi′(x), fermi_window_(x, y))
+"""
+    fermi_window(x, y)
+
+Evaluates a unitless window function with unitless inputs determined by the
+Fermi distribution ``f`` and defined by
+```math
+\\chi(x, y) = \\frac{f(x) - f(x+y)}{y}
+```
+In the case `y==0` then this simplifies to the derivative of the Fermi distribution.
+"""
+fermi_window(x, y) = y == zero(y) ? -fermi′(x) : fermi_window_(x, y)
 
 fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
 function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
@@ -47,16 +68,16 @@ EXP_P1_SMALL_X(::Type{Float64}) = -36.04365338911715
 EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 
 """
-    fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20, μ=0.0])
+    fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20])
 
-These limits are designed for integrating over the cubic FBZ first, then over ω
-restricted to the interval where the Fermi window is larger than `atol`.
-Choosing `atol` wisely is important to integrating the entire region of
-interest, so i
+Returns `CubicLimits` over ω restricted to the interval where the Fermi window
+is larger than `max(atol,rtol*fermi_window(0,β*Ω))`. Choosing `atol` and `rtol`
+wisely is important to integrating the entire region of interest, since this is
+a truncation of an infinite interval, and 
 """
-function fermi_window_limits(Ω, β; atol=0.0, rtol=1e-20, μ=0.0)
+function fermi_window_limits(Ω, β; atol=0.0, rtol=1e-20)
     Δω = fermi_window_halfwidth(Ω, β, select_fermi_atol(β*Ω, atol, rtol))
-    CubicLimits(SVector(μ-Ω/2-Δω), SVector(μ-Ω/2+Δω))
+    CubicLimits(SVector(-Ω/2-Δω), SVector(-Ω/2+Δω))
 end
 select_fermi_atol(x, atol, rtol) = ifelse(x == zero(x), max(atol, 0.25rtol), max(atol, tanh(x/4)/x*rtol))
 """

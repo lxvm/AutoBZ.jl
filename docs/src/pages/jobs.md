@@ -9,6 +9,15 @@ All of the following scripts have parallelization over parameter points
 (typically frequencies) enabled by default, except where noted. They also always
 use ``k`` point parallelization of equispace integrals.
 
+!!! note "Chemical potential"
+
+    This library does not handle the chemical potential or zero point energy, 
+    but recommends that the user offset their Hamiltonian and self-energy data
+    by the chemical potential so that the Fermi level is at zero energy. Doing
+    so, i.e. with [`AutoBZ.shift!`](@ref), will ensure a consistent convention
+    and correctness of the kinetic coefficient calculations, which truncate an
+    infinite integral assuming that the Fermi level is at zero energy.
+
 ### Recommended
 
 The scripts below are recommended because they return a result from adaptive

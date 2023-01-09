@@ -22,14 +22,11 @@ evaluate_integrand(w::WannierIntegrand, s_x) = w.f(s_x, w.p...)
 # pre-defined integrands
 export DOSIntegrand, TransportIntegrand, KineticIntegrand, EquispaceKineticIntegrand, AutoEquispaceKineticIntegrand
 
-dos_integrand(H, ω, Σ, μ) = dos_integrand(H, (ω+μ)*I-Σ(ω))
-dos_integrand(H, ω, Σ::AbstractMatrix, μ) = dos_integrand(H, (ω+μ)*I-Σ)
 dos_integrand(H, ω, Σ) = dos_integrand(H, ω*I-Σ(ω))
 dos_integrand(H, ω, Σ::AbstractMatrix) = dos_integrand(H, ω*I-Σ)
 dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
 
 """
-    DOSIntegrand(H, ω, Σ, μ)
     DOSIntegrand(H, ω, Σ)
     DOSIntegrand(H, M)
 
@@ -55,8 +52,8 @@ evaluate_integrand(D::DOSIntegrand, H_k) = dos_integrand(H_k, D.M)
 
 spectral_function(H, M) = imag(inv(M-H))/(-pi)
 
-transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω₁, ω₂, μ) = transport_integrand(H, ν₁, ν₂, ν₃, (ω₁+μ)*I-Σ(ω₁), (ω₂+μ)*I-Σ(ω₂))
-transport_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω₁, ω₂, μ) = transport_integrand(H, ν₁, ν₂, ν₃, (ω₁+μ)*I-Σ, (ω₂+μ)*I-Σ)
+transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω₁, ω₂) = transport_integrand(H, ν₁, ν₂, ν₃, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
+transport_integrand(H, ν₁, ν₂, ν₃, Σ::AbstractMatrix, ω₁, ω₂) = transport_integrand(H, ν₁, ν₂, ν₃, ω₁*I-Σ, ω₂*I-Σ)
 function transport_integrand(H, ν₁, ν₂, ν₃, Mω₁, Mω₂)
     Aω₁ = spectral_function(H, Mω₁)
     Aω₂ = spectral_function(H, Mω₂)
@@ -79,7 +76,7 @@ function transport_integrand_(ν₁, ν₂, ν₃, Aω₁, Aω₂)
 end
 
 """
-    TransportIntegrand(HV, Σ, ω₁, ω₂, μ)
+    TransportIntegrand(HV, Σ, ω₁, ω₂)
     TransportIntegrand(HV, Mω₁, Mω₂)
 
 A type whose integral over the BZ gives the transport distribution.
@@ -95,9 +92,9 @@ struct TransportIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3
     Mω₂::M2
 end
 
-function TransportIntegrand(HV, Σ, ω₁, ω₂, μ)
-    Mω₁ = (ω₁+μ)*I-Σ(ω₁)
-    Mω₂ = (ω₂+μ)*I-Σ(ω₂)
+function TransportIntegrand(HV, Σ, ω₁, ω₂)
+    Mω₁ = ω₁*I-Σ(ω₁)
+    Mω₂ = ω₂*I-Σ(ω₂)
     TransportIntegrand(HV, Mω₁, Mω₂)
 end
 Base.eltype(::Type{<:TransportIntegrand}) = SMatrix{3,3,ComplexF64,9}
@@ -105,11 +102,11 @@ Base.eltype(::Type{<:TransportIntegrand}) = SMatrix{3,3,ComplexF64,9}
 evaluate_integrand(Γ::TransportIntegrand, HV_k) = transport_integrand(HV_k..., Γ.Mω₁, Γ.Mω₂)
 
 
-kinetic_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, μ, n) = kinetic_integrand(transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω, ω+Ω, μ), ω, Ω, β, n)
-kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(ω, Ω, β) * Γ
+kinetic_integrand(H, ν₁, ν₂, ν₃, Σ, ω, Ω, β, n) = kinetic_integrand(transport_integrand(H, ν₁, ν₂, ν₃, Σ, ω, ω+Ω), ω, Ω, β, n)
+kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
 """
-    KineticIntegrand(HV, Σ, β, μ, n, [Ω=0])
+    KineticIntegrand(HV, Σ, β, n, [Ω=0])
 
 A function whose integral over the BZ and the frequency axis gives the kinetic
 coefficient. Mathematically, this computes
@@ -126,21 +123,20 @@ struct KineticIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D}
     HV::T
     Σ::TS
     β::Float64
-    μ::Float64
     n::Int
     Ω::Float64
-    function KineticIntegrand(HV::T, Σ::TS, β, μ, n, Ω=0.0) where {T,TS}
+    function KineticIntegrand(HV::T, Σ::TS, β, n, Ω=0.0) where {T,TS}
         β == Inf && Ω == 0 && error("Ω=1/β=0 encountered. This case requires distributional frequency integrals, or can be computed with a TransportIntegrand")
-        new{T,TS}(HV, Σ, β, μ, n, Ω)
+        new{T,TS}(HV, Σ, β, n, Ω)
     end
 end
 
 Base.eltype(::Type{<:KineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 # innermost integral is the frequency integral
 (A::KineticIntegrand)(ω::SVector{1}) = A(only(ω))
-(A::KineticIntegrand)(ω::Number) = kinetic_integrand(value(A.HV)..., A.Σ, ω, A.Ω, A.β, A.μ, A.n)
+(A::KineticIntegrand)(ω::Number) = kinetic_integrand(value(A.HV)..., A.Σ, ω, A.Ω, A.β, A.n)
 
-TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, A.Σ, ω, ω+A.Ω, A.μ)
+TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, A.Σ, ω, ω+A.Ω)
 
 """
     EquispaceKineticIntegrand(A::KineticIntegrand, l, npt, pre::Vector{Tuple{eltype(A.HV),Int}})
