@@ -1,6 +1,21 @@
 export BandEnergyVelocity, BandEnergyBerryVelocity
 
 """
+    velocity(H, Hα, Aα)
+
+Evaluates the velocity operator ``\\hat{v}_{\\alpha} = -\\frac{i}{\\hbar}
+[\\hat{r}_{\\alpha}, \\hat{H}]`` with the following expression, equivalent to
+eqn. 18 in [Yates et al.](https://doi.org/10.1103/PhysRevB.75.195121)
+```math
+\\hat{v}_{\\alpha} = \\frac{1}{\\hbar} \\hat{H}_{\\alpha} + \\frac{i}{\\hbar} [\\hat{H}, \\hat{A}_{\\alpha}]
+```
+where the ``\\alpha`` index implies differentiation by ``k_{\\alpha}``. Note
+that the terms that correct the derivative of the band velocity
+Also, this function takes ``\\hbar = 1``.
+"""
+velocity(H, ∂H_∂α, ∂A_∂α) = ∂H_∂α + (im*I)*commutator(H, ∂A_∂α)
+
+"""
     band_velocities(::Type{Val{kind}}, H, vs...) where kind
 
 Transform the band velocities according to the following values of `kind`
@@ -120,7 +135,7 @@ function contract(f::BandEnergyBerryVelocity{kind,1}, x::Number) where kind
     Hw, vws... = f.HV(x)
     # compute the band velocities from the Wannier-basis quantities
     # with a velocity modification by the Berry connection
-    H, vs... = band_velocities(kind, Hw, ntuple(n -> vws[n] - (im*I)*commutator(Hw, As[n]), Val{length(As)}())...)
+    H, vs... = band_velocities(kind, Hw, ntuple(n -> velocity(Hw, vws[n], As[n]), Val{length(As)}())...)
     p = pop(period(f))
     BV = BandEnergyVelocity{Val{:orbital}()}(FourierSeries(H, p), ManyFourierSeries(map(v -> FourierSeries(v, p), vs), p))
     BandEnergyBerryVelocity{kind}(BV, ManyFourierSeries((), p))

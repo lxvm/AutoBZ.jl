@@ -167,8 +167,8 @@ function shift!(f::FourierSeries3D{T}, λ_::Number) where T
 end
 
 """
-    BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0), kind=:full])
-    BandEnergyVelocity3D(H::FourierSeries3D, [kind=:full])
+    BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0), kind=:orbital])
+    BandEnergyVelocity3D(H::FourierSeries3D, [kind=:orbital])
 
 The in-place equivalent of `BandEnergyVelocity` for 3D series evaluation.
 """
@@ -183,8 +183,8 @@ struct BandEnergyVelocity3D{kind,T,TV,TH} <: AbstractFourierSeries3D
     H_xyz::Array{TH,0}
 end
 
-BandEnergyVelocity3D(coeffs, period=(1.0,1.0,1.0), kind=:full) = BandEnergyVelocity3D(FourierSeries3D(coeffs, period), kind)
-function BandEnergyVelocity3D(H::FourierSeries3D{T,0,0,0}, kind=:full) where T
+BandEnergyVelocity3D(coeffs, period=(1.0,1.0,1.0), kind=:orbital) = BandEnergyVelocity3D(FourierSeries3D(coeffs, period), kind)
+function BandEnergyVelocity3D(H::FourierSeries3D{T,0,0,0}, kind=:orbital) where T
     vz_z   = similar(H.coeffs_z)
     vz_yz  = similar(H.coeffs_yz)
     vy_yz  = similar(H.coeffs_yz)
@@ -237,7 +237,7 @@ function contract!(b::BandEnergyVelocity3D{kind}, x::Number, dim) where kind
 end
 
 """
-    BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, [kind=:full]) where {TH,TA}
+    BandEnergyBerryVelocity3D(H::FourierSeries3D{TH,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, [kind=:orbital]) where {TH,TA}
 
 The in-place equivalent of `BandEnergyBerryVelocity` for 3D series evaluation.
 """
@@ -254,7 +254,7 @@ struct BandEnergyBerryVelocity3D{kind,T,TA,TV,TH} <: AbstractFourierSeries3D
     vx_xyz::Array{TV,0}
     H_xyz::Array{TH,0}
 end
-function BandEnergyBerryVelocity3D(H::FourierSeries3D{T,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, kind=:full) where {T,TA}
+function BandEnergyBerryVelocity3D(H::FourierSeries3D{T,0,0,0}, Ax::FourierSeries3D{TA,0,0,0}, Ay::FourierSeries3D{TA,0,0,0}, Az::FourierSeries3D{TA,0,0,0}, kind=:orbital) where {T,TA}
     @assert period(H) == period(Ax) == period(Ay) == period(Az)
     vz_z   = similar(H.coeffs_z)
     vz_yz  = similar(H.coeffs_yz)
@@ -292,9 +292,9 @@ function contract!(b::BandEnergyBerryVelocity3D{kind}, x::Number, dim) where kin
         b.H_xyz[], b.vz_xyz[], b.vy_xyz[], b.vx_xyz[] = 
         band_velocities(kind, H,
         # we take the Hermitian part of the Berry connection since Wannier 90 may have forgotten to do this
-            fourier_kernel(b.vz_yz, x, ξ) - (im*I) * commutator(H, herm(b.Az(x))),
-            fourier_kernel(b.vy_yz, x, ξ) - (im*I) * commutator(H, herm(b.Ay(x))),
-            fourier_kernel(b.H.coeffs_yz, x, ξ, Val{1}()) - (im*I) * commutator(H, herm(b.Ax(x))),
+            velocity(H, fourier_kernel(b.vz_yz, x, ξ), herm(b.Az(x))),
+            velocity(H, fourier_kernel(b.vy_yz, x, ξ), herm(b.Ay(x))),
+            velocity(H, fourier_kernel(b.H.coeffs_yz, x, ξ, Val{1}()), herm(b.Ax(x))),
         )
     else
         error("dim=$dim is out of bounds")
