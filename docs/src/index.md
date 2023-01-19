@@ -51,6 +51,8 @@ To start using the package, see the [Workflow](@ref) and [Demos](@ref) sections.
 * Interface to read frequency-dependent matrix-valued self-energy data
 
 ### More ideas
+* Support for integrands of the form ``f_{0} ( \int dx_{1} f_{1}( \int dx_{2}
+  f_{2}( \cdots \int dx_{n} f_{n})))``
 * Multi-dimensional adaptive Chebyshev interpolation, like
   [baobzi](https://github.com/flatironinstitute/baobzi)
 * Globally adaptive IAI

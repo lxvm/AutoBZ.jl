@@ -206,7 +206,7 @@ end
 
 
 """
-    run_wannier(integrand, fs, ps, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    run_wannier(integrand, fs, ps, lims, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
 and timings for obtained for a Wannier-interpolated integral from
