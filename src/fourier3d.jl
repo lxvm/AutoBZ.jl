@@ -26,9 +26,10 @@ AutoBZ.contract(f::AbstractFourierSeries3D, x, dim) = contract!(f, x, dim)
 (f::AbstractFourierSeries3D)(x::SVector{1}) = f(only(x))
 (f::AbstractFourierSeries3D)(x::Number) = value(contract!(f, x, 1))
 
-AutoBZ.iterated_pre_eval(f::FourierIntegrand{<:Any,<:AbstractFourierSeries3D}, x, dim) = (contract!(f.s, x, dim); return f)
+AutoBZ.iterated_pre_eval(f::FourierIntegrand{<:Any,<:AbstractFourierSeries3D}, x, dim::Int) =
+    (contract!(f.s, x, dim); return f)
 
-function AutoBZ.pre_eval_contract(f::AbstractFourierSeries3D, l::CubicLimits{3}, npt)
+function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::Union{FullBZ{3},CubicLimits{3}}, npt)
     @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     f_xs = Array{Tuple{eltype(f),Int},3}(undef, npt, npt, npt)
     bz = box(l)
@@ -44,7 +45,7 @@ function AutoBZ.pre_eval_contract(f::AbstractFourierSeries3D, l::CubicLimits{3},
     return vec(f_xs)
 end
 
-function AutoBZ.pre_eval_contract(f::AbstractFourierSeries3D, l::IntegrationLimits{3}, npt)
+function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::IntegrationLimits{3}, npt)
     @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     flag, wsym, nsym = AutoBZ.discretize_equispace_(l, npt)
     n = 0

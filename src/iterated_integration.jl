@@ -1,4 +1,5 @@
-export iterated_integration, iterated_tol_update, iterated_pre_eval, iterated_segs
+export iterated_integration
+export iterated_tol_update, iterated_integrand, iterated_pre_eval, iterated_segs
 
 """
     iterated_tol_update(f, l, atol, rtol)
@@ -9,8 +10,15 @@ returns `(atol, rtol)` unchanged.
 iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 """
+    iterated_integrand(f, y, dim)
+
+By default, returns `y` which is the result of an interior integral.
+"""
+@inline iterated_integrand(f, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
+@inline iterated_integrand(f, y, dim) = y
+
+"""
     iterated_pre_eval(f, x, dim)
-    iterated_pre_eval(f, x)
 
 Perform a precomputation on `f` using the value of a variable of integration,
 `x`. The default is to store `x` and delay the computation of `f(x)` until all
@@ -20,37 +28,8 @@ precompute a new integrand for the remaining variables of integration that is
 more computationally efficient. This function must return the integrand for the
 subsequent integral.
 """
+@inline iterated_pre_eval(f, x, ::Type{Val{d}}) where d = iterated_pre_eval(f, x, d)
 iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
-iterated_pre_eval(f, x) = thunk(f, x)
-
-"""
-    ThunkIntegrand(f, x)
-
-Store `f` and `x` to evaluate `f(x)` at a later time. Employed by
-`iterated_integration` for generic integrands that haven't been specialized to
-use `iterated_pre_eval`.
-"""
-struct ThunkIntegrand{T,d,X}
-    f::T
-    x::SVector{d,X}
-end
-
-(f::ThunkIntegrand)(x) = f.f(vcat(x, f.x))
-
-"""
-    thunk(f, x)
-
-Delay the computation of f(x). Needed to normally evaluate an integrand in
-nested integrals, a setting in which the values of the variables of integration
-are passed one at a time. Importantly, `thunk` assumes that the variables of
-integration are passed from the outermost to the innermost. For example, to
-evaluate `f([1, 2])`, call `thunk(f, 2)(1)`.
-
-This behavior is consistent with `CubicLimits`, but may come as a surprise if
-implementing new `IntegrationLimits`.
-"""
-thunk(f, x) = ThunkIntegrand(f, SVector(x))
-thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
 
 """
     iterated_segs(f, l, d, initdivs)
@@ -119,7 +98,7 @@ function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals
     # avoid runtime dispatch when capturing variables
     # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
     f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs
-        x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs))
+        x -> iterated_integrand(f, first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, Val{d}), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs)), Val{d})
     end
     QuadGK.do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
 end

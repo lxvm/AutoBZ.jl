@@ -31,7 +31,8 @@ for (j, n) in enumerate(ns)
     
     for (k,η) in enumerate(ηs)
         Threads.@threads for (i, ω) in collect(enumerate(ωs))
-            D = DOSIntegrand(H, EtaSelfEnergy(η), ω)
+            # D = DOSIntegrand(H, EtaSelfEnergy(η), ω)
+            D = AutoBZ.IteratedFourierIntegrand((dos_integrand, fill(identity, n-1)...), H, EtaSelfEnergy(η), ω)
             ints[i], = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
         end
         plot!(plt, ωs, ints; label=k == length(ηs) ? "n=$n" : "", color=j, alpha=k/length(ηs))#(1/(1+η^3)))

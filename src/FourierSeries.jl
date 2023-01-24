@@ -15,6 +15,8 @@ arrays whose elements belong to the vector space. See the manual section on the
 """
 abstract type AbstractFourierSeries{N} end
 
+Base.ndims(::AbstractFourierSeries{N}) where N = N
+
 """
     period(f::AbstractFourierSeries{N}) where {N}
 
@@ -104,14 +106,14 @@ function fourier_pre_eval(f_3::AbstractFourierSeries{3}, l::IntegrationLimits{3}
 end
 
 
-function fft_pre_eval(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
+function fft_pre_eval(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     # zero pad coeffs out to length npt and wrangle into shape for fft
     # ifft(coeffs)
     error("not implemented")
 end
 
-function fft_pre_eval(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {d}
+function fft_pre_eval(f::AbstractFourierSeries{d}, l::TetrahedralLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
     # zero pad coeffs out to length npt and wrangle into shape for fft
     # ifft(coeffs)

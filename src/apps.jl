@@ -149,7 +149,7 @@ Base.eltype(::Type{<:KineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 (A::KineticIntegrand)(ω::Number) = kinetic_integrand(value(A.HV), A.Σ, ω, A.Ω, A.β, A.n)
 
 # dim - 1 to accomodate the innermost frequency integral
-AutoBZ.iterated_pre_eval(A::KineticIntegrand, k, dim) = (contract!(A.HV, k, dim-1); return A)
+AutoBZ.iterated_pre_eval(A::KineticIntegrand, k, dim::Int) = (contract!(A.HV, k, dim-1); return A)
 
 TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, A.Σ, ω, ω+A.Ω)
 
