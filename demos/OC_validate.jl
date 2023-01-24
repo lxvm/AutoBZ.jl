@@ -2,6 +2,7 @@ using Plots
 using ProgressBars
 
 using AutoBZ
+using AutoBZ.Jobs
 
 function load_dataset(filename)
     data = readlines(filename)

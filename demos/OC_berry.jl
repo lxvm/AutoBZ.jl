@@ -3,6 +3,7 @@ In this script we compute OC at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)

@@ -3,6 +3,7 @@
 # - enable reduction over multiple dims simulatneously (?) may not be used
 export AbstractFourierSeries, period, contract, value
 export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
+export fourier_kernel, fourier_kernel!, fourier_pre_eval, fft_pre_eval
 
 """
     AbstractFourierSeries{N}
@@ -61,6 +62,116 @@ dimension as the Fourier series
 """
 (f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
 (f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
+
+
+function fourier_pre_eval(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
+    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    f_xs = Vector{Tuple{eltype(f),Int}}(undef, npt^d)
+    fourier_pre_eval!(f_xs, d, 0, f, box(l), npt)
+    return f_xs
+end
+function fourier_pre_eval!(f_xs, d, idx, f, box, npt)
+    for i in Base.OneTo(npt)
+        fourier_pre_eval!(f_xs, d-1, (i-1)+npt*idx, contract(f, (box[d][2]-box[d][1])*(i-1)/npt + box[d][1]), pop(box), npt)
+    end
+end
+function fourier_pre_eval!(f_xs, _, idx, f::AbstractFourierSeries{0}, _, _)
+    f_xs[idx+1] = (value(f), 1)
+end
+
+
+#=
+Using anonymous function expressions is impure so can't use them in @generated
+https://docs.julialang.org/en/v1/devdocs/cartesian/#Anonymous-function-expressions-as-macro-arguments
+https://docs.julialang.org/en/v1/manual/metaprogramming/#Generated-functions
+=#
+function fourier_pre_eval(f_3::AbstractFourierSeries{3}, l::IntegrationLimits{3}, npt)
+    @assert period(f_3) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    flag, wsym, nsym = discretize_equispace_(l, npt)
+    n = 0
+    b = box(l)
+    pre = Vector{Tuple{eltype(f_3),Int}}(undef, nsym)
+    Base.Cartesian.@nloops 3 i flag j -> f_{j-1} = contract(f_j, (b[j][2]-b[j][1])*(i_j-1)/npt + b[j][1]) begin
+        if (Base.Cartesian.@nref 3 flag i)
+            n += 1
+            pre[n] = (value(f_0), wsym[n])
+            n >= nsym && break
+        else
+            continue
+        end
+    end
+    return pre
+end
+
+
+function fft_pre_eval(f::FourierSeries{d}, l::CubicLimits{d}, npt) where {d}
+    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    # zero pad coeffs out to length npt and wrangle into shape for fft
+    # ifft(coeffs)
+    error("not implemented")
+end
+
+function fft_pre_eval(f::FourierSeries{d}, l::TetrahedralLimits{d}, npt) where {d}
+    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
+    # zero pad coeffs out to length npt and wrangle into shape for fft
+    # ifft(coeffs)
+    error("not implemented")
+end
+
+#=
+fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))
+function fft_equispace_integration(A::SpectralFunction, p::Int)
+    ϵk = fft_evaluate_series(A.ϵ, p)
+    r = zero(eltype(A))
+    for i in CartesianIndices(size(ϵk)[3:end])
+        r += hinv(complex(A.ω + A.μ, A.η)*I - SMatrix{3,3,ComplexF64}(ϵk[CartesianIndices((3,3)), i]))
+    end
+    imag(r)*inv(p)^3/(-pi)
+end
+
+"""
+Evaluate a FourierSeries by FFT. The indices are assumed to be the frequencies,
+but these get mapped back modulo `p` to the domain of FFT frequencies, so the
+caller is responsible for ensuring that `p` is large enough to capture their
+high frequency behavior.
+"""
+function fft_evaluate_series(f::FourierSeries, p::Int)
+    C = f.coeffs
+    maximum(size(C)) > p && throw("Inexact: Choose more grid points, $p, per dim than Fourier coefficients per dim, $(size(C))")
+    # pad C such that size(C) = (3,3,p,p,p)
+    S1 = size(eltype(C))
+    S2 = Tuple(fill(p, ndims(C)))
+    Z = zeros(ComplexF64, S1..., S2...)
+    populate_fourier_coefficients!(Z, C)
+    # return Z
+    # fft(C) along the dimensions of size p
+    fft!(Z, (length(S1)+1):(length(S1)+length(S2)))
+    # convert back to StaticArray for efficient inversion
+    return Z
+    return reshape(reinterpret(SArray{Tuple{S1...},ComplexF64,length(S1),prod(S1)}, Z), S2)
+    X = Array{SArray{Tuple{S1...},ComplexF64}}(undef,S2)
+    for i in CartesianIndices(S2)
+        X[i] = SArray{Tuple{S1...},ComplexF64}(view(Z, CartesianIndices(S1), i))
+    end
+    X
+end
+
+function populate_fourier_coefficients!(Z::AbstractArray, C::AbstractArray{<:StaticArray})
+    S1 = size(eltype(C))
+    preI = CartesianIndices(S1)
+    S2 = size(Z)[(length(S1)+1):end]
+    for i in CartesianIndices(C)
+        Z[preI, CartesianIndex(_to_fftw_index(i.I, S2))] = C[i]
+    end
+end
+
+"""
+Convert positive/negative indices of Fourier coefficients to those suitable for FFTW.
+`i` is a tuple of +/- indices by dimension, and `j` is a tuple of the size of
+each dimension.
+"""
+_to_fftw_index(i::NTuple{N, Int}, j::NTuple{N, Int}) where {N} = mod.(i, j) .+ 1
+=#
 
 """
     FourierSeries(coeffs, period::SVector{N,Float64}) where {N}
@@ -369,3 +480,84 @@ period(f::ManyOffsetsFourierSeries) = period(f.f)
 value(f::ManyOffsetsFourierSeries{0}) = value(f.f)
 Base.eltype(::Type{ManyOffsetsFourierSeries{N,T,Q}}) where {N,T,Q} = ntuple(_ -> eltype(T), Val{Q}())
 
+
+"""
+    fourier_kernel!(r::Array{T,N-1}, C::Array{T,N}, x, ξ, [::Val{a}=Val{0}()]) where {T,N,a}
+
+Contract the outermost index of array `C` and write it to the array `r`. Assumes
+the size of the outermost dimension of `C` is `2m+1` and sums the coefficients
+```math
+r_{i_{1},\\dots,i_{N-1}} = \\sum_{i_{N}=-m}^{m} C_{i_{1},\\dots,i_{N-1},i_{N}+m+1} (i2\\pi\\xi i_{N})^{a} \\exp(i2\\pi\\xi x i_{N})
+```
+Hence this represents evaluation of a Fourier series with `m` modes. The
+parameter `a` represents the order of derivative of the Fourier series.
+"""
+@generated function fourier_kernel!(r::Array{T,N_}, C::Array{T,N}, x, ξ, ::Val{a}=Val{0}()) where {T,N,N_,a}
+    N != N_+1 && return :(error("array dimensions incompatible"))
+    if a == 0
+        fundamental = :(Base.Cartesian.@nref $N C d -> d == $N ? m+1 : i_d)
+        c = :(z); c̄ = :(conj(z))
+    elseif a == 1
+        fundamental = :(zero($T))
+        c = :(im*2π*ξ*n*z); c̄ = :(conj(c))
+    else
+        f₀ = 0^a
+        fundamental = :(fill($f₀, $T))
+        c = :(((im*2pi*ξ*n)^$a)*z); c̄ = :(((-im*2pi*ξ*n)^$a)*conj(z))
+    end
+quote
+    size(r) == size(C)[1:$N_] || error("array sizes incompatible")
+    s = size(C,$N)
+    isodd(s) || return error("expected an array with an odd number of coefficients")
+    m = div(s,2)
+    @inbounds Base.Cartesian.@nloops $N_ i r begin
+        (Base.Cartesian.@nref $N_ r i) = $fundamental
+    end
+    z₀ = cispi(2ξ*x)
+    z = one(z₀)
+    for n in Base.OneTo(m)
+        z *= z₀
+        c  = $c
+        c̄  = $c̄
+        @inbounds Base.Cartesian.@nloops $N_ i r begin
+            (Base.Cartesian.@nref $N_ r i) += c*(Base.Cartesian.@nref $N C d -> d == $N ? n+m+1 : i_d) + c̄*(Base.Cartesian.@nref $N C d -> d == $N ? -n+m+1 : i_d)
+        end
+    end
+end
+end
+
+"""
+    fourier_kernel(C::Vector, x, ξ, [::Val{a}=Val{0}()])
+
+A version of `fourier_kernel!` for 1D Fourier series evaluation that is not in
+place, but allocates an output array. This is usually faster for series whose
+element type is a StaticArray for integrals that don't need to reuse the data.
+"""
+@generated function fourier_kernel(C::Vector{T}, x, ξ, ::Val{a}=Val{0}()) where {T,a}
+    if a == 0
+        fundamental = :(C[m+1])
+        c = :(z); c̄ = :(conj(z))
+    elseif a == 1
+        fundamental = :(zero($T))
+        c = :(im*2π*ξ*n*z); c̄ = :(conj(c))
+    else
+        f₀ = 0^a
+        fundamental = :(fill($f₀, $T))
+        c = :(((im*2pi*ξ*n)^$a)*z); c̄ = :(((-im*2pi*ξ*n)^$a)*conj(z))
+    end
+quote
+    s = size(C,1)
+    isodd(s) || return error("expected an array with an odd number of coefficients")
+    m = div(s,2)
+    @inbounds r = $fundamental
+    z₀ = cispi(2ξ*x)
+    z = one(z₀)
+    @inbounds for n in Base.OneTo(m)
+        z *= z₀
+        c  = $c
+        c̄  = $c̄
+        r += c*C[n+m+1] + c̄*C[-n+m+1]
+    end
+    r
+end
+end

@@ -4,6 +4,7 @@ eta
 =#
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)

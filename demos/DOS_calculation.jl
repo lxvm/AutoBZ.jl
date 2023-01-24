@@ -3,6 +3,7 @@ In this script we compute the DOS of SrVO3 aacross a range of frequencies
 =#
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 H, FBZ = load_wannier90_data("svo")

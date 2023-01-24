@@ -52,7 +52,7 @@ r = Matrix{Float64}(undef, length(ks), length(ks))
 for (i, kx) in enumerate(ks), (j, ky) in enumerate(ks)
     q = M * SVector((kx, ky))
     f = ManyOffsetsFourierSeries(H, q)
-    integrand = WannierIntegrand(evaluate_integrand, f, (T, kB))
+    integrand = FourierIntegrand(evaluate_integrand, f, (T, kB))
     r[i,j], = AutoBZ.iterated_integration(integrand, FBZ; atol=atol, rtol=rtol)
 end
 plt = heatmap(ks, ks, map(abs, r); xguide="qx", yguide="qy", title="|Integral| in q-space", color=:BuGn)

@@ -103,11 +103,12 @@ allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
-    Tfx, Tnfx = infer_f(f, SVector{ndims(l),eltype(l)})
+    Tfx = Base.promote_op(f, SVector{ndims(l),eltype(l)})
+    Tnfx = Base.promote_op(norm, Tfx)
     segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
     atol_ = something(atol, zero(Tnfx))/nsyms(l)
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(Tnfx))) : zero(Tnfx))
-    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)::Tuple{Tfx,Tnfx}
+    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)
     symmetrize(l, int, err)
 end
 
@@ -121,19 +122,6 @@ function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals
         x -> first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, d), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs))
     end
     QuadGK.do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
-end
-
-"""
-    infer_f(f, Tx)
-
-Evaluates `f(zero(Tx))` and `norm(f(zero(Tx)))` and returns their types. If the
-type of the range of `f` is known apriori, this method is meant to be
-specialized. Implicitly this assumes that `f` is type-stable.
-"""
-function infer_f(f, Tx)
-    fx = f(zero(Tx))
-    nfx = norm(fx)
-    typeof(fx), typeof(nfx)
 end
 
 """

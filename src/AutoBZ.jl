@@ -1,45 +1,29 @@
 """
     AutoBZ
 
-A package that calculates integrals for density of states and optical
-conductivity, and also provides tools for custom integrands evaluated by Wannier
-interpolation.
+A package implementing iterated-adaptive integration and equispace integration
+specialized for Brillouin-zone integration of localized and broadened
+integrands, respectively, using the algorithms described by [Kaye et
+al.](http://arxiv.org/abs/2211.12959). For tree-adaptive integration, see
+[HCubature.jl](https://github.com/JuliaMath/HCubature.jl). The package also
+provides utilities for user-defined integrands based on Fourier series.
 """
 module AutoBZ
-
-include("AutoBZCore.jl")
-include("AdaptChebInterp.jl")
-include("EquiBaryInterp.jl")
 
 using LinearAlgebra
 
 using StaticArrays
-using OffsetArrays
+using QuadGK
 using Combinatorics: permutations
 # using FFTW
 
-using ..EquiBaryInterp: LocalEquiBaryInterp
-
-using  .AutoBZCore: IntegrationLimits, CubicLimits, CompositeLimits,
-    equispace_integration, automatic_equispace_integration, discretize_equispace_,
-    iterated_integration, alloc_segbufs
-import .AutoBZCore: box, limits, nsyms, symmetries,
-    equispace_pre_eval, equispace_npt_update, evaluate_integrand,
-    iterated_pre_eval, infer_f
-
-include("linalg.jl")
+include("IntegrationLimits.jl")
+include("bz.jl")
+include("iterated_integration.jl")
+include("equispace_integration.jl")
 include("FourierSeries.jl")
-include("band_velocities.jl")
-include("fourier3d.jl")
-include("self_energies.jl")
-include("limits.jl")
-include("fermi.jl")
 include("integrands.jl")
-include("custom_equispace.jl")
-include("custom_adaptive.jl")
-include("evaluators.jl")
-include("wannier90io.jl")
-include("self_energies_io.jl")
+include("integrators.jl")
 
 include("Jobs.jl")
 

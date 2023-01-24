@@ -1,6 +1,7 @@
 using Plots
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series
 HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital)

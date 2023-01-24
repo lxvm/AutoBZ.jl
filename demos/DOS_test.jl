@@ -3,6 +3,7 @@ In this script we compute DOS at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 H, FBZ = load_wannier90_data("svo")
@@ -18,7 +19,7 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 shift!(H, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
-D = DOSIntegrand(H, ω, Σ)
+D = DOSIntegrand(H, Σ, ω)
 
 # set error tolerances
 atol = 1e-3

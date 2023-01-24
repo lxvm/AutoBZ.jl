@@ -5,7 +5,8 @@ In this script we interpolate DOS over a frequency interval using the interface 
 using Plots
 
 using AutoBZ
-using AutoBZ.AdaptChebInterp
+using AutoBZ.Jobs
+using AutoBZ.Jobs.AdaptChebInterp
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 H, FBZ = load_wannier90_data("svo")
@@ -31,7 +32,7 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-D = DOSEvaluator(H, Σ, IBZ; atol=atol, rtol=rtol)
+D = DOSIntegrator(H, IBZ, Σ; atol=atol, rtol=rtol)
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
 p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)

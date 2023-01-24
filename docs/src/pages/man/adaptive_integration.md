@@ -17,5 +17,4 @@ The methods below can be extended/customized to integrand types
 AutoBZ.AutoBZCore.iterated_tol_update
 AutoBZ.AutoBZCore.iterated_pre_eval
 AutoBZ.AutoBZCore.iterated_segs
-AutoBZ.AutoBZCore.infer_f
 ```

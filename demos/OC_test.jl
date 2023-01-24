@@ -3,6 +3,7 @@ In this script we compute OC at single point using the interface in AutoBZ.jl
 =#
 
 using AutoBZ
+using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital, read_pos_op=false)
@@ -28,7 +29,7 @@ atol = 1e-3
 rtol = 0.0
 
 # fully adaptive integration
-int, err = AutoBZ.iterated_integration(σ, l; atol=atol, rtol=rtol)
+# int, err = AutoBZ.iterated_integration(σ, l; atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
 Eσ = AutoEquispaceKineticIntegrand(σ, IBZ, atol, rtol)

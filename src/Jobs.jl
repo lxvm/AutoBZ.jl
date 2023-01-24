@@ -1,3 +1,8 @@
+"""
+    AutoBZ.Jobs
+
+A module that implements applications of AutoBZ
+"""
 module Jobs
 
 using LinearAlgebra
@@ -8,12 +13,25 @@ using StaticArrays
 using OffsetArrays
 
 using ..AutoBZ
-using ..AutoBZ.AutoBZCore
 
 export read_h5_to_nt, write_nt_to_h5
-export run_wannier_adaptive, run_wannier_auto_equispace, run_wannier_equispace, run_wannier
+export adaptive_fourier_integration, automatic_equispace_fourier_integration, equispace_fourier_integration, auto_fourier_integration
 export run_dos_adaptive, run_dos_auto_equispace, run_dos_equispace, run_dos
 export run_kinetic_adaptive, run_kinetic_auto_equispace, run_kinetic_equispace, run_kinetic
+
+include("AdaptChebInterp.jl")
+include("EquiBaryInterp.jl")
+
+using .EquiBaryInterp: LocalEquiBaryInterp
+
+include("linalg.jl")
+include("fourier3d.jl")
+include("band_velocities.jl")
+include("self_energies.jl")
+include("self_energies_io.jl")
+include("wannier90io.jl")
+include("fermi.jl")
+include("apps.jl")
 
 #=
 Section: loading data from HDF5
@@ -90,17 +108,18 @@ Section: User-defined integral calculations
 =#
 
 """
-    run_wannier_adaptive(integrand, fs, ps, lims, rtol, atol, [nthreads=Threads.nthreads()])
+    adaptive_fourier_integration(integrand, lims, fs, ps, rtol, atol, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
 and timings for a user-defined `integrand` of a Fourier series `fs` and
 parameters `ps`. The integration tolerances are `rtol, atol`. This function
-constructs a [`AutoBZ.WannierIntegrand`](@ref) for each parameter value and
+constructs a [`AutoBZ.FourierIntegrand`](@ref) for each parameter value and
 calls [`AutoBZ.iterated_integration`](@ref) with limits of integration `lims` to
 get the results.
 """
-function run_wannier_adaptive(integrand, fs, ps, lims::IntegrationLimits{d}, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ps)); order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
-    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+function adaptive_fourier_integration(integrand, lims::IntegrationLimits{d}, fs, ps, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ps)); order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
+    # T = typeof(integrand(one(eltype(fs)), ps[1]...))
+    T = eltype(FourierIntegrand(integrand, fs, ps[1]))
     ints = Vector{T}(undef, length(ps))
     errs = Vector{Float64}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
@@ -114,8 +133,8 @@ function run_wannier_adaptive(integrand, fs, ps, lims::IntegrationLimits{d}, rto
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
-            w = WannierIntegrand(integrand, fs_, p)
-            ints[i], errs[i] = iterated_integration(w, lims; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            f = FourierIntegrand(integrand, fs_, p)
+            ints[i], errs[i] = iterated_integration(f, lims; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
@@ -125,18 +144,19 @@ function run_wannier_adaptive(integrand, fs, ps, lims::IntegrationLimits{d}, rto
 end
 
 """
-    run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, [nthreads=1])
+    automatic_equispace_fourier_integration(integrand, lims, fs, ps, rtol, atol, [nthreads=1])
 
 Returns a `NamedTuple` with names `I, E, t, p, npt1, npt2` containing the
 integrals, errors, timings, and number of kpts per dimension for a user-defined
 `integrand` of a Fourier series `fs` and parameters `ps`. The integration
 tolerances are `rtol, atol`. This function constructs a
-[`AutoBZ.WannierIntegrand`](@ref) for each parameter value and calls
+[`AutoBZ.FourierIntegrand`](@ref) for each parameter value and calls
 [`AutoBZ.automatic_equispace_integration`](@ref) with limits of integration
 `lims` to get the results.
 """
-function run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, nthreads=1)
-    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+function automatic_equispace_fourier_integration(integrand, lims, fs, ps, rtol, atol, nthreads=1)
+    # T = typeof(integrand(one(eltype(fs)), ps[1]...))
+    T = eltype(FourierIntegrand(integrand, fs, ps[1]))
     ints = Vector{T}(undef, length(ps))
     errs = Vector{Float64}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
@@ -153,8 +173,8 @@ function run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, nthread
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
-            w = WannierIntegrand(integrand, fs_, p)
-            ints[i], errs[i], pre_buf = automatic_equispace_integration(w, lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
+            f = FourierIntegrand(integrand, fs_, p)
+            ints[i], errs[i], pre_buf = automatic_equispace_integration(f, lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
             ts[i] = time() - t_
             npt1s[i] = pre_buf.npt1
             npt2s[i] = pre_buf.npt2
@@ -166,18 +186,18 @@ function run_wannier_auto_equispace(integrand, fs, ps, lims, rtol, atol, nthread
 end
 
 """
-    run_wannier_equispace(integrand, fs, ps, lims, npt, [nthreads=Threads.nthreads()])
+    equispace_fourier_integration(integrand, lims, fs, ps, npt, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, t, p` containing the integrals and timings
 for a user-defined `integrand` of a Fourier series `fs` and parameters `ps`.
 `npt` is the number of integration nodes per dimension. This function constructs
-a [`AutoBZ.WannierIntegrand`](@ref) for each parameter value and calls
+a [`AutoBZ.FourierIntegrand`](@ref) for each parameter value and calls
 [`AutoBZ.equispace_integration`](@ref) with limits of integration `lims` to get
 the results. The caller should check that the result is converged with respect
 to `npt`.
 """
-function run_wannier_equispace(integrand, fs, ps, lims, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
-    T = typeof(integrand(one(eltype(fs)), ps[1]...))
+function equispace_fourier_integration(integrand, lims, fs, ps, npt, nthreads=Threads.nthreads(), pre_eval=pre_eval_contract)
+    T = eltype(FourierIntegrand(integrand, fs, ps[1]))
     ints = Vector{T}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
     
@@ -195,8 +215,8 @@ function run_wannier_equispace(integrand, fs, ps, lims, npt, nthreads=Threads.nt
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
-            w = WannierIntegrand(integrand, fs, p)
-            ints[i], = equispace_integration(w, lims, npt; pre=f_k)
+            f = FourierIntegrand(integrand, fs, p)
+            ints[i], = equispace_integration(f, lims, npt; pre=f_k)
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
@@ -207,7 +227,7 @@ end
 
 
 """
-    run_wannier(integrand, fs, ps, lims, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    auto_fourier_integration(integrand, lims, fs, ps, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
 and timings for obtained for a user-defined `integrand` of a Fourier series `fs`
@@ -217,10 +237,10 @@ tolerances are `atol, rtol`. The integral is evaluated adaptively. However if
 tolerances `eatol` and `ertol`, and then uses a narrow absolute tolerance set by
 `max(atol,rtol*norm(int))` to evaluate and return the adaptive integral.
 """
-function run_wannier(integrand, fs, ps, lims::IntegrationLimits{d}, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
-    rtol == 0 && return run_wannier_adaptive(integrand, fs, ps, lims, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = run_wannier_auto_equispace(integrand, fs, ps, lims, ertol, eatol)
-    results = run_wannier_adaptive(integrand, fs, ps, lims, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function auto_fourier_integration(integrand, lims::IntegrationLimits{d}, fs, ps, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
+    rtol == 0 && return adaptive_fourier_integration(integrand, lims, fs, ps, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = automatic_equispace_fourier_integration(integrand, lims, fs, ps, ertol, eatol)
+    results = adaptive_fourier_integration(integrand, lims, fs, ps, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, p=ps)
 end
 
@@ -240,7 +260,7 @@ each parameter value and calls [`AutoBZ.iterated_integration`](@ref) on it over 
 the `BZ_lims` to get the results.
 """
 function run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, BZ_lims::IntegrationLimits{d}, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
-    T = eltype(DOSIntegrand{typeof(H)})
+    T = eltype(DOSIntegrand(H, Σ, zero(eltype(ωs))))
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
@@ -254,7 +274,7 @@ function run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, BZ_lims::IntegrationLi
         for (i, ω) in batch
             @info @sprintf "starting ω=%e" ω
             t_ = time()
-            D = DOSIntegrand(H_, ω, Σ)
+            D = DOSIntegrand(H_, Σ, ω)
             ints[i], errs[i] = iterated_integration(D, BZ_lims; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
@@ -273,7 +293,7 @@ of states calculation done at frequencies `ωs` with parameters `atol, rtol`.
 The domain of integration used is `BZ_lims`.
 """
 function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, ωs, BZ_lims, rtol, atol, nthreads=1)
-    T = eltype(DOSIntegrand{typeof(H)})
+    T = eltype(DOSIntegrand(H, Σ, zero(eltype(ωs))))
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
@@ -290,7 +310,7 @@ function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, ωs, BZ_lims, rtol, a
         for (i, ω) in batch
             @info @sprintf "starting ω=%e" ω
             t_ = time()
-            D = DOSIntegrand(H_, ω, Σ)
+            D = DOSIntegrand(H_, Σ, ω)
             ints[i], errs[i], pre_buf = automatic_equispace_integration(D, BZ_lims; atol=atol, rtol=rtol, npt1=pre_buf.npt1, pre1=pre_buf.pre1, npt2=pre_buf.npt2, pre2=pre_buf.pre2)
             ts[i] = time() - t_
             npt1s[i] = pre_buf.npt1
@@ -328,7 +348,7 @@ function run_dos_equispace(H, Σ::AbstractSelfEnergy, ωs, BZ_lims, npt, nthread
         for (i, ω) in batch
             @info @sprintf "starting ω=%e" ω
             t_ = time()
-            D = DOSIntegrand(H, ω, Σ)
+            D = DOSIntegrand(H, Σ, ω)
             ints[i], = equispace_integration(D, BZ_lims, npt; pre=H_k)
             ts[i] = time() - t_
             @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
@@ -571,8 +591,8 @@ function run_kinetic(HV, Σ::AbstractSelfEnergy, β, n, Ωs, BZ_lims::Integratio
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, Omega=Ωs)
 end
 
-# enables kpt parallelization by default for Wannier, DOS, transport, and kinetic integrals
-function AutoBZCore.equispace_int_eval(f::Union{WannierIntegrand,DOSIntegrand,TransportIntegrand}, pre, dvol; min_per_thread=1, nthreads=Threads.nthreads())
+# enables kpt parallelization by default for all BZ integrals
+function AutoBZ.equispace_int_eval(f::FourierIntegrand, pre, dvol, min_per_thread=1, nthreads=Threads.nthreads())
     n = length(pre)
     acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
     n == 1 && return dvol*acc
@@ -585,8 +605,7 @@ function AutoBZCore.equispace_int_eval(f::Union{WannierIntegrand,DOSIntegrand,Tr
         offset = min(i-1, r)*(d+1) + max(i-1-r, 0)*d
         # partial_sums[i] = sum(x -> x[2]*evaluate_integrand(f, x[1]), view(pre, (offset+1):(offset+jmax)); init=zero(acc))
         @inbounds for j in 1:jmax
-            x, w = pre[offset + j]
-            partial_sums[i] += w*evaluate_integrand(f, x)
+            partial_sums[i] += pre[offset + j][2]*evaluate_integrand(f, pre[offset + j][1])
         end
     end
     # dvol*sum(partial_sums; init=acc)

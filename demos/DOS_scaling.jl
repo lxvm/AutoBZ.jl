@@ -9,6 +9,7 @@ using HDF5
 using Plots
 
 using AutoBZ
+using AutoBZ.Jobs
 
 function initialize_data(seedname="svo", μ=12.3958)
 # Load the Wannier Hamiltonian as a Fourier series
@@ -87,7 +88,7 @@ function equispace_scaling()
         @info "starting log2(eta)=$(log2(eta))"
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = DOSIntegrand(H, omega, Σ)
+            D = DOSIntegrand(H, Σ, omega)
             r = @timed AutoBZ.automatic_equispace_integration(D, t; atol=atol, rtol=rtol, equi_save...)
             ints[i,j], errs[i,j], equi_save = r.value
             times[i,j] = r.time
@@ -107,7 +108,7 @@ function adaptive_scaling()
         @info "starting log2(eta)=$(log2(eta))"
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in ProgressBar(enumerate(omegas))
-            D = DOSIntegrand(H, omega, Σ)
+            D = DOSIntegrand(H, Σ, omega)
             r = @timed AutoBZ.iterated_integration(D, t; atol=atol, rtol=rtol)
             ints[i,j], errs[i,j] = r.value
             times[i,j] = r.time
@@ -122,7 +123,7 @@ function auto_adaptive_scaling(; eatol=0.0, ertol=1.0)
     for (j, eta) in enumerate(etas)
         Σ = EtaSelfEnergy(eta)
         for (i, omega) in enumerate(omegas)
-            D = DOSIntegrand(H, omega, Σ)
+            D = DOSIntegrand(H, Σ, omega)
             int_, = AutoBZ.automatic_equispace_integration(D, t; atol=eatol, rtol=ertol, equi_save...)
             r = @timed AutoBZ.iterated_integration(D, t; atol=max(atol, rtol*norm(int_)), rtol=0.0)
             ints[i,j], errs[i,j] = r.value
@@ -243,7 +244,7 @@ function oadaptive_scaling()
             @info "starting log2(eta)=$(log2(eta))"
             Σ = EtaSelfEnergy(eta)
             for (i, omega) in ProgressBar(enumerate(omegas))
-                D = DOSIntegrand(H, omega, Σ, μ)
+                D = DOSIntegrand(H, Σ, omega, μ)
                 r = @timed iterated_integration(D, t; order=o, atol=atol, rtol=rtol)
                 ints[i,j], errs[i,j] = r.value
                 times[i,j] = r.time

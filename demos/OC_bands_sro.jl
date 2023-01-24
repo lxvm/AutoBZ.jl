@@ -5,6 +5,7 @@ In this script we compute OC at single point using the interface in AutoBZ.jl
 using Plots
 
 using AutoBZ
+using AutoBZ.Jobs
 
 seedname="sro"
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
