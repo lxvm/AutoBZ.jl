@@ -52,14 +52,25 @@ Julia code, including `AutoBZ.jl`, can be called from MATLAB using the package
 
 ### Setup
 
-Download the
+1. Download the
 [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/raw/master/api/jlcall.m)
 script, which will install the Julia server when first called.
+2. Install [Julia](https://julialang.org/) and give MATLAB the path the Julia
+   binary by running `setenv('PATH',['path-to-julia/bin:',getenv('PATH')]);`
+3. Test that `jlcall` works by running `jlcall('sort', {rand(2,5)},
+   struct('dims', int64(2)))`
+4. Create setup.jl with the lines `import Pkg; Pkg.activate(".");
+   Pkg.develop(path=expanduser("path-to-AutoBZ.jl"));`
+5. Start a julia server within MATLAB with the appropriate modules: `jlcall('',
+   'project', 'path-to-myproject', 'setup', 'path-to-setup.jl', 'modules',
+   {'LinearAlgebra','AutoBZ'}, 'threads', 'auto', 'restart', true);`
+6. Now AutoBZ can be used via `jlcall`
 
 ### Demo
 
 Suppose we would like to run the function `get_dos` defined in this `script.jl`
 ```
+import Pkg; Pkg.activate("."); Pkg.develop(path=expanduser("path-to-AutoBZ.jl"))
 using AutoBZ
 
 function get_dos(seedname, self_energy_path, ωs, rtol, atol)
