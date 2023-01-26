@@ -78,8 +78,8 @@ struct IteratedFourierIntegrand1{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
     end
 end
 
+IteratedFourierIntegrand1(f, s, ps...) = IteratedFourierIntegrand1(f, s, ps)
 IteratedFourierIntegrand = IteratedFourierIntegrand1
-IteratedFourierIntegrand(f, s, ps...) = IteratedFourierIntegrand(f, s, ps)
 
 function iterated_pre_eval(f::IteratedFourierIntegrand, x, ::Type{Val{d}}) where d
     FourierIntegrand(f.f, contract(f.s, x), f.p)
