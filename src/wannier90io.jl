@@ -292,7 +292,7 @@ to compress the Fourier series if its Fourier coefficients are known to be
 Hermitian.
 """
 function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N)
-    a, b = try
+    a, b, = try
         parse_wout(seedname * ".wout")
     catch
         @info "Couldn't find $(seedname).wout so using Cartesian unit lattice instead"
