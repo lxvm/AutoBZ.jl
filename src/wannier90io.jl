@@ -235,6 +235,24 @@ parse_wout(filename; iprint=1) = open(filename) do file
         b[i] = parse.(Float64, col)
     end
 
+
+    readline(file)
+    readline(file)
+    readline(file) # site fractional coordinate cartesian coordinate (unit)
+    readline(file)
+    # lattice
+    species = String[]
+    site = Int[]
+    frac_lat = SVector{3,Float64}[]
+    cart_lat = SVector{3,Float64}[]
+    while true
+        col = split(readline(file))
+        length(col) == 11 || break
+        push!(species, col[2])
+        push!(site, parse(Int, col[3]))
+        push!(frac_lat, parse.(Float64, col[4:6]))
+        push!(cart_lat, parse.(Float64, col[8:10]))
+    end
     # projections
     # k-point grid
     # main
@@ -244,7 +262,7 @@ parse_wout(filename; iprint=1) = open(filename) do file
     # k-mesh
     # etc...
 
-    return a, b
+    return a, b, species, site, frac_lat, cart_lat
 end
 
 parse_sym(filename) = open(filename) do file
