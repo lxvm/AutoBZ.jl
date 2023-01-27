@@ -253,7 +253,7 @@ Base.eltype(::Type{TetrahedralLimits{d,T}}) where {d,T} = T
 
 box(t::TetrahedralLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, (zero(T), a) for a in t.a)
 
-function limits(t::TetrahedralLimits{d}, dim) where d
+function limits(t::TetrahedralLimits{d}, dim=d) where d
     dim == d || throw(ArgumentError("limit evaluation not supported for dim=$(dim)"))
     return (zero(t.p), t.p*last(t.a))
 end

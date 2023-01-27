@@ -48,9 +48,9 @@ struct IrreducibleBZ{d,L<:IntegrationLimits{d},S,d_} <: AbstractBZ{d}
 end
 
 IrreducibleBZ(a,b,lims) = IrreducibleBZ(a,b,lims,symmetries(lims))
-(l::IrreducibleBZ)(x) = IrreducibleBZ(l.a, l.b, l.lims(x),l.syms)
+(l::IrreducibleBZ{d})(x, dim=d) where d = IrreducibleBZ(l.a, l.b, l.lims(x, dim),l.syms)
 limits(l::IrreducibleBZ, dim) = limits(l.lims, dim)
-box(l::IrreducibleBZ) = box(l.lims)
+box(l::IrreducibleBZ) = box(FullBZ(l.a, l.b))
 nsyms(l::IrreducibleBZ) = length(l.syms)
 symmetries(l::IrreducibleBZ) = l.syms
 Base.eltype(::Type{IrreducibleBZ{d,L,S,d_}}) where {d,L,S,d_} = eltype(L)
