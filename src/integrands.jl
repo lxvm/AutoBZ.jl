@@ -1,4 +1,4 @@
-export ThunkIntegrand, FourierIntegrand
+export ThunkIntegrand, FourierIntegrand, IteratedFourierIntegrand
 
 """
     ThunkIntegrand(f, x)
@@ -68,35 +68,33 @@ equispace_pre_eval(f::FourierIntegrand, l, npt) = fourier_pre_eval(f.s, l, npt)
 
 
 
-struct IteratedFourierIntegrand1{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
+"""
+Integrand type similar to `FourierIntegrand`, but allowing nested integrand
+functions. Only the innermost integrand is allowed to depend on parameters, but
+this could be changed.
+"""
+struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
     f::F
     s::S
     p::P
-    function IteratedFourierIntegrand1(f::F, s::S, p::P) where {F,S,P}
+    function IteratedFourierIntegrand(f::F, s::S, p::P) where {F,S,P<:Tuple}
         @assert length(f) == ndims(s) "need same number of integrands as variables of integration"
         new{F,S,P}(f, s, p)
     end
 end
 
-IteratedFourierIntegrand1(f, s, ps...) = IteratedFourierIntegrand1(f, s, ps)
-IteratedFourierIntegrand = IteratedFourierIntegrand1
+IteratedFourierIntegrand(f, s, ps...) = IteratedFourierIntegrand(f, s, ps)
 
-function iterated_pre_eval(f::IteratedFourierIntegrand, x, ::Type{Val{d}}) where d
+function iterated_pre_eval(f::IteratedFourierIntegrand, x)
     FourierIntegrand(f.f, contract(f.s, x), f.p)
 end
 
-function iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{d}}) where d
-    f.f[d](y)
-end
-(f::IteratedFourierIntegrand)(x::SVector) = evaluate_integrand(f, f.s(x))
-(f::IteratedFourierIntegrand)(x::Number) = evaluate_integrand(f, f.s(x), 1)
-evaluate_integrand(f::IteratedFourierIntegrand, s_x) = ∘(reverse(f.f)...)(s_x, f.p...)
-evaluate_integrand(f::IteratedFourierIntegrand, y, dim) = f.f[dim](y) # f may depend on other parameters?
+iterated_integrand(f::IteratedFourierIntegrand, x, ::Type{Val{1}}) = f(x)
+iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{d}}) where d = f.f[d](y)
 
-
-#=
-struct IteratedIntegrationProblem1
-    
-end
-IteratedIntegrationProblem = IteratedIntegrationProblem1
-=#
+(f::IteratedFourierIntegrand)(x::SVector{N}) where N = evaluate_integrand(f, f.s(x), Val{N}())
+(f::IteratedFourierIntegrand)(x::Number) = evaluate_integrand(f, f.s(x), Val{1}()) # innermost integral needs this interface
+evaluate_integrand(f::IteratedFourierIntegrand, s_x, ::Val{1}) = f.f[1](s_x, f.p...)
+evaluate_integrand(f::IteratedFourierIntegrand, y, ::Val{dim}) where dim = f.f[dim](evaluate_integrand(f, y, Val{dim-1}())) # f may depend on other parameters?
+evaluate_integrand(f::IteratedFourierIntegrand, s_x, ::Colon) = ∘(reverse(f.f)...)(s_x, f.p...)
+Base.eltype(::Type{T}) where {F,S,T<:IteratedFourierIntegrand{F,S}} = Base.promote_op(evaluate_integrand, T, eltype(S), Colon)

@@ -26,7 +26,7 @@ AutoBZ.contract(f::AbstractFourierSeries3D, x, dim) = contract!(f, x, dim)
 (f::AbstractFourierSeries3D)(x::SVector{1}) = f(only(x))
 (f::AbstractFourierSeries3D)(x::Number) = value(contract!(f, x, 1))
 
-AutoBZ.iterated_pre_eval(f::FourierIntegrand{<:Any,<:AbstractFourierSeries3D}, x, dim::Int) =
+AutoBZ.iterated_pre_eval(f::Union{FourierIntegrand{F,S},IteratedFourierIntegrand{F,S}}, x, dim::Int) where {F,S<:AbstractFourierSeries3D} =
     (contract!(f.s, x, dim); return f)
 
 function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::Union{FullBZ{3},CubicLimits{3}}, npt)

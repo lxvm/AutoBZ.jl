@@ -14,6 +14,7 @@ iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 By default, returns `y` which is the result of an interior integral.
 """
+@inline iterated_integrand(f, x, ::Type{Val{1}}) = f(x) # defined for inference
 @inline iterated_integrand(f, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
 @inline iterated_integrand(f, y, dim) = y
 
@@ -30,6 +31,26 @@ subsequent integral.
 """
 @inline iterated_pre_eval(f, x, ::Type{Val{d}}) where d = iterated_pre_eval(f, x, d)
 iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
+
+"""
+Returns a tuple of the return types of f after each variable of integration
+"""
+function iterated_inference(f, l::IntegrationLimits{d}) where d
+    Fs = iterated_inference_down(typeof(f), eltype(l), Val{d}()) # type of inner integrand
+    iterated_inference_up(Fs, eltype(l), Val{d}())
+end
+
+function iterated_inference_down(F, T, ::Val{d}) where d
+    Finner = Base.promote_op(iterated_pre_eval, F, T, Type{Val{d}})
+    (iterated_inference_down(Finner, T, Val{d-1}())..., F)
+end
+iterated_inference_down(F, T, ::Val{1}) = (F,)
+
+function iterated_inference_up(Fs::NTuple{d_}, T, dim::Val{d}) where {d_,d}
+    Fouter = Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d-d_+1}}) # output type
+    (Fouter, iterated_inference_up(Fs[2:d_], Fouter, dim)...)
+end
+iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d = (Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d}}),)
 
 """
     iterated_segs(f, l, d, initdivs)
@@ -52,7 +73,7 @@ end
 Calls `QuadGK` to perform iterated 1D integration of `f` over a domain
 parametrized by `IntegrationLimits`. In the case two points `a` and `b` are
 passed, the integration region becomes the hypercube with those extremal
-vertices.
+vertices. `f` is assumed to be type-stable.
 
 Returns a tuple `(I, E)` of the estimated integral and estimated error.
 
@@ -82,11 +103,9 @@ allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
-    Tfx = Base.promote_op(f, SVector{ndims(l),eltype(l)})
-    Tnfx = Base.promote_op(norm, Tfx)
-    segbufs_ = segbufs === nothing ? alloc_segbufs(eltype(l), Tfx, Tnfx, ndims(l)) : segbufs
-    atol_ = something(atol, zero(Tnfx))/nsyms(l)
-    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(Tnfx))) : zero(Tnfx))
+    segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
+    atol_ = something(atol, zero(eltype(l)))/nsyms(l)
+    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(eltype(l)))) : zero(eltype(l)))
     int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)
     symmetrize(l, int, err)
 end
@@ -104,12 +123,19 @@ function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals
 end
 
 """
-    alloc_segbufs(eltype_l, typeof_fx, typeof_nfx, ndims_l)
+    alloc_segbufs(eltype_l, typesof_fx, typesof_nfx, ndims_l)
+    alloc_segbufs(f, l::IntegrationLimits)
 
 This helper function will allocate enough segment buffers as are needed for an
 `iterated_integration` call of integrand `f` and integration limits `l`.
-`eltype_l` should be `eltype(l)`, `typeof_fx` should be the return type of the
-integrand `f`, `typeof_nfx` should be the type of the norm of a value of `f`,
-and `ndims_l` should be `ndims(l)`.
+`eltype_l` should be `eltype(l)`, `typesof_fx` should be the return type of the
+integrand `f` for each iteration of integration, `typesof_nfx` should be the
+types of the norms of a value of `f` for each iteration of integration, and
+`ndims_l` should be `ndims(l)`.
 """
-alloc_segbufs(eltype_l, typeof_fx, typeof_nfx, ndims_l) = ntuple(_ -> QuadGK.alloc_segbuf(eltype_l, typeof_fx, typeof_nfx), Val{ndims_l}())
+alloc_segbufs(eltype_l, typesof_fx, typesof_nfx, ndims_l) = ntuple(n -> QuadGK.alloc_segbuf(eltype_l, typesof_fx[n], typesof_nfx[n]), Val{ndims_l}())
+function alloc_segbufs(f, l::IntegrationLimits{d}) where d
+    typesof_fx = iterated_inference(f, l)
+    typesof_nfx = ntuple(n -> Base.promote_op(norm, typesof_fx[n]), Val{d}())
+    alloc_segbufs(eltype(l), typesof_fx, typesof_nfx, ndims(l))
+end
