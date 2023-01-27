@@ -10,9 +10,11 @@ returns `(atol, rtol)` unchanged.
 iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 """
-    iterated_integrand(f, y, dim)
+    iterated_integrand(f, y, ::Type{Val{d}}) where d
 
 By default, returns `y` which is the result of an interior integral.
+Can use dispatch on `f` to implement more kinds of iterated integrals, in which
+case the developer should know `d` takes values of `0, 1, ..., ndims(lims)`
 """
 @inline iterated_integrand(f, x, ::Type{Val{1}}) = f(x) # defined for inference
 @inline iterated_integrand(f, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
@@ -33,6 +35,8 @@ subsequent integral.
 iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
 
 """
+    iterated_inference(f, l::IntegrationLimits{d})
+
 Returns a tuple of the return types of f after each variable of integration
 """
 function iterated_inference(f, l::IntegrationLimits{d}) where d
@@ -41,16 +45,28 @@ function iterated_inference(f, l::IntegrationLimits{d}) where d
 end
 
 function iterated_inference_down(F, T, ::Val{d}) where d
+    # recurse down to the innermost integral to get the integrand function types
     Finner = Base.promote_op(iterated_pre_eval, F, T, Type{Val{d}})
     (iterated_inference_down(Finner, T, Val{d-1}())..., F)
 end
 iterated_inference_down(F, T, ::Val{1}) = (F,)
 
 function iterated_inference_up(Fs::NTuple{d_}, T, dim::Val{d}) where {d_,d}
+    # go up the call stack and get the integrand result types
     Fouter = Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d-d_+1}}) # output type
     (Fouter, iterated_inference_up(Fs[2:d_], Fouter, dim)...)
 end
 iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d = (Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d}}),)
+
+"""
+    iterated_integral_type(f, l)
+
+Returns the result type 
+"""
+function iterated_integral_type(f, l::IntegrationLimits{d}) where d
+    T = iterated_inference(f, l)[d]
+    Base.promote_op(iterated_integrand, typeof(f), T, Type{Val{0}})
+end
 
 """
     iterated_segs(f, l, d, initdivs)
@@ -107,7 +123,7 @@ function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing,
     atol_ = something(atol, zero(eltype(l)))/nsyms(l)
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(eltype(l)))) : zero(eltype(l)))
     int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)
-    symmetrize(l, int, err)
+    symmetrize(l, iterated_integrand(f, int, Val{0}), err)
 end
 
 function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)

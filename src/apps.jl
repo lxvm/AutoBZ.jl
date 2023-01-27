@@ -15,25 +15,36 @@ Returns `diag(inv(M-H))` where `M = ω*I-Σ(ω)`
 diaggloc_integrand(H::AbstractMatrix, M) = diag_inv(M-H)
 
 """
-    dos_integrand(H, Σ, ω)
-    dos_integrand(H, M)
+    unsafedos_integrand(H, Σ, ω)
+    unsafedos_integrand(H, M)
 
-Returns `imag(tr(inv(M-H)))/(-pi)` where `M = ω*I-Σ(ω)`
+Returns `imag(tr(inv(M-H)))/(-pi)` where `M = ω*I-Σ(ω)`. It is unsafe to use
+this in the inner integral for small eta due to the localized tails of the
+integrand. The default, safe version also integrates the real part which is less
+localized, at the expense of a slight slow-down due to complex arithmetic.
 """
-fastdos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+unsafedos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+
+"""
+    self_energy_args(M)
+    self_energy_args(Σ, ω)
+
+define the default behavior for handling single Green's function self energy arguments
+"""
+self_energy_args(M) = M
+self_energy_args(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
+self_energy_args(Σ::AbstractMatrix, ω) = ω*I-Σ
 
 # Generic behavior for single Green's function integrands (methods and types)
-for name in ("Gloc", "DiagGloc", "FastDOS")
+for name in ("Gloc", "DiagGloc", "UnsafeDOS")
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
     T = Symbol(name, "Integrand")
     E = Symbol(name, "Integrator")
     @eval export $f, $T, $E
 
-    # Define how self-energies are handled
-    @eval $f(H, Σ::AbstractSelfEnergy, ω) = $f(H, ω*I-Σ(ω))
-    @eval $f(H, Σ::AbstractMatrix, ω) = $f(H, ω*I-Σ)
-    @eval $f(H::AbstractFourierSeries, M) = FourierIntegrand($f, H, M)
+    # Define interface for converting to the FourierIntegrand
+    @eval $f(H::AbstractFourierSeries, args...) = FourierIntegrand($f, H, self_energy_args(args...))
 
     # Define the type alias to have the same behavior as the function
     @eval const $T = FourierIntegrand{typeof($f)}
@@ -74,10 +85,9 @@ export DOSIntegrand, DOSIntegrator
 noimag_dos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
 
 const DOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-DOSIntegrand{N}(H, Σ::AbstractSelfEnergy, ω) where N = DOSIntegrand(H, ω*I-Σ(ω))
-DOSIntegrand{N}(H, Σ::AbstractMatrix, ω) where {N} = DOSIntegrand(H, ω*I-Σ)
-function DOSIntegrand(H::AbstractFourierSeries{N}, M) where N
-    fs = ntuple(Val{N}()) do n
+DOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = DOSIntegrand{N}(H, args...)
+function DOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
+    fs = ntuple(N) do n
         if n == 1
             noimag_dos_integrand
         elseif n == 2
@@ -86,11 +96,13 @@ function DOSIntegrand(H::AbstractFourierSeries{N}, M) where N
             identity
         end
     end
-    IteratedFourierIntegrand(fs, H, M)
+    IteratedFourierIntegrand(fs, H, self_energy_args(args...))
 end
+const DOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand)}}
+AutoBZ.iterated_integrand(::DOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
 
 const DOSIntegrator{N} = FourierIntegrator{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-DOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = DOSIntegrator{d-2}(lims, args...; kwargs...)
+DOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = DOSIntegrator{d}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 
@@ -166,7 +178,6 @@ struct KineticIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D}
     end
 end
 
-Base.eltype(::Type{<:KineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 # innermost integral is the frequency integral
 (A::KineticIntegrand)(kω::SVector{4}) = kinetic_integrand(A.HV(pop(kω)), A.Σ, last(kω), A.Ω, A.β, A.n)
 (A::KineticIntegrand)(ω::SVector{1}) = A(only(ω))
@@ -187,11 +198,11 @@ grid points `npt`. The argument `l` should be an `IntegrationLimits` for just
 the Brillouin zone. This type should be called by an adaptive integration
 routine whose limits of integration are only the frequency variable.
 """
-struct EquispaceKineticIntegrand{T,TS,TL,THV}
+struct EquispaceKineticIntegrand{T,TS,TL,P}
     A::KineticIntegrand{T,TS}
     l::TL
     npt::Int
-    pre::Vector{Tuple{THV,Int}}
+    pre::P
 end
 
 
@@ -204,8 +215,6 @@ function (f::EquispaceKineticIntegrand)(ω::Number)
     Γ, = equispace_integration(TransportIntegrand(f.A, ω), f.l, f.npt; pre=f.pre)
     return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
 end
-
-Base.eltype(::Type{<:EquispaceKineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
 
 
 """
@@ -228,22 +237,23 @@ The keyword arguments, which are just passed to
     velocities and integration weights on a more refined grid than `pre1`
 - `npt2`: an integer that should be equivalent to `length(pre)`
 """
-mutable struct AutoEquispaceKineticIntegrand{T,TS,TL,THV}
+mutable struct AutoEquispaceKineticIntegrand{T,TS,TL,P}
     A::KineticIntegrand{T,TS}
     l::TL
     atol::Float64
     rtol::Float64
     npt1::Int
-    pre1::Vector{Tuple{THV,Int}}
+    pre1::P
     npt2::Int
-    pre2::Vector{Tuple{THV,Int}}
+    pre2::P
 end
 
 
-AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=Tuple{eltype(A.HV),Int}[], npt2=0,pre2=Tuple{eltype(A.HV),Int}[]) =
+function AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=nothing, npt2=0, pre2=nothing)
+    pre1 = something(pre1, equispace_pre_eval(TransportIntegrand(A, 0.0), l, 0))
+    pre2 = something(pre2, equispace_pre_eval(TransportIntegrand(A, 0.0), l, 0))
     AutoEquispaceKineticIntegrand(A, l, atol, rtol, npt1, pre1, npt2, pre2)
-
-Base.eltype(::Type{<:AutoEquispaceKineticIntegrand}) = SMatrix{3,3,ComplexF64,9}
+end
 
 (f::AutoEquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
 function (f::AutoEquispaceKineticIntegrand)(ω::Number)

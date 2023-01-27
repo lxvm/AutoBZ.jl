@@ -88,7 +88,8 @@ function band_velocity_types(kind, T)
 end
 
 AutoBZ.period(b::BandEnergyVelocity3D) = period(b.H)
-Base.eltype(::Type{BandEnergyVelocity3D{kind,T,TV,TH}}) where {kind,T,TV,TH} = Tuple{TH,TV,TV,TV}
+AutoBZ.coefficient_type(::Type{<:BandEnergyVelocity3D{kind,T}}) where {kind,T} = T
+AutoBZ.fourier_type(::BandEnergyVelocity3D{kind,T,TV,TH}, _) where {kind,T,TV,TH} = Tuple{TH,TV,TV,TV}
 AutoBZ.value(b::BandEnergyVelocity3D) = (only(b.H_xyz), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
 function contract!(b::BandEnergyVelocity3D{kind}, x::Number, dim) where kind
     if dim == 3
@@ -147,7 +148,8 @@ function BandEnergyBerryVelocity3D(H::FourierSeries3D{T,0,0,0}, Ax::FourierSerie
 end
 
 AutoBZ.period(b::BandEnergyBerryVelocity3D) = period(b.H)
-Base.eltype(::Type{BandEnergyBerryVelocity3D{kind,T,TA,TV,TH}}) where {kind,T,TA,TV,TH} = Tuple{TH,TV,TV,TV}
+AutoBZ.coefficient_type(::Type{<:BandEnergyBerryVelocity3D{kind,T}}) where {kind,T} = T
+AutoBZ.fourier_type(::BandEnergyBerryVelocity3D{kind,T,TA,TV,TH}, _) where {kind,T,TA,TV,TH} = Tuple{TH,TV,TV,TV}
 AutoBZ.value(b::BandEnergyBerryVelocity3D) = (only(b.H_xyz), only(b.vx_xyz), only(b.vy_xyz), only(b.vz_xyz))
 function contract!(b::BandEnergyBerryVelocity3D{kind}, x::Number, dim) where kind
     if dim == 3

@@ -1,7 +1,7 @@
 # Possible TODO for FourierSeries
 # - replace dependence on SVector with NTuple for ease of use by new users
 # - enable reduction over multiple dims simulatneously (?) may not be used
-export AbstractFourierSeries, period, contract, value
+export AbstractFourierSeries, period, contract, value, coefficients, coefficient_type, fourier_type, phase_type
 export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
 export fourier_kernel, fourier_kernel!, fourier_pre_eval, fft_pre_eval
 
@@ -48,12 +48,28 @@ contract(f::AbstractFourierSeries, x::SVector) = contract(contract(f, last(x)), 
 contract(f::AbstractFourierSeries, ::SVector{0}) = f
 
 """
-value(::AbstractFourierSeries{0})
+    value(::AbstractFourierSeries{0})
 
 Return the evaluated Fourier series whose indices have all been contracted.
 Typically, this value has the same units as the Fourier series coefficients.
 """
 function value end
+
+
+"""
+    coefficients(::AbstractFourierSeries)
+
+Return the array of coefficients defining the Fourier series
+"""
+function coefficients end
+
+"""
+    coefficient_type(::AbstractFourierSeries)
+
+Return the type of the coefficients defining the Fourier series.
+This is a type-based computation.
+"""
+coefficient_type(f::AbstractFourierSeries) = coefficient_type(typeof(f))
 
 """
     (f::AbstractFourierSeries{N})(x::SVector{N}) where {N}
@@ -65,10 +81,15 @@ dimension as the Fourier series
 (f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
 (f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
 
+phase_type(x) = Base.promote_op(cis, eltype(x))
+# phase_type(X::Type) = Base.promote_op(cis, X)
+fourier_type(C::AbstractFourierSeries,x) = Base.promote_op(*, coefficient_type(C), phase_type(x))
+
+
 
 function fourier_pre_eval(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    f_xs = Vector{Tuple{eltype(f),Int}}(undef, npt^d)
+    f_xs = Vector{Tuple{fourier_type(f, eltype(l)),Int}}(undef, npt^d)
     fourier_pre_eval!(f_xs, d, 0, f, box(l), npt)
     return f_xs
 end
@@ -92,7 +113,7 @@ function fourier_pre_eval(f_3::AbstractFourierSeries{3}, l::IntegrationLimits{3}
     flag, wsym, nsym = discretize_equispace_(l, npt)
     n = 0
     b = box(l)
-    pre = Vector{Tuple{eltype(f_3),Int}}(undef, nsym)
+    pre = Vector{Tuple{fourier_type(f_3, eltype(l)),Int}}(undef, nsym)
     Base.Cartesian.@nloops 3 i flag j -> f_{j-1} = contract(f_j, (b[j][2]-b[j][1])*(i_j-1)/npt + b[j][1]) begin
         if (Base.Cartesian.@nref 3 flag i)
             n += 1
@@ -204,8 +225,8 @@ struct FourierSeries{N,T} <: AbstractFourierSeries{N}
 end
 
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
-Base.eltype(::Type{<:FourierSeries{N,T}}) where {N,T} = Base.promote_op(*, ComplexF64, eltype(T))
-Base.eltype(::Type{<:FourierSeries{0,T}}) where {T} = T
+coefficients(f::FourierSeries) = f.coeffs
+coefficient_type(::Type{FourierSeries{N,T}}) where {N,T} = eltype(T)
 
 """
     contract(f::FourierSeries{N}, x::Number, [dim=N]) where N
@@ -282,7 +303,7 @@ end
 function (f::FourierSeries{N})(x::SVector{N}) where {N}
     C = f.coeffs
     ϕ = x ./ f.period
-    sum(CartesianIndices(C), init=zero(eltype(f))) do i
+    sum(CartesianIndices(C), init=zero(fourier_type(f, x))) do i
         C[i] * cispi(2*dot(ϕ, convert(SVector, i)))
     end
 end
@@ -321,8 +342,6 @@ struct FourierSeriesDerivative{N,T<:FourierSeries{N},Ta} <: AbstractFourierSerie
     f::T
     a::SVector{N,Ta}
 end
-
-Base.eltype(::Type{<:FourierSeriesDerivative{N,T}}) where {N,T} = eltype(T)
 
 """
     contract(f::FourierSeriesDerivative{N}, x::Number, [dim=N]) where {N}
@@ -407,10 +426,11 @@ end
 Evaluate `f` at the point `x`.
 """
 function (dv::FourierSeriesDerivative{N})(x::SVector{N}) where {N}
+    T = fourier_type(dv.f, eltype(x))
     C = dv.f.coeffs
     imk = (im*2*pi) ./ dv.f.period
     ϕ = x ./ dv.f.period
-    sum(CartesianIndices(C), init=zero(eltype(dv))) do i
+    sum(CartesianIndices(C), init=zero(T)) do i
         idx = convert(SVector, i)
         @inbounds C[i] * (cispi(2*dot(ϕ, idx)) * prod((imk.*idx) .^ dv.a))
     end
@@ -434,7 +454,6 @@ end
 contract(f::OffsetFourierSeries, x::Number) = OffsetFourierSeries(contract(f.f, x-last(f.q)), pop(f.q))
 period(f::OffsetFourierSeries) = period(f.f)
 value(f::OffsetFourierSeries{0}) = value(f.f)
-Base.eltype(::Type{OffsetFourierSeries{N,T}}) where {N,T} = eltype(T)
 
 """
     ManyFourierSeries(fs::AbstractFourierSeries{N}...) where {N}
@@ -453,7 +472,6 @@ end
 contract(fs::ManyFourierSeries, x::Number) = ManyFourierSeries(map(f -> contract(f, x), fs.fs), pop(fs.period))
 period(fs::ManyFourierSeries) = fs.period
 value(fs::ManyFourierSeries{0}) = map(value, fs.fs)
-Base.eltype(::Type{ManyFourierSeries{N,T}}) where {N,T} = map(eltype, Tuple(T.parameters))
 
 """
     ManyOffsetsFourierSeries(f, qs..., [origin=true])
@@ -480,7 +498,6 @@ function contract(f::ManyOffsetsFourierSeries, x::Number)
 end
 period(f::ManyOffsetsFourierSeries) = period(f.f)
 value(f::ManyOffsetsFourierSeries{0}) = value(f.f)
-Base.eltype(::Type{ManyOffsetsFourierSeries{N,T,Q}}) where {N,T,Q} = ntuple(_ -> eltype(T), Val{Q}())
 
 
 """

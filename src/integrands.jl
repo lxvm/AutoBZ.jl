@@ -1,5 +1,6 @@
 export ThunkIntegrand, FourierIntegrand, IteratedFourierIntegrand
 
+
 """
     ThunkIntegrand(f, x)
 
@@ -53,18 +54,9 @@ FourierIntegrand{F}(s, ps...) where {F<:Function} = FourierIntegrand(F.instance,
 FourierIntegrand(f, s, ps...) = FourierIntegrand(f, s, ps)
 (f::FourierIntegrand)(x) = evaluate_integrand(f, f.s(x))
 evaluate_integrand(f::FourierIntegrand, s_x) = f.f(s_x, f.p...)
-Base.eltype(::Type{FourierIntegrand{F,S,P}}) where {F,S,P} = Base.promote_op(F.instance, eltype(S), P.parameters...)
 
 iterated_pre_eval(f::FourierIntegrand, x) = FourierIntegrand(f.f, contract(f.s, x), f.p)
 
-"""
-    equispace_pre_eval(f::FourierIntegrand, l::IntegrationLimits, npt)
-
-This function will evaluate the Fourier series and integration weights needed
-for equispace integration of `f` at `npt` points per dimension. `l` should
-contain the relevant symmetries needed for IBZ integration, if desired.
-"""
-equispace_pre_eval(f::FourierIntegrand, l, npt) = fourier_pre_eval(f.s, l, npt)
 
 
 
@@ -73,7 +65,14 @@ equispace_pre_eval(f::FourierIntegrand, l, npt) = fourier_pre_eval(f.s, l, npt)
 
 Integrand type similar to `FourierIntegrand`, but allowing nested integrand
 functions `fs` with `fs[1]` the innermost function. Only the innermost integrand
-is allowed to depend on parameters, but this could be changed.
+is allowed to depend on parameters, but this could be implemented to allow the
+inner function to also be multivariate Fourier series.
+
+!!! note Compatibility with equispace integration
+    When used as an equispace integrand, this type does each integral one
+    variable at a time, applying PTR to each dimension. Therefore is only safe
+    to use this type when the functions`fs` preserve the periodicity of the
+    functions being integrated, such as linear functions.
 """
 struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
     f::F
@@ -89,15 +88,31 @@ IteratedFourierIntegrand{F}(s, ps...) where {F<:Tuple{Vararg{Function}}} =
 IteratedFourierIntegrand(f, s, ps...) = IteratedFourierIntegrand(f, s, ps)
 
 function iterated_pre_eval(f::IteratedFourierIntegrand, x)
-    FourierIntegrand(f.f, contract(f.s, x), f.p)
+    IteratedFourierIntegrand(Base.front(f.f), contract(f.s, x), f.p)
 end
 
 iterated_integrand(f::IteratedFourierIntegrand, x, ::Type{Val{1}}) = f(x)
 iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{d}}) where d = f.f[d](y)
+iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
 
-(f::IteratedFourierIntegrand)(x::SVector{N}) where N = evaluate_integrand(f, f.s(x), Val{N}())
-(f::IteratedFourierIntegrand)(x::Number) = evaluate_integrand(f, f.s(x), Val{1}()) # innermost integral needs this interface
-evaluate_integrand(f::IteratedFourierIntegrand, s_x, ::Val{1}) = f.f[1](s_x, f.p...)
-evaluate_integrand(f::IteratedFourierIntegrand, y, ::Val{dim}) where dim = f.f[dim](evaluate_integrand(f, y, Val{dim-1}())) # f may depend on other parameters?
-evaluate_integrand(f::IteratedFourierIntegrand, s_x, ::Colon) = ∘(reverse(f.f)...)(s_x, f.p...)
-Base.eltype(::Type{T}) where {F,S,T<:IteratedFourierIntegrand{F,S}} = Base.promote_op(evaluate_integrand, T, eltype(S), Colon)
+(f::IteratedFourierIntegrand)(x) = evaluate_integrand(f, f.s(x)) # innermost integral needs this interface
+evaluate_integrand(f::IteratedFourierIntegrand, s_x) = f.f[1](s_x, f.p...)
+
+# equispace customizations
+
+equispace_pre_eval(f::Union{IteratedFourierIntegrand,FourierIntegrand}, l, npt) = fourier_pre_eval(f.s, l, npt)
+
+@generated function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, pre::AbstractArray{T,N}, dvol) where {F,T,N,S<:AbstractFourierSeries{N}}
+    return :(error("not implemented"))
+    quote
+        A = zero(eltype(f))
+        # dvol * sum(x -> x[2]*evaluate_integrand(f, x[1]), pre) # idea
+        Base.Cartesian.@nloops $N i pre d ->  begin
+            # A = 
+        end
+    end
+end
+
+function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, pre::Vector{T}, dvol) where {F,T,N,S<:AbstractFourierSeries{N}}
+    error("IBZ not implemented: use FBZ instead: unclear what to do if pre-evaluation contains no information about dimension")
+end

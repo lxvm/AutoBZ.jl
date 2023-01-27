@@ -32,7 +32,7 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-# D = FastDOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
+# D = UnsafeDOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
 D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
