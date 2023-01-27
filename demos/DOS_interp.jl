@@ -32,7 +32,8 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-D = DOSIntegrator(H, IBZ, Σ; atol=atol, rtol=rtol)
+# D = FastDOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
+D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
 p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)

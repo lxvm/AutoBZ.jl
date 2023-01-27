@@ -29,9 +29,14 @@ end
 
 FourierIntegrator{F}(args...; kwargs...) where {F<:Function} =
     FourierIntegrator(F.instance, args...; kwargs...) # allows dispatch by aliases
+FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
+    FourierIntegrator(tuple(map(f -> f.instance, F.parameters)...), args...; kwargs...) # allows dispatch by aliases
 
 FourierIntegrator(f, l, s, ps...; order=4, atol=0.0, rtol=sqrt(eps()), norm=norm) =
     FourierIntegrator(f, l, s, ps, order, atol, rtol, norm)
 
 (f::FourierIntegrator{F})(ps...) where F =
     first(iterated_integration(FourierIntegrand{F}(f.s, f.p..., ps...), f.l; order=f.order, atol=f.atol, rtol=f.rtol))
+
+(f::FourierIntegrator{F})(ps...) where {F<:Tuple} =
+    first(iterated_integration(IteratedFourierIntegrand{F}(f.s, f.p..., ps...), f.l; order=f.order, atol=f.atol, rtol=f.rtol))

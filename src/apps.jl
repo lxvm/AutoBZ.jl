@@ -20,10 +20,10 @@ diaggloc_integrand(H::AbstractMatrix, M) = diag_inv(M-H)
 
 Returns `imag(tr(inv(M-H)))/(-pi)` where `M = ω*I-Σ(ω)`
 """
-dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+fastdos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
 
 # Generic behavior for single Green's function integrands (methods and types)
-for name in ("Gloc", "DiagGloc", "DOS")
+for name in ("Gloc", "DiagGloc", "FastDOS")
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
     T = Symbol(name, "Integrand")
@@ -67,6 +67,30 @@ canonical BZ, approximately places a point in every box of size `η`. Choice of
 npt_update_eta(npt, η, n₀=6.0, Δn=2.3) = npt + npt_update_eta_(η, npt == 0 ? n₀ : Δn)
 npt_update_eta_(η, c) = max(50, round(Int, c/η))
 
+# integrands using IteratedFourierIntegrand (definition is slightly more involved)
+
+export DOSIntegrand, DOSIntegrator
+
+noimag_dos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
+
+const DOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+DOSIntegrand{N}(H, Σ::AbstractSelfEnergy, ω) where N = DOSIntegrand(H, ω*I-Σ(ω))
+DOSIntegrand{N}(H, Σ::AbstractMatrix, ω) where {N} = DOSIntegrand(H, ω*I-Σ)
+function DOSIntegrand(H::AbstractFourierSeries{N}, M) where N
+    fs = ntuple(Val{N}()) do n
+        if n == 1
+            noimag_dos_integrand
+        elseif n == 2
+            imag
+        else
+            identity
+        end
+    end
+    IteratedFourierIntegrand(fs, H, M)
+end
+
+const DOSIntegrator{N} = FourierIntegrator{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+DOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = DOSIntegrator{d-2}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 

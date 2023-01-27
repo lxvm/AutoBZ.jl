@@ -69,9 +69,11 @@ equispace_pre_eval(f::FourierIntegrand, l, npt) = fourier_pre_eval(f.s, l, npt)
 
 
 """
+    IteratedFourierIntegrand(fs::Tuple, s::AbstractFourierSeries, ps...)
+
 Integrand type similar to `FourierIntegrand`, but allowing nested integrand
-functions. Only the innermost integrand is allowed to depend on parameters, but
-this could be changed.
+functions `fs` with `fs[1]` the innermost function. Only the innermost integrand
+is allowed to depend on parameters, but this could be changed.
 """
 struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
     f::F
@@ -82,7 +84,8 @@ struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
         new{F,S,P}(f, s, p)
     end
 end
-
+IteratedFourierIntegrand{F}(s, ps...) where {F<:Tuple{Vararg{Function}}} =
+    IteratedFourierIntegrand(tuple(map(f -> f.instance, F.parameters)...), s, ps) # allows dispatch by aliases
 IteratedFourierIntegrand(f, s, ps...) = IteratedFourierIntegrand(f, s, ps)
 
 function iterated_pre_eval(f::IteratedFourierIntegrand, x)
