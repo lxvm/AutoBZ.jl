@@ -216,24 +216,25 @@ parse_wout(filename; iprint=1) = open(filename) do file
     readline(file)
     readline(file)
     ## lattice vectors
-    a = Vector{SVector{3,Float64}}(undef, 3)
+    c = Matrix{Float64}(undef, 3, 3)
     for i in 1:3
         col = split(readline(file))
         popfirst!(col)
-        a[i] = parse.(Float64, col)
+        c[:,i] = parse.(Float64, col)
     end
+    A = SMatrix{3,3,Float64,9}(c)
 
     readline(file)
     readline(file)
     readline(file)
     readline(file)
     ## reciprocal lattice vectors
-    b = Vector{SVector{3,Float64}}(undef, 3)
     for i in 1:3
         col = split(readline(file))
         popfirst!(col)
-        b[i] = parse.(Float64, col)
+        c[i] = parse.(Float64, col)
     end
+    B = SMatrix{3,3,Float64,9}(c)
 
 
     readline(file)
@@ -291,12 +292,12 @@ true) and the full Brillouin zone limits. The keyword `compact` is available if
 to compress the Fourier series if its Fourier coefficients are known to be
 Hermitian.
 """
-function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N)
-    a, b, = try
+function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N, atol=1e-5)
+    A, B, = try
         parse_wout(seedname * ".wout")
     catch
         @info "Couldn't find $(seedname).wout so using Cartesian unit lattice instead"
-        (SVector{3,Float64}[[1,0,0], [0,1,0], [0,0,1]], SVector{3,Float64}[[2π,0,0], [0,2π,0], [0,0,2π]])
+        (one(SMatrix{3,3,Float64}), 2pi*one(SMatrix{3,3,Float64}))
     end
 
     periods = ntuple(i -> norm(b[i]), Val{3}())
@@ -324,7 +325,7 @@ function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true,
         =#
     catch
         @info "Using full Brillouin zone"
-        FullBZ(a, b)
+        FullBZ(A, B; atol=atol)
     end
 
     return HV, BZ

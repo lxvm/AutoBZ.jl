@@ -15,15 +15,16 @@ Returns `diag(inv(M-H))` where `M = ω*I-Σ(ω)`
 diaggloc_integrand(H::AbstractMatrix, M) = diag_inv(M-H)
 
 """
-    unsafedos_integrand(H, Σ, ω)
-    unsafedos_integrand(H, M)
+    dos_integrand(H, Σ, ω)
+    dos_integrand(H, M)
 
 Returns `imag(tr(inv(M-H)))/(-pi)` where `M = ω*I-Σ(ω)`. It is unsafe to use
 this in the inner integral for small eta due to the localized tails of the
 integrand. The default, safe version also integrates the real part which is less
 localized, at the expense of a slight slow-down due to complex arithmetic.
+See [`AutoBZ.Jobs.SafeSafeDOSIntegrand`](@ref).
 """
-unsafedos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
 
 """
     self_energy_args(M)
@@ -36,7 +37,7 @@ self_energy_args(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
 self_energy_args(Σ::AbstractMatrix, ω) = ω*I-Σ
 
 # Generic behavior for single Green's function integrands (methods and types)
-for name in ("Gloc", "DiagGloc", "UnsafeDOS")
+for name in ("Gloc", "DiagGloc", "DOS")
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
     T = Symbol(name, "Integrand")
@@ -80,13 +81,18 @@ npt_update_eta_(η, c) = max(50, round(Int, c/η))
 
 # integrands using IteratedFourierIntegrand (definition is slightly more involved)
 
-export DOSIntegrand, DOSIntegrator
+export SafeDOSIntegrand, SafeDOSIntegrator
 
 noimag_dos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
 
-const DOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-DOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = DOSIntegrand{N}(H, args...)
-function DOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
+"""
+    SafeDOSIntegrand
+
+Constructor+Type alias
+"""
+const SafeDOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+SafeDOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = SafeDOSIntegrand{N}(H, args...)
+function SafeDOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
     fs = ntuple(N) do n
         if n == 1
             noimag_dos_integrand
@@ -98,11 +104,14 @@ function DOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
     end
     IteratedFourierIntegrand(fs, H, self_energy_args(args...))
 end
-const DOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand)}}
-AutoBZ.iterated_integrand(::DOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
 
-const DOSIntegrator{N} = FourierIntegrator{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-DOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = DOSIntegrator{d}(lims, args...; kwargs...)
+# For type stability in the 1D case where imag must be taken outside
+const SafeDOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand)}}
+AutoBZ.iterated_integrand(::SafeDOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
+
+const SafeDOSIntegrator{N} = FourierIntegrator{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+
+SafeDOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = SafeDOSIntegrator{d}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 
@@ -264,3 +273,65 @@ function (f::AutoEquispaceKineticIntegrand)(ω::Number)
     f.pre2 = other.pre2
     return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
 end
+
+#= Necessary?
+
+function (l::CompositeLimits{d,T,<:Tuple{FullBZ{dBZ},Vararg{IntegrationLimits}}})(x, dim) where {d,T,dBZ}
+    if 0 < dim <= (d-dBZ+1)
+        return CompositeLimits{d-dBZ,T}(Base.rest(l.lims, 2)...)
+    elseif (d-dBZ+1) < dim <= d
+        return l
+    else
+        throw(ErrorException("skipped FBZ"))
+    end
+end
+
+
+
+box(t::TetrahedralLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, (zero(T), a) for a in t.a)
+
+function limits(t::TetrahedralLimits{d}, dim=d) where d
+    dim == d || throw(ArgumentError("limit evaluation not supported for dim=$(dim)"))
+    return (zero(t.p), t.p*last(t.a))
+end
+nsyms(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
+symmetries(t::TetrahedralLimits) = cube_automorphisms(Val{ndims(t)}())
+
+"""
+    cube_automorphisms(d::Integer)
+
+return a generator of the symmetries of the cube in `d` dimensions, optionally
+including the identity.
+"""
+cube_automorphisms(n::Val{d}) where {d} = (S*P for S in sign_flip_matrices(n), P in permutation_matrices(n))
+n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
+
+sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)...)
+sign_flip_matrices(n::Val{d}) where {d} = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(n))
+n_sign_flips(d::Integer) = 2^d
+
+permutation_matrices(t::Val{n}) where {n} = (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutations(ntuple(identity, t)))
+n_permutations(n::Integer) = factorial(n)
+#= less performant code (at least when n=3)
+permutation_matrices(t::Val{n}) where {n} = (SparseArrays.sparse(Base.OneTo(n), p, ones(n), n, n) for p in permutations(ntuple(identity, t)))
+permutation_tuples(C::NTuple{N,T}) where {N,T} = @inbounds((C[i], p...)::NTuple{N,T} for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
+permutation_tuples(C::NTuple{1}) = C;
+=#
+
+
+box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
+limits(l::CompositeLimits{d,T,L}, dim) where {d,T,L} = T.(limits(first(l.lims), dim-mapreduce(ndims, +, Base.rest(l.lims, 2); init=0)))
+nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
+function symmetrize(l::CompositeLimits, x)
+    r = x
+    for lim in l.lims
+        r = symmetrize(lim, r)
+    end
+    r
+end
+
+# untested
+function discretize_equispace(l::CompositeLimits, npt)
+    ((vcat([map(y -> y[1], x)]...), prod(y -> y[2], x)) for x in Iterators.product(reverse(map(m -> discretize_equispace(m, npt), l.lims)))...)
+end
+=#

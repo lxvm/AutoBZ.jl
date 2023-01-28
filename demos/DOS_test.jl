@@ -19,7 +19,6 @@ IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
 shift!(H, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
-DD = UnsafeDOSIntegrand(H, Σ, ω)
 D = DOSIntegrand(H, Σ, ω)
 
 # set error tolerances
@@ -27,5 +26,8 @@ atol = 1e-3
 rtol = 0.0
 
 int, err = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
-# inte, erre, other = AutoBZ.automatic_equispace_integration(D, FBZ; atol=atol, rtol=rtol)
-inte, erre, other = AutoBZ.automatic_equispace_integration(DD, IBZ; atol=atol, rtol=rtol)
+inte, erre, pre = AutoBZ.automatic_equispace_integration(D, IBZ; atol=atol, rtol=rtol)
+
+DD = SafeDOSIntegrand(H, Σ, ω)
+safe_int, safe_err = AutoBZ.iterated_integration(DD, IBZ; atol=atol, rtol=rtol)
+safe_inte, safe_erre, safe_pre = AutoBZ.automatic_equispace_integration(DD, FBZ; atol=atol, rtol=rtol);

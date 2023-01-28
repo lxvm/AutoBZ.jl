@@ -24,7 +24,8 @@ the adaptive and equispace integration routines.
     [`AutoBZ.Jobs.AutoEquispaceKineticIntegrand`](@ref).
 
 In fact, all of the BZ integrals in [`AutoBZ.Jobs`](@ref) are defined this way.
-In addition, they define a type alias in order to have a special name. 
+In addition, they define a type alias in order to have a special name.
+
 
 ## Pre-defined
 
@@ -32,6 +33,7 @@ In addition, they define a type alias in order to have a special name.
 
 ```@docs
 AutoBZ.Jobs.DOSIntegrand
+AutoBZ.Jobs.SafeDOSIntegrand
 AutoBZ.Jobs.GlocIntegrand
 AutoBZ.Jobs.DiagGlocIntegrand
 AutoBZ.Jobs.TransportIntegrand

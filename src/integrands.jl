@@ -1,6 +1,5 @@
 export ThunkIntegrand, FourierIntegrand, IteratedFourierIntegrand
 
-
 """
     ThunkIntegrand(f, x)
 
@@ -52,12 +51,10 @@ struct FourierIntegrand{F,S<:AbstractFourierSeries,P<:Tuple}
 end
 FourierIntegrand{F}(s, ps...) where {F<:Function} = FourierIntegrand(F.instance, s, ps) # allows dispatch by aliases
 FourierIntegrand(f, s, ps...) = FourierIntegrand(f, s, ps)
-(f::FourierIntegrand)(x) = evaluate_integrand(f, f.s(x))
-evaluate_integrand(f::FourierIntegrand, s_x) = f.f(s_x, f.p...)
+(f::FourierIntegrand)(x) = f.f(f.s(x), f.p...)
+equispace_integrand(f::FourierIntegrand, s_x) = f.f(s_x, f.p...)
 
 iterated_pre_eval(f::FourierIntegrand, x) = FourierIntegrand(f.f, contract(f.s, x), f.p)
-
-
 
 
 """
@@ -68,9 +65,9 @@ functions `fs` with `fs[1]` the innermost function. Only the innermost integrand
 is allowed to depend on parameters, but this could be implemented to allow the
 inner function to also be multivariate Fourier series.
 
-!!! note Compatibility with equispace integration
+!!! note "Compatibility with equispace integration"
     When used as an equispace integrand, this type does each integral one
-    variable at a time, applying PTR to each dimension. Therefore is only safe
+    variable at a time applying PTR to each dimension. Therefore it is only safe
     to use this type when the functions`fs` preserve the periodicity of the
     functions being integrated, such as linear functions.
 """
@@ -91,28 +88,27 @@ function iterated_pre_eval(f::IteratedFourierIntegrand, x)
     IteratedFourierIntegrand(Base.front(f.f), contract(f.s, x), f.p)
 end
 
-iterated_integrand(f::IteratedFourierIntegrand, x, ::Type{Val{1}}) = f(x)
 iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{d}}) where d = f.f[d](y)
-iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
+iterated_integrand(_::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
 
-(f::IteratedFourierIntegrand)(x) = evaluate_integrand(f, f.s(x)) # innermost integral needs this interface
-evaluate_integrand(f::IteratedFourierIntegrand, s_x) = f.f[1](s_x, f.p...)
+(f::IteratedFourierIntegrand)(x) = f.f[1](f.s(x), f.p...) # innermost integral needs this interface
+equispace_integrand(f::IteratedFourierIntegrand, s_x) = f.f[1](s_x, f.p...)
 
 # equispace customizations
 
 equispace_pre_eval(f::Union{IteratedFourierIntegrand,FourierIntegrand}, l, npt) = fourier_pre_eval(f.s, l, npt)
 
-@generated function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, pre::AbstractArray{T,N}, dvol) where {F,T,N,S<:AbstractFourierSeries{N}}
+@generated function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, fbz::FullBZ, npt, pre=equispace_pre_eval(f, fbz, npt)) where {F,N,S<:AbstractFourierSeries{N}}
     return :(error("not implemented"))
     quote
-        A = zero(eltype(f))
-        # dvol * sum(x -> x[2]*evaluate_integrand(f, x[1]), pre) # idea
+        A = zero(iterated_integral_type(f, ))
+        # dvol * sum(x -> x[2]*equispace_integrand(f, x[1]), pre) # idea
         Base.Cartesian.@nloops $N i pre d ->  begin
             # A = 
         end
     end
 end
 
-function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, pre::Vector{T}, dvol) where {F,T,N,S<:AbstractFourierSeries{N}}
+function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, ::IrreducibleBZ, npt, pre=equispace_pre_eval(f, bz, npt)) where {F,T,N,S<:AbstractFourierSeries{N}}
     error("IBZ not implemented: use FBZ instead: unclear what to do if pre-evaluation contains no information about dimension")
 end

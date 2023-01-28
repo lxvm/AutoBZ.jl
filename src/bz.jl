@@ -1,63 +1,57 @@
 export AbstractBZ, FullBZ, IrreducibleBZ
 
-abstract type AbstractBZ{d} <: IntegrationLimits{d} end
+abstract type AbstractBZ{d} end
 
-struct FullBZ{d} <: AbstractBZ{d}
-    a::Vector{SVector{d,Float64}}
-    b::Vector{SVector{d,Float64}}
+# interface
+function symmetries end
+function nsyms end
+function domain_type end
+function limits end
+
+# abstract methods
+Base.ndims(::AbstractBZ{d}) where d = d
+
+# implementations
+struct FullBZ{d,T,L,C<:CubicLimits{d}} <: AbstractBZ{d}
+    A::SMatrix{d,d,T,L}
+    B::SMatrix{d,d,T,L}
+    lims::C
+end
+function FullBZ(A::SMatrix{d,d,T}, B::SMatrix{d,d,T}; atol=sqrt(eps()))
+    norm(A'B - 2pi*I) < atol || throw("Real and reciprocal Bravais lattice non-orthogonal to tolerance $atol")
+    half_b = SVector{d}(ntuple(n -> norm(fbz.B[:,n])/2, Val{d}()))
+    lims = CubicLimits(-half_b, half_b)
+    FullBZ(A, B, lims)
 end
 
-(f::FullBZ)(x) = f
-function (l::CompositeLimits{d,T,<:Tuple{FullBZ{dBZ},Vararg{IntegrationLimits}}})(x, dim) where {d,T,dBZ}
-    if 0 < dim <= (d-dBZ+1)
-        return CompositeLimits{d-dBZ,T}(Base.rest(l.lims, 2)...)
-    elseif (d-dBZ+1) < dim <= d
-        return l
-    else
-        throw(ErrorException("skipped FBZ"))
-    end
-end
-function limits(f::FullBZ{d}, dim) where d
-    1 <= dim <= d || throw(ArgumentError("pick dim=$(dim) in 1:$d"))
-    @inbounds b = norm(f.b[dim])
-    half_b = b/2
-    return (-half_b, half_b)
-end
-box(f::FullBZ{d}) where d = [limits(f,dim) for dim in 1:d]
-
-"""
-    nsyms(::FullBZ)
-
-Returns 1 because the only symmetry applied to the cube is the identity.
-"""
 nsyms(::FullBZ) = 1
-
-"""
-    symmetries(::FullBZ)
-
-Return an identity matrix.
-"""
 symmetries(::FullBZ) = tuple(I)
-Base.eltype(::Type{FullBZ{d}}) where d = Float64
+domain_type(::Type{FullBZ{d,T,L,C}}) where {d,T,L,C} = domain_type(C)
+limits(bz::FullBZ) = bz.lims
 
-struct IrreducibleBZ{d,L<:IntegrationLimits{d},S,d_} <: AbstractBZ{d}
-    a::Vector{SVector{d_,Float64}}
-    b::Vector{SVector{d_,Float64}}
+struct IrreducibleBZ{d,L<:IntegrationLimits{d},S,T,d2} <: AbstractBZ{d}
+    A::SMatrix{d,d,T,d2}
+    B::SMatrix{d,d,T,d2}
     lims::L
     syms::S
+    function IrreducibleBZ(A::SMatrix{d,d,T}, B::SMatrix{d,d,T}, lims::L, syms::S; atol=sqrt(eps())) where {d,T,L,S}
+        norm(A'B - 2pi*I) < atol || throw("Real and reciprocal Bravais lattice non-orthogonal to tolerance $atol")
+        new{d,L,S,T,d2}(A,B,lims,syms)
+    end
 end
 
-IrreducibleBZ(a,b,lims) = IrreducibleBZ(a,b,lims,symmetries(lims))
-(l::IrreducibleBZ{d})(x, dim=d) where d = IrreducibleBZ(l.a, l.b, l.lims(x, dim),l.syms)
-limits(l::IrreducibleBZ, dim) = limits(l.lims, dim)
-box(l::IrreducibleBZ) = box(FullBZ(l.a, l.b))
 nsyms(l::IrreducibleBZ) = length(l.syms)
 symmetries(l::IrreducibleBZ) = l.syms
-Base.eltype(::Type{IrreducibleBZ{d,L,S,d_}}) where {d,L,S,d_} = eltype(L)
+domain_type(::Type{IrreducibleBZ{d,L,S,T,d2}}) where {d,L,S,T,d2} = domain_type(L)
+limits(bz::IrreducibleBZ) = bz.lims
 
-struct AffineTransform{d,T,L}
-    R::SMatrix{d,d,T,L}
-    t::SVector{d,T}
-    AffineTransform{d,T}(R, t) where {d,T} = new{d,T,d^2}(R,t)
+
+
+# iterated integration methods
+
+function iterated_integration(f, bz::AbstractBZ; atol=nothing, kwargs...)
+    atol = something(atol, zero(domain_type(bz)))/nsyms(bz) # rescaling by symmetries
+    int, err = iterated_integration(f, limits(bz); atol=atol, kwargs...)
+    symmetrize(bz, int, err)
 end
-AffineTransform(R::SMatrix{d,d,T}, t::SVector{d,T}) where {d,T} = AffineTransform{d,T}(R,t)
+alloc_segbufs(f, bz::AbstractBZ) = alloc_segbufs(f, limits(bz))

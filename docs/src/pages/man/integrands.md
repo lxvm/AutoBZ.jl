@@ -4,4 +4,5 @@
 
 ```@docs
 AutoBZ.FourierIntegrand
+AutoBZ.IteratedFourierIntegrand
 ```

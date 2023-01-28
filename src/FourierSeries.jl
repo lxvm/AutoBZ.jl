@@ -81,15 +81,25 @@ dimension as the Fourier series
 (f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
 (f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
 
+"""
+    phase_type(x)
+
+Returns the type of `exp(im*x)`.
+"""
 phase_type(x) = Base.promote_op(cis, eltype(x))
-# phase_type(X::Type) = Base.promote_op(cis, X)
-fourier_type(C::AbstractFourierSeries,x) = Base.promote_op(*, coefficient_type(C), phase_type(x))
+
+"""
+    fourier_type(C::AbstractFourierSeries, x)
+
+Returns the output type of the Fourier series.
+"""
+fourier_type(C::AbstractFourierSeries, x) = Base.promote_op(*, coefficient_type(C), phase_type(x))
 
 
 
-function fourier_pre_eval(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
+function fourier_pre_eval(f::AbstractFourierSeries{d}, bz::FullBZ{d}, npt) where {d}
     @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    f_xs = Vector{Tuple{fourier_type(f, eltype(l)),Int}}(undef, npt^d)
+    f_xs = Vector{Tuple{fourier_type(f, domain_type(l)),Int}}(undef, npt^d)
     fourier_pre_eval!(f_xs, d, 0, f, box(l), npt)
     return f_xs
 end

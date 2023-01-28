@@ -596,7 +596,9 @@ function run_kinetic(HV, Σ::AbstractSelfEnergy, β, n, Ωs, BZ_lims::Integratio
 end
 
 # enables kpt parallelization by default for all BZ integrals
-function AutoBZ.equispace_int_eval(f::FourierIntegrand, pre, dvol, min_per_thread=1, nthreads=Threads.nthreads())
+function AutoBZ.equispace_int_eval(f::FourierIntegrand, l, npt, pre=equispace_pre_eval(f, l, npt), min_per_thread=1, nthreads=Threads.nthreads())
+    vol_sym = vol(l)/nsyms(l)
+    dvol = vol_sym/npt^ndims(l)
     n = length(pre)
     acc = pre[n][2]*evaluate_integrand(f, pre[n][1]) # unroll first term in sum to get right types
     n == 1 && return dvol*acc
@@ -616,7 +618,7 @@ function AutoBZ.equispace_int_eval(f::FourierIntegrand, pre, dvol, min_per_threa
     for part in partial_sums
         acc += part
     end
-    dvol*acc
+    dvol*acc, pre
 end
 
 # function AutoBZ.equispace_int_eval(f::IteratedFourierIntegrand, pre, dvol, min_per_thread=1, nthreads=Threads.nthreads())

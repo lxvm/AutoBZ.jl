@@ -120,10 +120,10 @@ allocation.
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
 function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
     segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
-    atol_ = something(atol, zero(eltype(l)))/nsyms(l)
+    atol_ = something(atol, zero(eltype(l)))
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(eltype(l)))) : zero(eltype(l)))
     int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)
-    symmetrize(l, iterated_integrand(f, int, Val{0}), err)
+    iterated_integrand(f, int, Val{0}), err
 end
 
 function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
@@ -139,19 +139,19 @@ function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals
 end
 
 """
-    alloc_segbufs(eltype_l, typesof_fx, typesof_nfx, ndims_l)
+    alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim)
     alloc_segbufs(f, l::IntegrationLimits)
 
 This helper function will allocate enough segment buffers as are needed for an
 `iterated_integration` call of integrand `f` and integration limits `l`.
-`eltype_l` should be `eltype(l)`, `typesof_fx` should be the return type of the
+`domain_type` should be `domain_type(l)`, `typesof_fx` should be the return type of the
 integrand `f` for each iteration of integration, `typesof_nfx` should be the
 types of the norms of a value of `f` for each iteration of integration, and
-`ndims_l` should be `ndims(l)`.
+`ndim` should be `ndims(l)`.
 """
-alloc_segbufs(eltype_l, typesof_fx, typesof_nfx, ndims_l) = ntuple(n -> QuadGK.alloc_segbuf(eltype_l, typesof_fx[n], typesof_nfx[n]), Val{ndims_l}())
+alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim) = ntuple(n -> QuadGK.alloc_segbuf(domain_type, typesof_fx[n], typesof_nfx[n]), Val{ndim}())
 function alloc_segbufs(f, l::IntegrationLimits{d}) where d
     typesof_fx = iterated_inference(f, l)
     typesof_nfx = ntuple(n -> Base.promote_op(norm, typesof_fx[n]), Val{d}())
-    alloc_segbufs(eltype(l), typesof_fx, typesof_nfx, ndims(l))
+    alloc_segbufs(domain_type(l), typesof_fx, typesof_nfx, ndims(l))
 end

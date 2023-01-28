@@ -13,13 +13,13 @@ module AutoBZ
 using LinearAlgebra
 
 using StaticArrays
+using Polyhedra
 using QuadGK
-using Combinatorics: permutations
 # using FFTW
 
 include("IntegrationLimits.jl")
-include("bz.jl")
 include("iterated_integration.jl")
+include("bz.jl")
 include("equispace_integration.jl")
 include("FourierSeries.jl")
 include("integrands.jl")
