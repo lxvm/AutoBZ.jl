@@ -239,7 +239,7 @@ function kinetic_frequency_integral(HV_k::Tuple, quad, args, kwargs, n, Σ, β, 
 end
 
 """
-    KineticIntegrand(HV, n, Σ, β, [Ω=0]; quad=iterated_integration, quad_kw=(;))
+    KineticIntegrand(HV, n, Σ, β, Ω; quad=iterated_integration, quad_kw=(;))
 
 A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
@@ -301,7 +301,7 @@ function electron_count_frequency_integral(H_k::AbstractMatrix, quad, args, kwar
 end
 
 """
-    ElectronCountIntegrand(HV, Σ, β, μ; routine=quadgk)
+    ElectronCountIntegrand(HV, Σ, β, μ; quad=quadgk)
 
 A function whose integral over the BZ gives the electron count.
 Mathematically, this computes
@@ -314,10 +314,10 @@ See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 const ElectronCountIntegrand = FourierIntegrand{typeof(electron_count_frequency_integral)}
 ElectronCountIntegrand(args...; kwargs...) = electron_count_frequency_integral(args...; kwargs...)
 
-function electron_count_frequency_integrator(bz, H::AbstractFourierSeries, Σ, β; μ=0.0, ps=μ, quad=quadgk, quad_kw=(;), kwargs...)
+function electron_count_frequency_integrator(bz, H::AbstractFourierSeries{N}, Σ, β; μ=0.0, ps=μ, quad=quadgk, quad_kw=(;), kwargs...) where N
     # TODO: see if there is a way to safely truncate limits
     lims = CubicLimits(-Inf, Inf)
-    f = let H_k=H(zero(SVector{3,Float64})), Σ=Σ, β=β, μ=μ
+    f = let H_k=H(zero(SVector{N,Float64})), Σ=Σ, β=β, μ=μ
         ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
     end
     FourierIntegrator(electron_count_frequency_integral, bz, H,
