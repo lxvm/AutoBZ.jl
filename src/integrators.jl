@@ -1,13 +1,15 @@
 export FourierIntegrator
 
 """
-    FourierIntegrator(f, l, s, ps...; order=4, atol=0.0, rtol=sqrt(eps()), norm=norm)
+    FourierIntegrator(f, bz, s, p...; ps=0.0, routine=iterated_integration, args=(), kwargs=(;))
     FourierIntegrator{F}(args...; kwargs...) where {F<:Function}
 
 Composite type that stores parts of a [`AutoBZ.FourierIntegrand`](@ref),
-including the user-defined integrand `f`, the [`AutoBZ.IntegrationLimits`] `l`,
+including the user-defined integrand `f`, the [`AutoBZ.AbstractBZ`] `bz`,
 a [`AutoBZ.AbstractFourierSeries`] `s`, and additional parameters for the
-integrand `ps`.
+integrand `ps`. Uses the integration routine specified by the caller.
+Please provide a sample input `ps` (possibly a tuple of inputs) to the
+constructor so that it can infer the type of outcome.
 
 DEV notes: When called as a functor, this integrator concatenates `ps` followed
 by the input `xs...` to the functor call to construct the integrand like so
@@ -16,27 +18,41 @@ passed to `f` which will be passed to the integrator must go in the last
 positions. This mostly applies to aliases that may have specialized behavior
 while also having an interface compatible with other routines (e.g. interpolation).
 """
-struct FourierIntegrator{F,S<:AbstractFourierSeries,P<:Tuple,L<:IntegrationLimits,N} <: Function
+struct FourierIntegrator{F,S<:AbstractFourierSeries,P<:Tuple,BZ<:AbstractBZ,R,K<:NamedTuple} <: Function
     f::F
-    l::L
+    bz::BZ
     s::S
     p::P
-    order::Int
-    atol::Float64
-    rtol::Float64
-    norm::N
+    routine::R
+    kwargs::K
 end
 
-FourierIntegrator{F}(args...; kwargs...) where {F<:Function} =
-    FourierIntegrator(F.instance, args...; kwargs...) # allows dispatch by aliases
-FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
-    FourierIntegrator(tuple(map(f -> f.instance, F.parameters)...), args...; kwargs...) # allows dispatch by aliases
+function FourierIntegrator(f::F, bz, s, p...; ps=0.0, routine=iterated_integration, kwargs...) where F
+    check_period_match(s, bz)
+    FourierIntegrator(f, bz, s, p, routine, default_kwargs(routine, FourierIntegrand{F}(s, p..., ps...), bz; kwargs...))
+end
 
-FourierIntegrator(f, l, s, ps...; order=4, atol=0.0, rtol=sqrt(eps()), norm=norm) =
-    FourierIntegrator(f, l, s, ps, order, atol, rtol, norm)
+# allows dispatch by aliases to accommodate broader user interface
+FourierIntegrator{F}(args...; kwargs...) where {F<:Function} =
+    FourierIntegrator(F.instance, args...; kwargs...) 
+FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
+    FourierIntegrator(tuple(map(f -> f.instance, F.parameters)...), args...; kwargs...)
 
 (f::FourierIntegrator{F})(ps...) where F =
-    first(iterated_integration(FourierIntegrand{F}(f.s, f.p..., ps...), f.l; order=f.order, atol=f.atol, rtol=f.rtol))
+    first(f.routine(FourierIntegrand{F}(f.s, f.p..., ps...), f.bz,; f.kwargs...))
 
 (f::FourierIntegrator{F})(ps...) where {F<:Tuple} =
-    first(iterated_integration(IteratedFourierIntegrand{F}(f.s, f.p..., ps...), f.l; order=f.order, atol=f.atol, rtol=f.rtol))
+    first(f.routine(IteratedFourierIntegrand{F}(f.s, f.p..., ps...), f.bz; f.kwargs...))
+
+"""
+    default_kwargs(routine, f, bz, kwargs::NamedTuple)
+
+Supplies the default keyword arguments to the given integration `routine`
+without over-writing those already provided in `kwargs`
+"""
+default_kwargs(::typeof(iterated_integration), f, bz; kwargs...) =
+    iterated_integration_kwargs(f, limits(bz); kwargs...)
+default_kwargs(::typeof(automatic_equispace_integration), f, bz; kwargs...) =
+    automatic_equispace_integration_kwargs(f, bz; kwargs...)
+default_kwargs(::typeof(equispace_integration), f, bz; kwargs...) =
+    equispace_integration_kwargs(f, bz; kwargs...)

@@ -28,37 +28,37 @@ AutoBZ.contract(f::AbstractFourierSeries3D, x, dim) = contract!(f, x, dim)
 
 AutoBZ.iterated_pre_eval(f::Union{FourierIntegrand{F,S},IteratedFourierIntegrand{F,S}}, x, dim::Int) where {F,S<:AbstractFourierSeries3D} =
     (contract!(f.s, x, dim); return f)
-
-function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::Union{FullBZ{3},CubicLimits{3}}, npt)
-    @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    f_xs = Array{Tuple{fourier_type(f, eltype(l)),Int},3}(undef, npt, npt, npt)
-    bz = box(l)
+#=
+function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, bz::FullBZ{<:Any,3}, npt)
+    # @assert collect(period(f)) ≈ [x[2] - x[1] for x in boundingbox(bz)] "Integration region doesn't match integrand period"
+    pre = Array{Tuple{fourier_type(f, domain_type(bz)),Int},3}(undef, npt, npt, npt)
+    box = boundingbox(bz)
     for k in 1:npt
-        contract!(f, (bz[3][2]-bz[3][1])*(k-1)/npt + bz[3][1], 3)
+        contract!(f, (box[3][2]-box[3][1])*(k-1)/npt + box[3][1], 3)
             for j in 1:npt
-            contract!(f, (bz[2][2]-bz[2][1])*(j-1)/npt + bz[2][1], 2)
+            contract!(f, (box[2][2]-box[2][1])*(j-1)/npt + box[2][1], 2)
             for i in 1:npt
-                f_xs[i,j,k] = (f((bz[1][2]-bz[1][1])*(i-1)/npt + bz[1][1]), 1)
+                pre[i,j,k] = (f((box[1][2]-box[1][1])*(i-1)/npt + box[1][1]), 1)
             end
         end
     end
-    return f_xs
+    return pre
 end
 
-function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::IntegrationLimits{3}, npt)
-    @assert collect(period(f)) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    flag, wsym, nsym = AutoBZ.discretize_equispace_(l, npt)
+function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, bz::AbstractBZ{3}, npt)
+    # @assert collect(period(f)) ≈ [x[2] - x[1] for x in boundingbox(bz)] "Integration region doesn't match integrand period"
+    flag, wsym, nsym = equispace_rule(bz, npt)
     n = 0
-    b = box(l)
-    pre = Vector{Tuple{fourier_type(f, eltype(l)),Int}}(undef, nsym)
+    box = boundingbox(bz)
+    pre = Vector{Tuple{fourier_type(f, domain_type(bz)),Int}}(undef, nsym)
     for k in axes(flag, 3)
-        contract!(f, (b[3][2]-b[3][1])*(k-1)/npt, 3)
+        contract!(f, (box[3][2]-box[3][1])*(k-1)/npt, 3)
         for j in axes(flag, 2)
-            contract!(f, (b[2][2]-b[2][1])*(j-1)/npt, 2)
+            contract!(f, (box[2][2]-box[2][1])*(j-1)/npt, 2)
             for i in axes(flag, 1)
                 if flag[i,j,k]
                     n += 1
-                    pre[n] = (f((b[1][2]-b[1][1])*(i-1)/npt), wsym[n])
+                    pre[n] = (f((box[1][2]-box[1][1])*(i-1)/npt), wsym[n])
                     n >= nsym && break
                 end
             end
@@ -66,7 +66,7 @@ function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, l::IntegrationLimit
     end
     return pre
 end
-
+=#
 """
     FourierSeries3D(coeffs::Array{T,3}, [period=(1.0, 1.0, 1.0)])
 

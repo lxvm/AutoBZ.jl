@@ -8,8 +8,8 @@ using AutoBZ.Jobs
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 HV, FBZ = load_wannier90_data("svo"; velocity_kind=:orbital, read_pos_op=false)
 
-ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
-IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
+IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
+
 
 # Define problem parameters
 Ω = 0.0 # eV

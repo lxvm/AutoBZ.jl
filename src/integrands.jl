@@ -1,3 +1,4 @@
+export AbstractFourierIntegrand
 export ThunkIntegrand, FourierIntegrand, IteratedFourierIntegrand
 
 """
@@ -32,10 +33,37 @@ thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
 iterated_pre_eval(f, x) = thunk(f, x)
 
 
+abstract type AbstractFourierIntegrand end
+
+# interface
+
+function finner end # the function acting in the innermost integral
+ftotal(f::AbstractFourierIntegrand) = f.f # the collection of functions
+series(f::AbstractFourierIntegrand) = f.s # the Fourier series
+params(f::AbstractFourierIntegrand) = f.p # collection of additional parameters
+
+# abstract methods
+
+iterated_pre_eval(f::T, x) where {T<:AbstractFourierIntegrand} =
+    T(ftotal(f), contract(series(f), x), params(f))
+
+(f::AbstractFourierIntegrand)(x) = finner(f)(series(f)(x), params(f)...)
+
+equispace_integrand(f::AbstractFourierIntegrand, s_x) = finner(f)(s_x, params(f)...)
+
+function equispace_rule(f::AbstractFourierIntegrand, bz::AbstractBZ, npt)
+    rule = Vector{Tuple{fourier_type(series(f), domain_type(bz)),domain_type(bz)}}(undef, 0)
+    equispace_rule!(rule, f, bz, npt)
+end
+equispace_rule!(rule, f::AbstractFourierIntegrand, bz::AbstractBZ, npt) =
+    fourier_rule!(rule, series(f), bz, npt)
+
+# implementations
+
 """
     FourierIntegrand(f, s::AbstractFourierSeries, ps...)
 
-A type generically representing an integrand `f` whose entire dependence on the
+A type generically rerulesenting an integrand `f` whose entire dependence on the
 variables of integration is in a Fourier series `s`, and which may also accept
 some input parameters `ps`. The caller must know that their function, `f`, will
 be evaluated at many points, `x`, in the following way: `f(s(x), ps...)`.
@@ -44,17 +72,15 @@ and the layout of the parameters in the tuple `ps`. Additionally, `f` is assumed
 to be type-stable and the inference can be queried by calling `eltype` on the
 `FourierIntegrand`.
 """
-struct FourierIntegrand{F,S<:AbstractFourierSeries,P<:Tuple}
+struct FourierIntegrand{F,S<:AbstractFourierSeries,P<:Tuple} <: AbstractFourierIntegrand
     f::F
     s::S
     p::P
 end
 FourierIntegrand{F}(s, ps...) where {F<:Function} = FourierIntegrand(F.instance, s, ps) # allows dispatch by aliases
 FourierIntegrand(f, s, ps...) = FourierIntegrand(f, s, ps)
-(f::FourierIntegrand)(x) = f.f(f.s(x), f.p...)
-equispace_integrand(f::FourierIntegrand, s_x) = f.f(s_x, f.p...)
 
-iterated_pre_eval(f::FourierIntegrand, x) = FourierIntegrand(f.f, contract(f.s, x), f.p)
+finner(f::FourierIntegrand) = ftotal(f)
 
 
 """
@@ -65,50 +91,48 @@ functions `fs` with `fs[1]` the innermost function. Only the innermost integrand
 is allowed to depend on parameters, but this could be implemented to allow the
 inner function to also be multivariate Fourier series.
 
-!!! note "Compatibility with equispace integration"
+!!! note "Incompatibility with symmetries"
+    In practice, it is only safe to use the output of this integrand when
+    integrated over a domain with symmetries when the functions`fs` preserve the
+    periodicity of the functions being integrated, such as linear functions.
     When used as an equispace integrand, this type does each integral one
-    variable at a time applying PTR to each dimension. Therefore it is only safe
-    to use this type when the functions`fs` preserve the periodicity of the
-    functions being integrated, such as linear functions.
+    variable at a time applying PTR to each dimension. Note that 
 """
-struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple}
+struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple} <: AbstractFourierIntegrand
     f::F
     s::S
     p::P
-    function IteratedFourierIntegrand(f::F, s::S, p::P) where {F,S,P<:Tuple}
-        @assert length(f) == ndims(s) "need same number of integrands as variables of integration"
-        new{F,S,P}(f, s, p)
-    end
 end
 IteratedFourierIntegrand{F}(s, ps...) where {F<:Tuple{Vararg{Function}}} =
     IteratedFourierIntegrand(tuple(map(f -> f.instance, F.parameters)...), s, ps) # allows dispatch by aliases
 IteratedFourierIntegrand(f, s, ps...) = IteratedFourierIntegrand(f, s, ps)
 
-function iterated_pre_eval(f::IteratedFourierIntegrand, x)
-    IteratedFourierIntegrand(Base.front(f.f), contract(f.s, x), f.p)
-end
+finner(f::IteratedFourierIntegrand) = f.f[1]
 
+# iterated customizations
+
+iterated_integrand(f::IteratedFourierIntegrand, x, ::Type{Val{1}}) = f(x)
 iterated_integrand(f::IteratedFourierIntegrand, y, ::Type{Val{d}}) where d = f.f[d](y)
 iterated_integrand(_::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
 
-(f::IteratedFourierIntegrand)(x) = f.f[1](f.s(x), f.p...) # innermost integral needs this interface
-equispace_integrand(f::IteratedFourierIntegrand, s_x) = f.f[1](s_x, f.p...)
-
 # equispace customizations
 
-equispace_pre_eval(f::Union{IteratedFourierIntegrand,FourierIntegrand}, l, npt) = fourier_pre_eval(f.s, l, npt)
-
-@generated function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, fbz::FullBZ, npt, pre=equispace_pre_eval(f, fbz, npt)) where {F,N,S<:AbstractFourierSeries{N}}
-    return :(error("not implemented"))
-    quote
-        A = zero(iterated_integral_type(f, ))
-        # dvol * sum(x -> x[2]*equispace_integrand(f, x[1]), pre) # idea
-        Base.Cartesian.@nloops $N i pre d ->  begin
-            # A = 
-        end
-    end
+function equispace_evalrule(f::IteratedFourierIntegrand{F,S}, rule::Vector) where {F,N,S<:AbstractFourierSeries{N}}
+    @warn "Do not trust an iterated integrand with equispace integration unless for linear integrands with full BZ"
+    rule_ = reshape(rule, ntuple(n -> npt, Val{N}))
+    equispace_evalrule(f, rule_)
 end
-
-function equispace_int_eval(f::IteratedFourierIntegrand{F,S}, ::IrreducibleBZ, npt, pre=equispace_pre_eval(f, bz, npt)) where {F,T,N,S<:AbstractFourierSeries{N}}
-    error("IBZ not implemented: use FBZ instead: unclear what to do if pre-evaluation contains no information about dimension")
+@generated function equispace_evalrule(f::F, rule::AbstractArray{Tuple{T,W},N}) where {N,S<:AbstractFourierSeries{N},F<:IteratedFourierIntegrand{<:Any,S},T,W}
+    I_N = Symbol(:I_, N)
+    quote
+        # infer return types of individual integrals
+        T_1 = Base.promote_op(*, Base.promote_op(equispace_integrand, F, T), W)
+        Base.Cartesian.@nexprs $(N-1) d -> T_{d+1} = Base.promote_op(equispace_integrand, F, T_d)
+        # compute quadrature
+        $I_N = zero($(Symbol(:T_, N)))
+        Base.Cartesian.@nloops $N i rule (d -> d==1 ? nothing : I_{d-1} = zero(T_{d-1})) (d -> d==1 ? nothing : I_d += iterated_integrand(f, I_{d-1}, Val{d})) begin
+            I_1 += equispace_integrand(f, (Base.Cartesian.@nref $N rule i)[1])
+        end
+        iterated_integrand(f, $I_N, Val{0})
+    end
 end

@@ -1,9 +1,11 @@
 # Possible TODO for FourierSeries
 # - replace dependence on SVector with NTuple for ease of use by new users
 # - enable reduction over multiple dims simulatneously (?) may not be used
+# - replace contract kernels with the fourier_kernel
+# - add an argument n to fourier_kernel to set `z = cispi(2n*ξ*x)`
 export AbstractFourierSeries, period, contract, value, coefficients, coefficient_type, fourier_type, phase_type
 export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
-export fourier_kernel, fourier_kernel!, fourier_pre_eval, fft_pre_eval
+export fourier_kernel, fourier_kernel!, fourier_rule!
 
 """
     AbstractFourierSeries{N}
@@ -25,6 +27,10 @@ along its `m`-th input dimension. Typically, these values set the units of
 length for the problem.
 """
 function period end
+
+check_period_match(f::AbstractFourierSeries, bz::AbstractBZ) =
+    @assert collect(period(f)) ≈ [x[2] - x[1] for x in boundingbox(bz)] "Integration region doesn't match integrand period"
+
 
 """
     contract(f::AbstractFourierSeries{N}, x::Number, [dim=N]) where {N}
@@ -96,115 +102,45 @@ Returns the output type of the Fourier series.
 fourier_type(C::AbstractFourierSeries, x) = Base.promote_op(*, coefficient_type(C), phase_type(x))
 
 
+"""
+    fourier_rulel!(pre::Vector, f::AbstracFourierSeries, fbz, npt)
 
-function fourier_pre_eval(f::AbstractFourierSeries{d}, bz::FullBZ{d}, npt) where {d}
-    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    f_xs = Vector{Tuple{fourier_type(f, domain_type(l)),Int}}(undef, npt^d)
-    fourier_pre_eval!(f_xs, d, 0, f, box(l), npt)
-    return f_xs
-end
-function fourier_pre_eval!(f_xs, d, idx, f, box, npt)
-    for i in Base.OneTo(npt)
-        fourier_pre_eval!(f_xs, d-1, (i-1)+npt*idx, contract(f, (box[d][2]-box[d][1])*(i-1)/npt + box[d][1]), pop(box), npt)
-    end
-end
-function fourier_pre_eval!(f_xs, _, idx, f::AbstractFourierSeries{0}, _, _)
-    f_xs[idx+1] = (value(f), 1)
-end
-
-
-#=
-Using anonymous function expressions is impure so can't use them in @generated
-https://docs.julialang.org/en/v1/devdocs/cartesian/#Anonymous-function-expressions-as-macro-arguments
-https://docs.julialang.org/en/v1/manual/metaprogramming/#Generated-functions
-=#
-function fourier_pre_eval(f_3::AbstractFourierSeries{3}, l::IntegrationLimits{3}, npt)
-    @assert period(f_3) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    flag, wsym, nsym = discretize_equispace_(l, npt)
-    n = 0
-    b = box(l)
-    pre = Vector{Tuple{fourier_type(f_3, eltype(l)),Int}}(undef, nsym)
-    Base.Cartesian.@nloops 3 i flag j -> f_{j-1} = contract(f_j, (b[j][2]-b[j][1])*(i_j-1)/npt + b[j][1]) begin
-        if (Base.Cartesian.@nref 3 flag i)
-            n += 1
-            pre[n] = (value(f_0), wsym[n])
-            n >= nsym && break
-        else
-            continue
+Returns a vector `pre` containing tuples `(f(x), w)` where `x, w` are the nodes
+and weights of the symmetried PTR quadrature rule.
+"""
+@generated function fourier_rule!(pre, f::AbstractFourierSeries{N}, bz::FullBZ{<:Any,N}, npt) where N
+    f_N = Symbol(:f_, N)
+    quote
+        $f_N = f
+        resize!(pre, npt^N)
+        pre_ = reshape(pre, (Base.Cartesian.@ntuple $N _ -> npt))
+        box = boundingbox(bz)
+        dvol = equispace_dvol(bz, npt)
+        Base.Cartesian.@nloops $N i _ -> Base.OneTo(npt) (d -> d==1 ? nothing : f_{d-1} = contract(f_d, (box[d][2]-box[d][1])*(i_d-1)/npt + box[d][1], d)) begin
+            (Base.Cartesian.@nref $N pre_ i) = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol)
         end
-    end
-    return pre
-end
-
-
-function fft_pre_eval(f::AbstractFourierSeries{d}, l::CubicLimits{d}, npt) where {d}
-    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    # zero pad coeffs out to length npt and wrangle into shape for fft
-    # ifft(coeffs)
-    error("not implemented")
-end
-
-function fft_pre_eval(f::AbstractFourierSeries{d}, l::TetrahedralLimits{d}, npt) where {d}
-    @assert period(f) ≈ [x[2] - x[1] for x in box(l)] "Integration region doesn't match integrand period"
-    # zero pad coeffs out to length npt and wrangle into shape for fft
-    # ifft(coeffs)
-    error("not implemented")
-end
-
-#=
-fft_equispace_integration(f::DOSIntegrand, p::Int) = tr(fft_equispace_integration(f.A, p))
-function fft_equispace_integration(A::SpectralFunction, p::Int)
-    ϵk = fft_evaluate_series(A.ϵ, p)
-    r = zero(eltype(A))
-    for i in CartesianIndices(size(ϵk)[3:end])
-        r += hinv(complex(A.ω + A.μ, A.η)*I - SMatrix{3,3,ComplexF64}(ϵk[CartesianIndices((3,3)), i]))
-    end
-    imag(r)*inv(p)^3/(-pi)
-end
-
-"""
-Evaluate a FourierSeries by FFT. The indices are assumed to be the frequencies,
-but these get mapped back modulo `p` to the domain of FFT frequencies, so the
-caller is responsible for ensuring that `p` is large enough to capture their
-high frequency behavior.
-"""
-function fft_evaluate_series(f::FourierSeries, p::Int)
-    C = f.coeffs
-    maximum(size(C)) > p && throw("Inexact: Choose more grid points, $p, per dim than Fourier coefficients per dim, $(size(C))")
-    # pad C such that size(C) = (3,3,p,p,p)
-    S1 = size(eltype(C))
-    S2 = Tuple(fill(p, ndims(C)))
-    Z = zeros(ComplexF64, S1..., S2...)
-    populate_fourier_coefficients!(Z, C)
-    # return Z
-    # fft(C) along the dimensions of size p
-    fft!(Z, (length(S1)+1):(length(S1)+length(S2)))
-    # convert back to StaticArray for efficient inversion
-    return Z
-    return reshape(reinterpret(SArray{Tuple{S1...},ComplexF64,length(S1),prod(S1)}, Z), S2)
-    X = Array{SArray{Tuple{S1...},ComplexF64}}(undef,S2)
-    for i in CartesianIndices(S2)
-        X[i] = SArray{Tuple{S1...},ComplexF64}(view(Z, CartesianIndices(S1), i))
-    end
-    X
-end
-
-function populate_fourier_coefficients!(Z::AbstractArray, C::AbstractArray{<:StaticArray})
-    S1 = size(eltype(C))
-    preI = CartesianIndices(S1)
-    S2 = size(Z)[(length(S1)+1):end]
-    for i in CartesianIndices(C)
-        Z[preI, CartesianIndex(_to_fftw_index(i.I, S2))] = C[i]
+        pre
     end
 end
 
-"""
-Convert positive/negative indices of Fourier coefficients to those suitable for FFTW.
-`i` is a tuple of +/- indices by dimension, and `j` is a tuple of the size of
-each dimension.
-"""
-_to_fftw_index(i::NTuple{N, Int}, j::NTuple{N, Int}) where {N} = mod.(i, j) .+ 1
-=#
+@generated function fourier_rule!(pre, f::AbstractFourierSeries{N}, bz::AbstractBZ{N}, npt) where N
+    f_N = Symbol(:f_, N)
+    quote
+        $f_N = f
+        flag, wsym, nsym = equispace_rule(bz, npt)
+        n = 0
+        box = boundingbox(bz)
+        dvol = equispace_dvol(bz, npt)
+        resize!(pre, nsym)
+        Base.Cartesian.@nloops $N i flag (d -> d==1 ? nothing : f_{d-1} = contract(f_d, (box[d][2]-box[d][1])*(i_d-1)/npt + box[d][1], d)) begin
+            (Base.Cartesian.@nref $N flag i) || continue
+            n += 1
+            pre[n] = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol*wsym[n])
+            n >= nsym && break
+        end
+        pre
+    end
+end
 
 """
     FourierSeries(coeffs, period::SVector{N,Float64}) where {N}

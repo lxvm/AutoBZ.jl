@@ -22,9 +22,21 @@ Returns `imag(tr(inv(M-H)))/(-pi)` where `M = ω*I-Σ(ω)`. It is unsafe to use
 this in the inner integral for small eta due to the localized tails of the
 integrand. The default, safe version also integrates the real part which is less
 localized, at the expense of a slight slow-down due to complex arithmetic.
-See [`AutoBZ.Jobs.SafeSafeDOSIntegrand`](@ref).
+See [`AutoBZ.Jobs.safedos_integrand`](@ref).
 """
 dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+
+"""
+    safedos_integrand(H, Σ, ω)
+    safedos_integrand(H, M)
+
+Returns `tr(inv(M-H))/(-pi)` where `M = ω*I-Σ(ω)`, without. This safe version
+also integrates the real part of DOS which is less localized, at the expense of
+a slight slow-down due to complex arithmetic. See
+[`AutoBZ.Jobs.dos_integrand`](@ref).
+"""
+safedos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
+
 
 """
     self_energy_args(M)
@@ -37,7 +49,7 @@ self_energy_args(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
 self_energy_args(Σ::AbstractMatrix, ω) = ω*I-Σ
 
 # Generic behavior for single Green's function integrands (methods and types)
-for name in ("Gloc", "DiagGloc", "DOS")
+for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
     T = Symbol(name, "Integrand")
@@ -55,12 +67,12 @@ for name in ("Gloc", "DiagGloc", "DOS")
     @eval const $E = FourierIntegrator{typeof($f)}
 
     # Define default equispace grid stepping based 
-    @eval function AutoBZ.equispace_npt_update(npt, f::$T, atol, rtol)
+    @eval function AutoBZ.equispace_npt_update(f::$T, npt)
         η = im_sigma_to_eta(-imag(f.p[1]))
         npt_update_eta(npt, η, period(f.s)[1])
     end
 
-    # Define job scripts
+    # TODO: Define job scripts
 end
 
 # helper functions for equispace updates
@@ -81,37 +93,31 @@ npt_update_eta_(η, c) = max(50, round(Int, c/η))
 
 # integrands using IteratedFourierIntegrand (definition is slightly more involved)
 
-export SafeDOSIntegrand, SafeDOSIntegrator
-
-noimag_dos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
+export ExperimentalDOSIntegrand, ExperimentalDOSIntegrator
 
 """
-    SafeDOSIntegrand
+    ExperimentalDOSIntegrand
 
-Constructor+Type alias
+Constructor+Type alias for the DOS integrand implemented with
+IteratedFourierIntegrand. Since taking the imaginary part after all of the
+integrals doesn't cost much more than taking it after the first, use
+[`AutoBZ.Jobs.SafeDOSIntegrand`](@ref). This type's purpose is to test
+general-purpose iterated integration, which is incompatible with symmetries.
 """
-const SafeDOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-SafeDOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = SafeDOSIntegrand{N}(H, args...)
-function SafeDOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
-    fs = ntuple(N) do n
-        if n == 1
-            noimag_dos_integrand
-        elseif n == 2
-            imag
-        else
-            identity
-        end
-    end
+const ExperimentalDOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+ExperimentalDOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = ExperimentalDOSIntegrand{N}(H, args...)
+function ExperimentalDOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
+    fs = ntuple(n -> n==1 ? safedos_integrand : (n==2 ? imag : identity), N)
     IteratedFourierIntegrand(fs, H, self_energy_args(args...))
 end
 
 # For type stability in the 1D case where imag must be taken outside
-const SafeDOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(noimag_dos_integrand)}}
-AutoBZ.iterated_integrand(::SafeDOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
+const ExperimentalDOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(safedos_integrand)}}
+AutoBZ.iterated_integrand(::ExperimentalDOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
 
-const SafeDOSIntegrator{N} = FourierIntegrator{Tuple{typeof(noimag_dos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
+const ExperimentalDOSIntegrator{N} = FourierIntegrator{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
 
-SafeDOSIntegrator(lims::IntegrationLimits{d}, args...; kwargs...) where d = SafeDOSIntegrator{d}(lims, args...; kwargs...)
+ExperimentalDOSIntegrator(lims::AbstractLimits{d}, args...; kwargs...) where d = ExperimentalDOSIntegrator{d}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 
@@ -151,7 +157,7 @@ TransportIntegrand(args...) = transport_integrand(args...)
 
 const TransportIntegrator = FourierIntegrand{typeof(transport_integrand)}
 
-function AutoBZ.equispace_npt_update(npt, Γ::TransportIntegrand, atol, rtol)
+function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
     ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
     npt_update_eta(npt, min(ηω₁, ηω₂), period(Γ.s)[1])
@@ -203,7 +209,7 @@ TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, 
 
 This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a fixed number of
-grid points `npt`. The argument `l` should be an `IntegrationLimits` for just
+grid points `npt`. The argument `l` should be an `AbstractLimits` for just
 the Brillouin zone. This type should be called by an adaptive integration
 routine whose limits of integration are only the frequency variable.
 """
@@ -215,8 +221,8 @@ struct EquispaceKineticIntegrand{T,TS,TL,P}
 end
 
 
-function EquispaceKineticIntegrand(A::KineticIntegrand, l::IntegrationLimits, npt::Int)
-    pre = equispace_pre_eval(TransportIntegrand(A, 0.0), l, npt)
+function EquispaceKineticIntegrand(A::KineticIntegrand, l::AbstractLimits, npt::Int)
+    rule = equispace_rule(TransportIntegrand(A, 0.0), l, npt)
     EquispaceKineticIntegrand(A, l, npt, pre)
 end
 (f::EquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
@@ -233,7 +239,7 @@ end
 This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
 and with equispace integration over the Brillouin zone with a number of grid
 points necessary to meet the maximum of the tolerances given by `atol` and
-`rtol`. The argument `l` should be an `IntegrationLimits` for just the Brillouin
+`rtol`. The argument `l` should be an `AbstractLimits` for just the Brillouin
 zone. This type should be called by an adaptive integration routine whose limits
 of integration are only the frequency variable.
 
@@ -274,34 +280,32 @@ function (f::AutoEquispaceKineticIntegrand)(ω::Number)
     return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
 end
 
-#= Necessary?
+# replacement for TetrahedralLimits
+cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)
+cubic_sym_ibz(fbz::FullBZ; kwargs...) = cubic_sym_ibz(fbz.A, fbz.B; kwargs...)
+function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
+    F = float(T); AT = SVector{N,F}
+    vert = unit_tetrahedron_vertices(AT)
+    nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
+    hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
+    lims = PolyhedralLimits(hull)
+    syms = collect(cube_automorphisms(Val{N}()))
+    IrreducibleBZ(A, B, lims, syms; kwargs...)
+end
 
-function (l::CompositeLimits{d,T,<:Tuple{FullBZ{dBZ},Vararg{IntegrationLimits}}})(x, dim) where {d,T,dBZ}
-    if 0 < dim <= (d-dBZ+1)
-        return CompositeLimits{d-dBZ,T}(Base.rest(l.lims, 2)...)
-    elseif (d-dBZ+1) < dim <= d
-        return l
-    else
-        throw(ErrorException("skipped FBZ"))
+function unit_tetrahedron_vertices(::Type{AT}) where {N,T,AT<:SVector{N,T}}
+    vertices = Vector{AT}(undef, N+1)
+    for n in 1:N+1
+        vertices[n] = ntuple(i -> i < n ? T(1) : T(0), Val{N}())
     end
+    vertices
 end
-
-
-
-box(t::TetrahedralLimits{d,T}) where {d,T} = StaticArrays.sacollect(SVector{d,Tuple{T,T}}, (zero(T), a) for a in t.a)
-
-function limits(t::TetrahedralLimits{d}, dim=d) where d
-    dim == d || throw(ArgumentError("limit evaluation not supported for dim=$(dim)"))
-    return (zero(t.p), t.p*last(t.a))
-end
-nsyms(t::TetrahedralLimits) = n_cube_automorphisms(ndims(t))
-symmetries(t::TetrahedralLimits) = cube_automorphisms(Val{ndims(t)}())
 
 """
     cube_automorphisms(d::Integer)
 
-return a generator of the symmetries of the cube in `d` dimensions, optionally
-including the identity.
+return a generator of the symmetries of the cube in `d` dimensions including the
+identity.
 """
 cube_automorphisms(n::Val{d}) where {d} = (S*P for S in sign_flip_matrices(n), P in permutation_matrices(n))
 n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
@@ -310,28 +314,10 @@ sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)
 sign_flip_matrices(n::Val{d}) where {d} = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(n))
 n_sign_flips(d::Integer) = 2^d
 
-permutation_matrices(t::Val{n}) where {n} = (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutations(ntuple(identity, t)))
-n_permutations(n::Integer) = factorial(n)
-#= less performant code (at least when n=3)
-permutation_matrices(t::Val{n}) where {n} = (SparseArrays.sparse(Base.OneTo(n), p, ones(n), n, n) for p in permutations(ntuple(identity, t)))
+function permutation_matrices(t::Val{n}) where {n}
+    permutations = permutation_tuples(ntuple(identity, t))
+    (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutations)
+end
 permutation_tuples(C::NTuple{N,T}) where {N,T} = @inbounds((C[i], p...)::NTuple{N,T} for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
-permutation_tuples(C::NTuple{1}) = C;
-=#
-
-
-box(l::CompositeLimits) = Iterators.flatten(reverse(map(box, l.lims)))
-limits(l::CompositeLimits{d,T,L}, dim) where {d,T,L} = T.(limits(first(l.lims), dim-mapreduce(ndims, +, Base.rest(l.lims, 2); init=0)))
-nsyms(l::CompositeLimits) = prod(nsyms, l.lims)
-function symmetrize(l::CompositeLimits, x)
-    r = x
-    for lim in l.lims
-        r = symmetrize(lim, r)
-    end
-    r
-end
-
-# untested
-function discretize_equispace(l::CompositeLimits, npt)
-    ((vcat([map(y -> y[1], x)]...), prod(y -> y[2], x)) for x in Iterators.product(reverse(map(m -> discretize_equispace(m, npt), l.lims)))...)
-end
-=#
+permutation_tuples(C::NTuple{1}) = C
+n_permutations(n::Integer) = factorial(n)

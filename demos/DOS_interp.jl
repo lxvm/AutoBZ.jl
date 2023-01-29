@@ -4,15 +4,14 @@ In this script we interpolate DOS over a frequency interval using the interface 
 
 using Plots
 
-using AutoBZ
 using AutoBZ.Jobs
 using AutoBZ.Jobs.AdaptChebInterp
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 H, FBZ = load_wannier90_data("svo")
 
-ibz_limits = AutoBZ.TetrahedralLimits(period(H)) # Cubic symmetries
-IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
+IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
+
 
 # Define problem parameters
 ω_lo = -2.0 # eV
@@ -32,8 +31,10 @@ interp_atol=1e-1
 order = 4
 fast_order = 15
 
-# D = UnsafeDOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
-D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol)
+D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol) # adaptive default
+# D = DOSIntegrator(IBZ, H, Σ; routine=Jobs.AutoBZ.equispace_integration)
+# D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol, routine=Jobs.AutoBZ.automatic_equispace_integration)
+
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
 p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)

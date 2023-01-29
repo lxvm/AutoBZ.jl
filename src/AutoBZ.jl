@@ -13,15 +13,19 @@ module AutoBZ
 using LinearAlgebra
 
 using StaticArrays
-using Polyhedra
-using QuadGK
-# using FFTW
+using Polyhedra: Hull, HyperPlane, intersect, points, fulldim
+using QuadGK: do_quadgk, alloc_segbuf
 
-include("IntegrationLimits.jl")
+import Polyhedra: coefficient_type
+
+# component 1: Generic IAI
+include("AbstractLimits.jl")
 include("iterated_integration.jl")
-include("bz.jl")
+# component 2: Brillouin zone and symmetrized PTR
+include("AbstractBZ.jl")
 include("equispace_integration.jl")
-include("FourierSeries.jl")
+# component 3: Fourier series and IAI optimizations
+include("AbstractFourierSeries.jl")
 include("integrands.jl")
 include("integrators.jl")
 

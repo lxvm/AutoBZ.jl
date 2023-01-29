@@ -220,7 +220,7 @@ parse_wout(filename; iprint=1) = open(filename) do file
     for i in 1:3
         col = split(readline(file))
         popfirst!(col)
-        c[:,i] = parse.(Float64, col)
+        @. c[:,i] = parse(Float64, col)
     end
     A = SMatrix{3,3,Float64,9}(c)
 
@@ -232,7 +232,7 @@ parse_wout(filename; iprint=1) = open(filename) do file
     for i in 1:3
         col = split(readline(file))
         popfirst!(col)
-        c[i] = parse.(Float64, col)
+        @. c[:,i] = parse(Float64, col)
     end
     B = SMatrix{3,3,Float64,9}(c)
 
@@ -263,20 +263,22 @@ parse_wout(filename; iprint=1) = open(filename) do file
     # k-mesh
     # etc...
 
-    return a, b, species, site, frac_lat, cart_lat
+    return A, B, species, site, frac_lat, cart_lat
 end
 
 parse_sym(filename) = open(filename) do file
     nsymmetry = parse(Int, readline(file))
     readline(file)
-    syms = Vector{AffineTransform{3,Float64}}(undef, nsymmetry)
+    point_sym = Vector{SMatrix{3,3,Float64,9}}(undef, nsymmetry)
+    translate = Vector{SVector{3,Float64}}(undef, nsymmetry)
     S = Matrix{Float64}(undef, (3,4))
     for i in 1:nsymmetry
         for j in 1:4
             col = split(readline(file))
             S[:,j] .= parse.(Float64, col)
         end
-        syms[i] = AffineTransform(S[:,1:3], S[:,4])
+        point_sym[i] = S[:,1:3]
+        translate[i] = S[:,4]
         readline(file)
     end
     return nsymmetry, syms
@@ -300,7 +302,7 @@ function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true,
         (one(SMatrix{3,3,Float64}), 2pi*one(SMatrix{3,3,Float64}))
     end
 
-    periods = ntuple(i -> norm(b[i]), Val{3}())
+    periods = ntuple(i -> norm(B[:,i]), Val{3}())
     HV = if velocity_kind == :none
         load_hamiltonian(seedname * "_hr.dat"; period=periods, compact=compact)
     else

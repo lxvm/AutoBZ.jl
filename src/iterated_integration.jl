@@ -1,5 +1,5 @@
-export iterated_integration
-export iterated_tol_update, iterated_integrand, iterated_pre_eval, iterated_segs
+export iterated_integration # the main routine
+export iterated_tol_update, iterated_integrand, iterated_pre_eval, iterated_segs, iterated_inference, iterated_integral_type
 
 """
     iterated_tol_update(f, l, atol, rtol)
@@ -35,13 +35,13 @@ subsequent integral.
 iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
 
 """
-    iterated_inference(f, l::IntegrationLimits{d})
+    iterated_inference(f, l::AbstractLimits{d})
 
 Returns a tuple of the return types of f after each variable of integration
 """
-function iterated_inference(f, l::IntegrationLimits{d}) where d
-    Fs = iterated_inference_down(typeof(f), eltype(l), Val{d}()) # type of inner integrand
-    iterated_inference_up(Fs, eltype(l), Val{d}())
+function iterated_inference(f, ::AbstractLimits{d,T}) where {d,T}
+    Fs = iterated_inference_down(typeof(f), T, Val{d}()) # type of inner integrand
+    iterated_inference_up(Fs, T, Val{d}())
 end
 
 function iterated_inference_down(F, T, ::Val{d}) where d
@@ -63,7 +63,7 @@ iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d = (Base.promote_op(ite
 
 Returns the result type 
 """
-function iterated_integral_type(f, l::IntegrationLimits{d}) where d
+function iterated_integral_type(f, l::AbstractLimits{d}) where d
     T = iterated_inference(f, l)[d]
     Base.promote_op(iterated_integrand, typeof(f), T, Type{Val{0}})
 end
@@ -83,11 +83,11 @@ function iterated_segs(f, l, d, ::Val{initdivs}) where initdivs
 end
 
 """
-    iterated_integration(f, ::IntegrationLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing)
+    iterated_integration(f, ::AbstractLimits; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=typemax(Int), initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing)
     iterated_integration(f, a, b; kwargs...)
 
-Calls `QuadGK` to perform iterated 1D integration of `f` over a domain
-parametrized by `IntegrationLimits`. In the case two points `a` and `b` are
+Calls `QuadGK` to perform iterated 1D integration of `f` over a compact domain
+parametrized by `AbstractLimits`. In the case two points `a` and `b` are
 passed, the integration region becomes the hypercube with those extremal
 vertices. `f` is assumed to be type-stable.
 
@@ -118,29 +118,32 @@ argument. This buffer can be used across multiple calls to avoid repeated
 allocation.
 """
 iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::IntegrationLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
-    segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
-    atol_ = something(atol, zero(eltype(l)))
-    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(eltype(l)))) : zero(eltype(l)))
-    int, err = iterated_integration_(Val{d}, f, l, order, atol_, rtol_, maxevals, norm, initdivs, segbufs_)
+function iterated_integration(f, l::AbstractLimits{d}; kwargs...) where d
+    int, err = iterated_integration_(Val{d}, f, l, iterated_integration_kwargs(f, l; kwargs...)...)
     iterated_integrand(f, int, Val{0}), err
+end
+function iterated_integration_kwargs(f, l::AbstractLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
+    segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
+    atol_ = something(atol, zero(domain_type(l)))
+    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(domain_type(l)))) : zero(domain_type(l)))
+    (order=order, atol=atol_, rtol=rtol_, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs_)
 end
 
 function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
-    QuadGK.do_quadgk(f, iterated_segs(f, l, 1, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
+    do_quadgk(f, iterated_segs(f, l, 1, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
 end
 function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs) where d
     # avoid runtime dispatch when capturing variables
     # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
     f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs
-        x -> iterated_integrand(f, first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, Val{d}), l(x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs)), Val{d})
+        x -> iterated_integrand(f, first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, Val{d}), setindex(l, x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs)), Val{d})
     end
-    QuadGK.do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
+    do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
 end
 
 """
     alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim)
-    alloc_segbufs(f, l::IntegrationLimits)
+    alloc_segbufs(f, l::AbstractLimits)
 
 This helper function will allocate enough segment buffers as are needed for an
 `iterated_integration` call of integrand `f` and integration limits `l`.
@@ -149,9 +152,9 @@ integrand `f` for each iteration of integration, `typesof_nfx` should be the
 types of the norms of a value of `f` for each iteration of integration, and
 `ndim` should be `ndims(l)`.
 """
-alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim) = ntuple(n -> QuadGK.alloc_segbuf(domain_type, typesof_fx[n], typesof_nfx[n]), Val{ndim}())
-function alloc_segbufs(f, l::IntegrationLimits{d}) where d
+alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim) = ntuple(n -> alloc_segbuf(domain_type, typesof_fx[n], typesof_nfx[n]), Val{ndim}())
+function alloc_segbufs(f, l::AbstractLimits{d}) where d
     typesof_fx = iterated_inference(f, l)
     typesof_nfx = ntuple(n -> Base.promote_op(norm, typesof_fx[n]), Val{d}())
-    alloc_segbufs(domain_type(l), typesof_fx, typesof_nfx, ndims(l))
+    alloc_segbufs(domain_type(l), typesof_fx, typesof_nfx, d)
 end
