@@ -2,7 +2,6 @@
 In this script we compute OC at single point using the interface in AutoBZ.jl
 =#
 
-using AutoBZ
 using AutoBZ.Jobs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
@@ -20,18 +19,18 @@ shift!(HV, μ)
 
 # initialize integrand and limits
 Σ = EtaSelfEnergy(η)
-σ = KineticIntegrand(HV, Σ, β, 0, Ω)
-f = fermi_window_limits(Ω, β)
-l = AutoBZ.CompositeLimits(IBZ, f)
+σ = KineticIntegrand(HV, 0, Σ, β, Ω)
 
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 
 # fully adaptive integration
-# int, err = AutoBZ.iterated_integration(σ, l; atol=atol, rtol=rtol)
+int, err = Jobs.iterated_integration(σ, IBZ; atol=atol, rtol=rtol)
 
 # adaptive in frequency, automatic equispace in BZ
-Eσ = AutoEquispaceKineticIntegrand(σ, IBZ, atol, rtol)
+σ = KineticIntegrator(HV, 0, Σ, β; atol=atol, rtol=rtol) # adaptive default
+# σ = KineticIntegrator(HV, 0, Σ, β; routine=Jobs.equispace_integration)
+# σ = KineticIntegrator(HV, 0, Σ, β; routine=Jobs.automatic_equispace_integration, atol=atol, rtol=rtol)
 
-inte, erre = AutoBZ.iterated_integration(Eσ, f; atol=atol, rtol=rtol)
+σ(Ω)

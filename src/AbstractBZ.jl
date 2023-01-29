@@ -92,6 +92,7 @@ function FullBZ(A::SMatrix{d,d,T}, B::SMatrix{d,d,T}; atol=sqrt(eps()), basis=:l
     check_bases_canonical(A, B, atol)
     FullBZ{basis}(A, B, basis_to_limits(B))
 end
+FullBZ(A; kwargs...) = FullBZ(A, canonical_reciprocal_basis(A); kwargs...)
 
 nsyms(::FullBZ) = 1
 symmetries(::FullBZ) = tuple(I)

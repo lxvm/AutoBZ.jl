@@ -191,7 +191,7 @@ function automatic_equispace_integration_(f, bz, npt1, rule1, npt2, rule2, atol,
         int1 = int2
         npt1 = npt2
         resize!(rule1, length(rule2))
-        rule1 .= rule2
+        copyto!(rule1, rule2)
         # evaluate integral on finer grid
         npt2 = equispace_npt_update(f, npt1)
         rule2 = equispace_rule!(rule2, f, bz, npt2)
@@ -203,3 +203,12 @@ function automatic_equispace_integration_(f, bz, npt1, rule1, npt2, rule2, atol,
     end
     return int2, err, (npt1=npt1, rule1=rule1, npt2=npt2, rule2=rule2)
 end
+
+"""
+    equispace_index(npt, i::Int...)
+
+Return the linear index from the Cartesian index
+"""
+equispace_index(npt, i::Int...) = equispace_index(npt, i) + 1
+equispace_index(npt, i::NTuple{N,Int}) where N = i[1] - 1 + npt*equispace_index(npt, i[2:N])
+equispace_index(npt, i::Tuple{}) = 0

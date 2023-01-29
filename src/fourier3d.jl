@@ -26,47 +26,9 @@ AutoBZ.contract(f::AbstractFourierSeries3D, x, dim) = contract!(f, x, dim)
 (f::AbstractFourierSeries3D)(x::SVector{1}) = f(only(x))
 (f::AbstractFourierSeries3D)(x::Number) = value(contract!(f, x, 1))
 
-AutoBZ.iterated_pre_eval(f::Union{FourierIntegrand{F,S},IteratedFourierIntegrand{F,S}}, x, dim::Int) where {F,S<:AbstractFourierSeries3D} =
-    (contract!(f.s, x, dim); return f)
-#=
-function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, bz::FullBZ{<:Any,3}, npt)
-    # @assert collect(period(f)) ≈ [x[2] - x[1] for x in boundingbox(bz)] "Integration region doesn't match integrand period"
-    pre = Array{Tuple{fourier_type(f, domain_type(bz)),Int},3}(undef, npt, npt, npt)
-    box = boundingbox(bz)
-    for k in 1:npt
-        contract!(f, (box[3][2]-box[3][1])*(k-1)/npt + box[3][1], 3)
-            for j in 1:npt
-            contract!(f, (box[2][2]-box[2][1])*(j-1)/npt + box[2][1], 2)
-            for i in 1:npt
-                pre[i,j,k] = (f((box[1][2]-box[1][1])*(i-1)/npt + box[1][1]), 1)
-            end
-        end
-    end
-    return pre
-end
+AutoBZ.iterated_pre_eval(f::AbstractFourierIntegrand{<:AbstractFourierSeries3D}, x, dim::Int) =
+    (contract!(AutoBZ.series(f), x, dim); return f)
 
-function AutoBZ.fourier_pre_eval(f::AbstractFourierSeries3D, bz::AbstractBZ{3}, npt)
-    # @assert collect(period(f)) ≈ [x[2] - x[1] for x in boundingbox(bz)] "Integration region doesn't match integrand period"
-    flag, wsym, nsym = equispace_rule(bz, npt)
-    n = 0
-    box = boundingbox(bz)
-    pre = Vector{Tuple{fourier_type(f, domain_type(bz)),Int}}(undef, nsym)
-    for k in axes(flag, 3)
-        contract!(f, (box[3][2]-box[3][1])*(k-1)/npt, 3)
-        for j in axes(flag, 2)
-            contract!(f, (box[2][2]-box[2][1])*(j-1)/npt, 2)
-            for i in axes(flag, 1)
-                if flag[i,j,k]
-                    n += 1
-                    pre[n] = (f((box[1][2]-box[1][1])*(i-1)/npt), wsym[n])
-                    n >= nsym && break
-                end
-            end
-        end
-    end
-    return pre
-end
-=#
 """
     FourierSeries3D(coeffs::Array{T,3}, [period=(1.0, 1.0, 1.0)])
 

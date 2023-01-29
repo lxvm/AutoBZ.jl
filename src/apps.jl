@@ -60,10 +60,21 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     @eval $f(H::AbstractFourierSeries, args...) = FourierIntegrand($f, H, self_energy_args(args...))
 
     # Define the type alias to have the same behavior as the function
+    """
+    $(T)(H, Σ, ω)
+
+    See [`AutoBZ.FourierIntegrand`](@ref) for more details.
+    """
     @eval const $T = FourierIntegrand{typeof($f)}
     @eval $T(args...) = $f(args...)
 
     # Define an integrator based on the function
+    """
+    $(E)(bz, H, Σ)
+
+    Integrates `$(T)` over `bz` as a function of `ω`.
+    See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+    """
     @eval const $E = FourierIntegrator{typeof($f)}
 
     # Define default equispace grid stepping based 
@@ -96,13 +107,14 @@ npt_update_eta_(η, c) = max(50, round(Int, c/η))
 export ExperimentalDOSIntegrand, ExperimentalDOSIntegrator
 
 """
-    ExperimentalDOSIntegrand
+    ExperimentalDOSIntegrand(H, Σ, ω)
 
 Constructor+Type alias for the DOS integrand implemented with
 IteratedFourierIntegrand. Since taking the imaginary part after all of the
 integrals doesn't cost much more than taking it after the first, use
 [`AutoBZ.Jobs.SafeDOSIntegrand`](@ref). This type's purpose is to test
 general-purpose iterated integration, which is incompatible with symmetries.
+See [`AutoBZ.IteratedFourierIntegrand`](@ref) for more details.
 """
 const ExperimentalDOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
 ExperimentalDOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = ExperimentalDOSIntegrand{N}(H, args...)
@@ -115,20 +127,27 @@ end
 const ExperimentalDOSIntegrand1D = IteratedFourierIntegrand{Tuple{typeof(safedos_integrand)}}
 AutoBZ.iterated_integrand(::ExperimentalDOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
 
+"""
+    ExperimentalDOSIntegrator(bz, H, Σ)
+
+Integrates `ExperimentalDOSIntegrand` over `bz` as a function of `ω`.
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+"""
 const ExperimentalDOSIntegrator{N} = FourierIntegrator{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
 
 ExperimentalDOSIntegrator(lims::AbstractLimits{d}, args...; kwargs...) where d = ExperimentalDOSIntegrator{d}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 
-export TransportIntegrand, KineticIntegrand, EquispaceKineticIntegrand, AutoEquispaceKineticIntegrand
+export TransportIntegrand, TransportIntegrator, KineticIntegrand, KineticIntegrator
 
 spectral_function(H, M) = imag(inv(M-H))/(-pi)
 
+transport_integrand(HV, Σ::AbstractSelfEnergy, ω) = transport_integrand(HV, ω*I-Σ(ω))
 transport_integrand(HV, Σ::AbstractSelfEnergy, ω₁, ω₂) = transport_integrand(HV, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
 transport_integrand(HV, Σ::AbstractMatrix, ω₁, ω₂) = transport_integrand(HV, ω₁*I-Σ, ω₂*I-Σ)
-transport_integrand(HV::AbstractFourierSeries, Mω₁, Mω₂) = FourierIntegrand(transport_integrand, HV, Mω₁, Mω₂)
-transport_integrand(HV::Tuple, Mω₁, Mω₂) = transport_integrand(HV..., Mω₁, Mω₂)
+transport_integrand(HV::AbstractBandVelocity3D, Mω₁, Mω₂) = FourierIntegrand(transport_integrand, HV, Mω₁, Mω₂)
+transport_integrand(HV::Tuple, Mω₁, Mω₂=Mω₁) = transport_integrand(HV..., Mω₁, Mω₂)
 function transport_integrand(H, ν₁, ν₂, ν₃, Mω₁, Mω₂)
     # Aω₁ = spectral_function(H, Mω₁)
     # Aω₂ = spectral_function(H, Mω₂)
@@ -152,9 +171,20 @@ function transport_integrand_(ν₁::V, ν₂::V, ν₃::V, Aω₁::A, Aω₂::A
     ))
 end
 
+"""
+    TransportIntegrand(HV, Σ, ω₁, ω₂)
+
+See [`AutoBZ.FourierIntegrand`](@ref) for more details.
+"""
 const TransportIntegrand = FourierIntegrand{typeof(transport_integrand)}
 TransportIntegrand(args...) = transport_integrand(args...)
 
+"""
+    TransportIntegrator(bz, HV, Σ, ω₁)
+
+Integrates `TransportIntegrand` over `bz` as a function of `ω₂`.
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+"""
 const TransportIntegrator = FourierIntegrand{typeof(transport_integrand)}
 
 function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt)
@@ -167,10 +197,27 @@ end
 kinetic_integrand(HV, Σ, ω, Ω, β, n) = kinetic_integrand(transport_integrand(HV, Σ, ω, ω+Ω), ω, Ω, β, n)
 kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-"""
-    KineticIntegrand(HV, Σ, β, n, [Ω=0])
+function kinetic_frequency_integrator(HV::AbstractBandVelocity3D, n, Σ, β, Ω; routine=iterated_integration, kwargs...)
+    lims = get_safe_freq_limits(Ω, β, lb(Σ), ub(Σ))
+    f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
+        ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
+    end
+    FourierIntegrand(kinetic_frequency_integrator, HV, routine, lims, AutoBZ.default_kwargs(routine, f, lims; kwargs...), n, Σ, β, Ω)
+end
+function kinetic_frequency_integrator(HV_k::Tuple, routine, lims, kwargs, n, Σ, β, Ω=0)
+    # deal with distributional integral case
+    Ω == 0 && β == Inf && return 0^n * transport_integrand(HV_k, Σ, Ω)
+    # normal case
+    f = let HV_k=HV_k, Σ=Σ, Ω=Ω, β=β, n=n
+        ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
+    end
+    first(routine(f, lims; kwargs...))
+end
 
-A function whose integral over the BZ and the frequency axis gives the kinetic
+"""
+    KineticIntegrand(HV, n, Σ, β, [Ω=0]; routine=quadgk)
+
+A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
 ```math
 A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
@@ -179,106 +226,20 @@ where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
 this type only for adaptive integration and order the limits so that the
 integral over the Brillouin zone is the outer integral and the frequency
 integral is the inner integral. Based on
-[TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html)
+[TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-struct KineticIntegrand{T<:Union{BandEnergyVelocity3D,BandEnergyBerryVelocity3D},TS<:AbstractSelfEnergy}
-    HV::T
-    Σ::TS
-    β::Float64
-    n::Int
-    Ω::Float64
-    function KineticIntegrand(HV::T, Σ::TS, β, n, Ω=0.0) where {T,TS}
-        β == Inf && Ω == 0 && error("Ω=1/β=0 encountered. This case requires distributional frequency integrals, or can be computed with a TransportIntegrand")
-        new{T,TS}(HV, Σ, β, n, Ω)
-    end
-end
-
-# innermost integral is the frequency integral
-(A::KineticIntegrand)(kω::SVector{4}) = kinetic_integrand(A.HV(pop(kω)), A.Σ, last(kω), A.Ω, A.β, A.n)
-(A::KineticIntegrand)(ω::SVector{1}) = A(only(ω))
-(A::KineticIntegrand)(ω::Number) = kinetic_integrand(value(A.HV), A.Σ, ω, A.Ω, A.β, A.n)
-
-# dim - 1 to accomodate the innermost frequency integral
-AutoBZ.iterated_pre_eval(A::KineticIntegrand, k, dim::Int) = (contract!(A.HV, k, dim-1); return A)
-
-TransportIntegrand(A::KineticIntegrand, ω::Float64) = TransportIntegrand(A.HV, A.Σ, ω, ω+A.Ω)
-
-"""
-    EquispaceKineticIntegrand(A::KineticIntegrand, l, npt, pre::Vector{Tuple{eltype(A.HV),Int}})
-    EquispaceKineticIntegrand(A, l, npt)
-
-This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
-and with equispace integration over the Brillouin zone with a fixed number of
-grid points `npt`. The argument `l` should be an `AbstractLimits` for just
-the Brillouin zone. This type should be called by an adaptive integration
-routine whose limits of integration are only the frequency variable.
-"""
-struct EquispaceKineticIntegrand{T,TS,TL,P}
-    A::KineticIntegrand{T,TS}
-    l::TL
-    npt::Int
-    pre::P
-end
-
-
-function EquispaceKineticIntegrand(A::KineticIntegrand, l::AbstractLimits, npt::Int)
-    rule = equispace_rule(TransportIntegrand(A, 0.0), l, npt)
-    EquispaceKineticIntegrand(A, l, npt, pre)
-end
-(f::EquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
-function (f::EquispaceKineticIntegrand)(ω::Number)
-    Γ, = equispace_integration(TransportIntegrand(f.A, ω), f.l, f.npt; pre=f.pre)
-    return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
-end
+const KineticIntegrand = FourierIntegrand{typeof(kinetic_frequency_integrator)}
+KineticIntegrand(args...; kwargs...) = kinetic_frequency_integrator(args...; kwargs...)
 
 
 """
-    AutoEquispaceKineticIntegrand(A, l, atol, rtol, npt1, pre1, npt2, pre2)
-    AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=Tuple{eltype(A.HV),Int}[], npt2=0,pre2=Tuple{eltype(σ.HV),Int}[])
+    KineticIntegrator(bz, HV, n, Σ, [β])
 
-This type represents an `KineticIntegrand`, `A` integrated adaptively in frequency
-and with equispace integration over the Brillouin zone with a number of grid
-points necessary to meet the maximum of the tolerances given by `atol` and
-`rtol`. The argument `l` should be an `AbstractLimits` for just the Brillouin
-zone. This type should be called by an adaptive integration routine whose limits
-of integration are only the frequency variable.
-
-The keyword arguments, which are just passed to
-[`automatic_equispace_integration`](@ref), are:
-- `pre1`: a `Vector` containing tuples of the evaluated Hamiltonian + band
-    velocities and integration weights
-- `npt1`: an integer that should be equivalent to `length(pre1)`
-- `pre2`: a `Vector` containing tuples of the evaluated Hamiltonian + band
-    velocities and integration weights on a more refined grid than `pre1`
-- `npt2`: an integer that should be equivalent to `length(pre)`
+Integrates `KineticIntegrand` over `bz` as a function of `Ω`, or `β, Ω`.
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-mutable struct AutoEquispaceKineticIntegrand{T,TS,TL,P}
-    A::KineticIntegrand{T,TS}
-    l::TL
-    atol::Float64
-    rtol::Float64
-    npt1::Int
-    pre1::P
-    npt2::Int
-    pre2::P
-end
-
-
-function AutoEquispaceKineticIntegrand(A, l, atol, rtol; npt1=0, pre1=nothing, npt2=0, pre2=nothing)
-    pre1 = something(pre1, equispace_pre_eval(TransportIntegrand(A, 0.0), l, 0))
-    pre2 = something(pre2, equispace_pre_eval(TransportIntegrand(A, 0.0), l, 0))
-    AutoEquispaceKineticIntegrand(A, l, atol, rtol, npt1, pre1, npt2, pre2)
-end
-
-(f::AutoEquispaceKineticIntegrand)(ω::SVector{1}) = f(only(ω))
-function (f::AutoEquispaceKineticIntegrand)(ω::Number)
-    Γ, _, other = automatic_equispace_integration(TransportIntegrand(f.A, ω), f.l; npt1=f.npt1, pre1=f.pre1, npt2=f.npt2, pre2=f.pre2, atol=f.atol, rtol=f.rtol)
-    f.npt1 = other.npt1
-    f.pre1 = other.pre1
-    f.npt2 = other.npt2
-    f.pre2 = other.pre2
-    return kinetic_integrand(Γ, ω, f.A.Ω, f.A.β, f.A.n)
-end
+const KineticIntegrator = FourierIntegrator{typeof(kinetic_frequency_integrator)}
 
 # replacement for TetrahedralLimits
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)
@@ -289,7 +250,7 @@ function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
     nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
     hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
     lims = PolyhedralLimits(hull)
-    syms = collect(cube_automorphisms(Val{N}()))
+    syms = vec(collect(cube_automorphisms(Val{N}())))
     IrreducibleBZ(A, B, lims, syms; kwargs...)
 end
 

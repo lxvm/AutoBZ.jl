@@ -16,8 +16,7 @@ function initialize_data(seedname="svo", μ=12.3958)
 H, FBZ = load_wannier90_data(seedname; compact=:S)
 shift!(HV, μ)
 
-ibz_limits = AutoBZ.TetrahedralLimits(period(HV)) # Cubic symmetries
-IBZ = IrreducibleBZ(FBZ.a, FBZ.b, ibz_limits)
+IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
 
 # Define problem parameters
 omegas = collect(range(-1, 1; length=3))#00)) # eV

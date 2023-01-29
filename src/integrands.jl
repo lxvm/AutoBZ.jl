@@ -33,7 +33,12 @@ thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
 iterated_pre_eval(f, x) = thunk(f, x)
 
 
-abstract type AbstractFourierIntegrand end
+"""
+    AbstractFourierIntegrand{S<:AbstractFourierSeries}
+
+Supertype representing Fourier integrands
+"""
+abstract type AbstractFourierIntegrand{S<:AbstractFourierSeries} end
 
 # interface
 
@@ -44,15 +49,15 @@ params(f::AbstractFourierIntegrand) = f.p # collection of additional parameters
 
 # abstract methods
 
-iterated_pre_eval(f::T, x) where {T<:AbstractFourierIntegrand} =
-    T(ftotal(f), contract(series(f), x), params(f))
+@generated iterated_pre_eval(f::T, x) where {T<:AbstractFourierIntegrand} =
+    :($(nameof(T))(ftotal(f), contract(series(f), x), params(f)))
 
 (f::AbstractFourierIntegrand)(x) = finner(f)(series(f)(x), params(f)...)
 
 equispace_integrand(f::AbstractFourierIntegrand, s_x) = finner(f)(s_x, params(f)...)
 
 function equispace_rule(f::AbstractFourierIntegrand, bz::AbstractBZ, npt)
-    rule = Vector{Tuple{fourier_type(series(f), domain_type(bz)),domain_type(bz)}}(undef, 0)
+    rule = Vector{Tuple{fourier_type(series(f),domain_type(bz)),domain_type(bz)}}(undef, 0)
     equispace_rule!(rule, f, bz, npt)
 end
 equispace_rule!(rule, f::AbstractFourierIntegrand, bz::AbstractBZ, npt) =
@@ -72,7 +77,7 @@ and the layout of the parameters in the tuple `ps`. Additionally, `f` is assumed
 to be type-stable and the inference can be queried by calling `eltype` on the
 `FourierIntegrand`.
 """
-struct FourierIntegrand{F,S<:AbstractFourierSeries,P<:Tuple} <: AbstractFourierIntegrand
+struct FourierIntegrand{F,S,P<:Tuple} <: AbstractFourierIntegrand{S}
     f::F
     s::S
     p::P
@@ -98,7 +103,7 @@ inner function to also be multivariate Fourier series.
     When used as an equispace integrand, this type does each integral one
     variable at a time applying PTR to each dimension. Note that 
 """
-struct IteratedFourierIntegrand{F<:Tuple,S<:AbstractFourierSeries,P<:Tuple} <: AbstractFourierIntegrand
+struct IteratedFourierIntegrand{F<:Tuple,S,P<:Tuple} <: AbstractFourierIntegrand{S}
     f::F
     s::S
     p::P
@@ -119,19 +124,19 @@ iterated_integrand(_::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
 
 function equispace_evalrule(f::IteratedFourierIntegrand{F,S}, rule::Vector) where {F,N,S<:AbstractFourierSeries{N}}
     @warn "Do not trust an iterated integrand with equispace integration unless for linear integrands with full BZ"
-    rule_ = reshape(rule, ntuple(n -> npt, Val{N}))
-    equispace_evalrule(f, rule_)
+    equispace_evalrule(f, rule)
 end
 @generated function equispace_evalrule(f::F, rule::AbstractArray{Tuple{T,W},N}) where {N,S<:AbstractFourierSeries{N},F<:IteratedFourierIntegrand{<:Any,S},T,W}
     I_N = Symbol(:I_, N)
     quote
+        npt = 
         # infer return types of individual integrals
         T_1 = Base.promote_op(*, Base.promote_op(equispace_integrand, F, T), W)
         Base.Cartesian.@nexprs $(N-1) d -> T_{d+1} = Base.promote_op(equispace_integrand, F, T_d)
         # compute quadrature
         $I_N = zero($(Symbol(:T_, N)))
         Base.Cartesian.@nloops $N i rule (d -> d==1 ? nothing : I_{d-1} = zero(T_{d-1})) (d -> d==1 ? nothing : I_d += iterated_integrand(f, I_{d-1}, Val{d})) begin
-            I_1 += equispace_integrand(f, (Base.Cartesian.@nref $N rule i)[1])
+            I_1 += equispace_integrand(f, rule[Base.Cartesian.@ncall $N equispace_index npt d -> i_d][1])
         end
         iterated_integrand(f, $I_N, Val{0})
     end

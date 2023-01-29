@@ -1,4 +1,4 @@
-export BandEnergyVelocity3D, BandEnergyBerryVelocity3D
+export AbstractBandVelocity3D, BandEnergyVelocity3D, BandEnergyBerryVelocity3D
 
 """
     velocity(H, Hα, Aα)
@@ -45,13 +45,15 @@ function to_hamiltonian_gauge(H, vws::NTuple{N}) where {N}
     (Diagonal(vals), ntuple(n -> U'*vws[n]*U, Val{N}())...)
 end
 
+abstract type AbstractBandVelocity3D <:AbstractFourierSeries3D end
+
 """
     BandEnergyVelocity3D(coeffs, [period=(1.0,1.0,1.0), kind=:orbital])
     BandEnergyVelocity3D(H::FourierSeries3D, [kind=:orbital])
 
 The in-place equivalent of `BandEnergyVelocity` for 3D series evaluation.
 """
-struct BandEnergyVelocity3D{kind,T,TV,TH} <: AbstractFourierSeries3D
+struct BandEnergyVelocity3D{kind,T,TV,TH} <: AbstractBandVelocity3D
     H::FourierSeries3D{T,0,0,0}
     vz_z::Array{T,2}
     vz_yz::Array{T,1}
@@ -121,7 +123,7 @@ end
 
 The in-place equivalent of `BandEnergyBerryVelocity` for 3D series evaluation.
 """
-struct BandEnergyBerryVelocity3D{kind,T,TA,TV,TH} <: AbstractFourierSeries3D
+struct BandEnergyBerryVelocity3D{kind,T,TA,TV,TH} <: AbstractBandVelocity3D
     H::FourierSeries3D{T,0,0,0}
     Ax::FourierSeries3D{TA,0,0,0}
     Ay::FourierSeries3D{TA,0,0,0}

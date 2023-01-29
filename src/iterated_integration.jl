@@ -46,7 +46,7 @@ end
 
 function iterated_inference_down(F, T, ::Val{d}) where d
     # recurse down to the innermost integral to get the integrand function types
-    Finner = Base.promote_op(iterated_pre_eval, F, T, Type{Val{d}})
+    @show Finner = Base.promote_op(iterated_pre_eval, F, T, Type{Val{d}})
     (iterated_inference_down(Finner, T, Val{d-1}())..., F)
 end
 iterated_inference_down(F, T, ::Val{1}) = (F,)
@@ -56,7 +56,8 @@ function iterated_inference_up(Fs::NTuple{d_}, T, dim::Val{d}) where {d_,d}
     Fouter = Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d-d_+1}}) # output type
     (Fouter, iterated_inference_up(Fs[2:d_], Fouter, dim)...)
 end
-iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d = (Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d}}),)
+iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d =
+    (Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d}}),)
 
 """
     iterated_integral_type(f, l)

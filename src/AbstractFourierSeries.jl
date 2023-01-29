@@ -63,6 +63,16 @@ function value end
 
 
 """
+    (f::AbstractFourierSeries{N})(x::SVector{N}) where {N}
+    (f::AbstractFourierSeries{1})(x::Number)
+Evaluate the Fourier series at the given point, which must have the same input
+dimension as the Fourier series
+"""
+(f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
+(f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
+
+
+"""
     coefficients(::AbstractFourierSeries)
 
 Return the array of coefficients defining the Fourier series
@@ -77,15 +87,6 @@ This is a type-based computation.
 """
 coefficient_type(f::AbstractFourierSeries) = coefficient_type(typeof(f))
 
-"""
-    (f::AbstractFourierSeries{N})(x::SVector{N}) where {N}
-    (f::AbstractFourierSeries{1})(x::Number)
-
-Evaluate the Fourier series at the given point, which must have the same input
-dimension as the Fourier series
-"""
-(f::AbstractFourierSeries{N})(x::SVector{N}) where {N} = value(contract(f, x))
-(f::AbstractFourierSeries{1})(x::Number) = value(contract(f, x))
 
 """
     phase_type(x)
@@ -103,27 +104,26 @@ fourier_type(C::AbstractFourierSeries, x) = Base.promote_op(*, coefficient_type(
 
 
 """
-    fourier_rulel!(pre::Vector, f::AbstracFourierSeries, fbz, npt)
+    fourier_rule!(rule::Vector, f::AbstracFourierSeries, fbz, npt)
 
-Returns a vector `pre` containing tuples `(f(x), w)` where `x, w` are the nodes
+Returns a vector `prulere` containing tuples `(f(x), w)` where `x, w` are the nodes
 and weights of the symmetried PTR quadrature rule.
 """
-@generated function fourier_rule!(pre, f::AbstractFourierSeries{N}, bz::FullBZ{<:Any,N}, npt) where N
+@generated function fourier_rule!(rule, f::AbstractFourierSeries{N}, bz::FullBZ{<:Any,N}, npt) where N
     f_N = Symbol(:f_, N)
     quote
         $f_N = f
-        resize!(pre, npt^N)
-        pre_ = reshape(pre, (Base.Cartesian.@ntuple $N _ -> npt))
+        resize!(rule, npt^N)
         box = boundingbox(bz)
         dvol = equispace_dvol(bz, npt)
         Base.Cartesian.@nloops $N i _ -> Base.OneTo(npt) (d -> d==1 ? nothing : f_{d-1} = contract(f_d, (box[d][2]-box[d][1])*(i_d-1)/npt + box[d][1], d)) begin
-            (Base.Cartesian.@nref $N pre_ i) = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol)
+            rule[Base.Cartesian.@ncall $N equispace_index npt d -> i_d] = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol)
         end
-        pre
+        rule
     end
 end
 
-@generated function fourier_rule!(pre, f::AbstractFourierSeries{N}, bz::AbstractBZ{N}, npt) where N
+@generated function fourier_rule!(rule, f::AbstractFourierSeries{N}, bz::AbstractBZ{N}, npt) where N
     f_N = Symbol(:f_, N)
     quote
         $f_N = f
@@ -131,14 +131,14 @@ end
         n = 0
         box = boundingbox(bz)
         dvol = equispace_dvol(bz, npt)
-        resize!(pre, nsym)
+        resize!(rule, nsym)
         Base.Cartesian.@nloops $N i flag (d -> d==1 ? nothing : f_{d-1} = contract(f_d, (box[d][2]-box[d][1])*(i_d-1)/npt + box[d][1], d)) begin
             (Base.Cartesian.@nref $N flag i) || continue
             n += 1
-            pre[n] = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol*wsym[n])
+            rule[n] = (f_1((box[1][2]-box[1][1])*(i_1-1)/npt + box[1][1]), dvol*wsym[n])
             n >= nsym && break
         end
-        pre
+        rule
     end
 end
 

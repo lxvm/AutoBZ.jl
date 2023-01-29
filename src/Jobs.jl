@@ -10,6 +10,7 @@ using Printf
 
 using HDF5
 using StaticArrays
+using QuadGK: quadgk
 using Polyhedra: vrep, Line, Ray
 
 using ..AutoBZ
@@ -173,18 +174,18 @@ function automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, at
         @info @sprintf "starting parameter %i" batch[1][1]
         t_ = time()
         f = FourierIntegrand(integrand, fs_, batch[1][2])
-        ints[1], errs[1], pre_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol)
+        ints[1], errs[1], rule_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol)
         ts[1] = time() - t_
-        npt1s[1] = pre_buf.npt1
-        npt2s[1] = pre_buf.npt2
+        npt1s[1] = rule_buf.npt1
+        npt2s[1] = rule_buf.npt2
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
             f = FourierIntegrand(integrand, fs_, p)
-            ints[i], errs[i], pre_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol, pre_buf...)
+            ints[i], errs[i], rule_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol, rule_buf...)
             ts[i] = time() - t_
-            npt1s[i] = pre_buf.npt1
-            npt2s[i] = pre_buf.npt2
+            npt1s[i] = rule_buf.npt1
+            npt2s[i] = rule_buf.npt2
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
     end
@@ -213,7 +214,7 @@ function equispace_fourier_integration(integrand, BZ, fs, ps, npt, nthreads=Thre
     
     @info "pre-evaluating Fourier series..."
     t = time()
-    f_k = fourier_pre_eval(fs, BZ, npt)
+    rule = equispace_rule(test, BZ, npt)
     @info "finished pre-evaluating Fourier series in $(time() - t) (s)"
     
     @info "using $nthreads threads for frequency parallelization"
@@ -224,7 +225,7 @@ function equispace_fourier_integration(integrand, BZ, fs, ps, npt, nthreads=Thre
             @info @sprintf "starting parameter %i" i
             t_ = time()
             f = FourierIntegrand(integrand, fs, p)
-            ints[i], = equispace_integration(f, BZ, npt; pre=f_k)
+            ints[i], = equispace_integration(f, BZ; npt=npt, rule=rule)
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
@@ -320,18 +321,18 @@ function run_dos_auto_equispace(H, Σ::AbstractSelfEnergy, ωs, BZ, rtol, atol, 
         @info @sprintf "starting ω=%e" batch[1][2]
         t_ = time()
         D = DOSIntegrand(H_, Σ, batch[1][2])
-        ints[1], errs[1], pre_buf = automatic_equispace_integration(D, BZ; atol=atol, rtol=rtol)
+        ints[1], errs[1], rule_buf = automatic_equispace_integration(D, BZ; atol=atol, rtol=rtol)
         ts[1] = time() - t_
-        npt1s[1] = pre_buf.npt1
-        npt2s[1] = pre_buf.npt2
+        npt1s[1] = rule_buf.npt1
+        npt2s[1] = rule_buf.npt2
         for (i, ω) in view(batch, 2:length(batch))
             @info @sprintf "starting ω=%e" ω
             t_ = time()
             D = DOSIntegrand(H_, Σ, ω)
-            ints[i], errs[i], pre_buf = automatic_equispace_integration(D, BZ; atol=atol, rtol=rtol, pre_buf...)
+            ints[i], errs[i], rule_buf = automatic_equispace_integration(D, BZ; atol=atol, rtol=rtol, rule_buf...)
             ts[i] = time() - t_
-            npt1s[i] = pre_buf.npt1
-            npt2s[i] = pre_buf.npt2
+            npt1s[i] = rule_buf.npt1
+            npt2s[i] = rule_buf.npt2
             @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
         end
     end
@@ -419,21 +420,19 @@ result gets truncated if the default result would recommend a wider interval. If
 there is any truncation, a warning is emitted to the user, but the program will
 continue with the truncated limits.
 """
-function get_safe_freq_limits(Ωs, β, lb, ub)
-    freq_BZ = Vector{CubicLimits{1,Float64}}(undef, length(Ωs))
-    for (i, Ω) in enumerate(Ωs)
-        c = fermi_window_limits(Ω, β)
-        if (l = only(c.l)) < lb
-            @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
-            l = lb
-        end
-        if (u = only(c.u)) > ub
-            @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
-            u = ub
-        end
-        freq_BZ[i] = CubicLimits(l, u)
+get_safe_freq_limits(Ωs::AbstractVector, β, lb, ub) =
+    map(Ω -> get_safe_freq_limits(Ω, β, lb, ub), Ωs)
+function get_safe_freq_limits(Ω::Number, β, lb, ub)
+    c = fermi_window_limits(Ω, β)
+    if (l = only(c.l)) < lb
+        @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
+        l = lb
     end
-    freq_BZ
+    if (u = only(c.u)) > ub
+        @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
+        u = ub
+    end
+    CubicLimits(l, u)
 end
 
 

@@ -50,7 +50,10 @@ FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
 Supplies the default keyword arguments to the given integration `routine`
 without over-writing those already provided in `kwargs`
 """
-default_kwargs(::typeof(iterated_integration), f, bz; kwargs...) =
+
+default_kwargs(::typeof(iterated_integration), f, l::AbstractLimits; kwargs...) =
+    iterated_integration_kwargs(f, l; kwargs...)
+default_kwargs(::typeof(iterated_integration), f, bz::AbstractBZ; kwargs...) =
     iterated_integration_kwargs(f, limits(bz); kwargs...)
 default_kwargs(::typeof(automatic_equispace_integration), f, bz; kwargs...) =
     automatic_equispace_integration_kwargs(f, bz; kwargs...)
