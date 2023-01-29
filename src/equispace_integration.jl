@@ -1,5 +1,5 @@
 export equispace_integration, automatic_equispace_integration
-export equispace_npt_update, equispace_dvol, equispace_rule, equispace_rule!, equispace_integrand, equispace_evalrule
+export equispace_npt_update, equispace_rule, equispace_rule!, equispace_integrand, equispace_evalrule
 
 """
     equispace_npt_update(f, npt, [increment=20])
@@ -148,7 +148,7 @@ points per dimension, optionally using precomputation `pre`
 """
 function equispace_integration(f, bz::AbstractBZ; kwargs...)
     buf = equispace_integration_kwargs(f, bz; kwargs...)
-    int, = equispace_evalrule(f, buf.rule)
+    int = equispace_evalrule(f, buf.rule)
     symmetrize(bz, int), buf
 end
 equispace_integration_kwargs(f, bz; npt=equispace_npt_update(f,0), rule=equispace_rule(f, bz, npt)) =

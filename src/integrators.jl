@@ -29,8 +29,10 @@ end
 
 function FourierIntegrator(f::F, bz, s, p...; ps=0.0, routine=iterated_integration, kwargs...) where F
     check_period_match(s, bz)
-    FourierIntegrator(f, bz, s, p, routine, default_kwargs(routine, FourierIntegrand{F}(s, p..., ps...), bz; kwargs...))
+    test = FourierIntegrand{F}(s, p..., ps...)
+    FourierIntegrator(f, bz, s, p, routine, default_kwargs(routine, test, bz; kwargs...))
 end
+
 
 # allows dispatch by aliases to accommodate broader user interface
 FourierIntegrator{F}(args...; kwargs...) where {F<:Function} =
@@ -39,7 +41,7 @@ FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
     FourierIntegrator(tuple(map(f -> f.instance, F.parameters)...), args...; kwargs...)
 
 (f::FourierIntegrator{F})(ps...) where F =
-    first(f.routine(FourierIntegrand{F}(f.s, f.p..., ps...), f.bz,; f.kwargs...))
+    first(f.routine(FourierIntegrand{F}(f.s, f.p..., ps...), f.bz; f.kwargs...))
 
 (f::FourierIntegrator{F})(ps...) where {F<:Tuple} =
     first(f.routine(IteratedFourierIntegrand{F}(f.s, f.p..., ps...), f.bz; f.kwargs...))
@@ -50,7 +52,6 @@ FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
 Supplies the default keyword arguments to the given integration `routine`
 without over-writing those already provided in `kwargs`
 """
-
 default_kwargs(::typeof(iterated_integration), f, l::AbstractLimits; kwargs...) =
     iterated_integration_kwargs(f, l; kwargs...)
 default_kwargs(::typeof(iterated_integration), f, bz::AbstractBZ; kwargs...) =

@@ -124,19 +124,20 @@ iterated_integrand(_::IteratedFourierIntegrand, y, ::Type{Val{0}}) = y
 
 function equispace_evalrule(f::IteratedFourierIntegrand{F,S}, rule::Vector) where {F,N,S<:AbstractFourierSeries{N}}
     @warn "Do not trust an iterated integrand with equispace integration unless for linear integrands with full BZ"
-    equispace_evalrule(f, rule)
+    equispace_evalrule_(f, rule)
 end
-@generated function equispace_evalrule(f::F, rule::AbstractArray{Tuple{T,W},N}) where {N,S<:AbstractFourierSeries{N},F<:IteratedFourierIntegrand{<:Any,S},T,W}
+@generated function equispace_evalrule_(f::F, rule::Vector{Tuple{T,W}}) where {N,S<:AbstractFourierSeries{N},FF,F<:IteratedFourierIntegrand{FF,S},T,W}
     I_N = Symbol(:I_, N)
     quote
-        npt = 
+        npt = round(Int, length(rule)^(1/$N)) # implicitly assuming FBZ
         # infer return types of individual integrals
         T_1 = Base.promote_op(*, Base.promote_op(equispace_integrand, F, T), W)
-        Base.Cartesian.@nexprs $(N-1) d -> T_{d+1} = Base.promote_op(equispace_integrand, F, T_d)
+        Base.Cartesian.@nexprs $(N-1) d -> T_{d+1} = Base.promote_op(iterated_integrand, F, T_d, Type{Val{d+1}})
         # compute quadrature
         $I_N = zero($(Symbol(:T_, N)))
         Base.Cartesian.@nloops $N i rule (d -> d==1 ? nothing : I_{d-1} = zero(T_{d-1})) (d -> d==1 ? nothing : I_d += iterated_integrand(f, I_{d-1}, Val{d})) begin
-            I_1 += equispace_integrand(f, rule[Base.Cartesian.@ncall $N equispace_index npt d -> i_d][1])
+            idx = Base.Cartesian.@ncall $N equispace_index npt d -> i_d
+            I_1 += rule[idx][2]*equispace_integrand(f, rule[idx][1]) # implicitly assuming outer functions are linear
         end
         iterated_integrand(f, $I_N, Val{0})
     end

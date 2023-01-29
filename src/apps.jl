@@ -139,7 +139,7 @@ ExperimentalDOSIntegrator(lims::AbstractLimits{d}, args...; kwargs...) where d =
 
 # transport and conductivity integrands
 
-export TransportIntegrand, TransportIntegrator, KineticIntegrand, KineticIntegrator
+export TransportIntegrand, TransportIntegrator
 
 spectral_function(H, M) = imag(inv(M-H))/(-pi)
 
@@ -174,6 +174,11 @@ end
 """
     TransportIntegrand(HV, Σ, ω₁, ω₂)
 
+A function whose integral over the BZ gives the transport distribution
+```math
+\\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
+```
+Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See [`AutoBZ.FourierIntegrand`](@ref) for more details.
 """
 const TransportIntegrand = FourierIntegrand{typeof(transport_integrand)}
@@ -194,52 +199,141 @@ function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt)
 end
 
 
+# some utilities
+default_args(::typeof(quadgk), f, lims::CubicLimits{1}) = limits(lims, 1)
+default_args(::typeof(iterated_integration), f, lims::CubicLimits{1}) = (lims,)
+function default_kwargs(::typeof(quadgk), f, lims::CubicLimits{1};
+    atol=zero(domain_type(l)), rtol=iszero(atol) ? sqrt(eps(domain_type(l))) : zero(atol),
+    order=7, maxevals=10^7, norm=norm, segbuf=nothing)
+    T = Base.promote_op(f, domain_type(l))
+    segbuf_ = segbufs === nothing ? alloc_segbuf(domain_type(l), T, Base.promote_op(norm, T)) : segbuf
+    (rtol=rtol, atol=atol, order=order, maxevals=maxevals, norm=norm, segbuf=segbuf_)
+end
+
+export KineticIntegrand, KineticIntegrator
+
 kinetic_integrand(HV, Σ, ω, Ω, β, n) = kinetic_integrand(transport_integrand(HV, Σ, ω, ω+Ω), ω, Ω, β, n)
 kinetic_integrand(Γ, ω, Ω, β, n) = (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-function kinetic_frequency_integrator(HV::AbstractBandVelocity3D, n, Σ, β, Ω; routine=iterated_integration, kwargs...)
+function kinetic_frequency_integral(HV::AbstractBandVelocity3D, n, Σ, β, Ω; quad=iterated_integration, quad_kw=(;), kwargs...)
     lims = get_safe_freq_limits(Ω, β, lb(Σ), ub(Σ))
     f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
     end
-    FourierIntegrand(kinetic_frequency_integrator, HV, routine, lims, AutoBZ.default_kwargs(routine, f, lims; kwargs...), n, Σ, β, Ω)
+    FourierIntegrand(kinetic_frequency_integral, HV,
+    quad, default_args(quad, f, lims),
+    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    n, Σ, β, Ω; kwargs...)
 end
-function kinetic_frequency_integrator(HV_k::Tuple, routine, lims, kwargs, n, Σ, β, Ω=0)
+kinetic_frequency_integral(HV::AbstractBandVelocity3D, quad, args, kwargs, n, Σ, β, Ω) =
+    FourierIntegrand(kinetic_frequency_integral, HV, quad, args, kwargs, n, Σ, β, Ω)
+
+function kinetic_frequency_integral(HV_k::Tuple, quad, args, kwargs, n, Σ, β, Ω=0)
     # deal with distributional integral case
     Ω == 0 && β == Inf && return 0^n * transport_integrand(HV_k, Σ, Ω)
     # normal case
     f = let HV_k=HV_k, Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
     end
-    first(routine(f, lims; kwargs...))
+    first(quad(f, args...; kwargs...))
 end
 
 """
-    KineticIntegrand(HV, n, Σ, β, [Ω=0]; routine=quadgk)
+    KineticIntegrand(HV, n, Σ, β, [Ω=0]; quad=iterated_integration, quad_kw=(;))
 
 A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
 ```math
 A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
-where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion. Use
-this type only for adaptive integration and order the limits so that the
-integral over the Brillouin zone is the outer integral and the frequency
-integral is the inner integral. Based on
-[TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
+Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-const KineticIntegrand = FourierIntegrand{typeof(kinetic_frequency_integrator)}
-KineticIntegrand(args...; kwargs...) = kinetic_frequency_integrator(args...; kwargs...)
+const KineticIntegrand = FourierIntegrand{typeof(kinetic_frequency_integral)}
+KineticIntegrand(args...; kwargs...) = kinetic_frequency_integral(args...; kwargs...)
 
+
+# TODO, decide if β can be made a parameter as well
+function kinetic_integrator(bz, HV::AbstractBandVelocity3D, n, Σ, β; Ω=1.0, ps=Ω, quad=iterated_integration, quad_kw=(;), kwargs...)
+    lims = get_safe_freq_limits(Ω, β, lb(Σ), ub(Σ))
+    f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
+        ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
+    end
+    FourierIntegrator(kinetic_frequency_integral, bz, HV,
+    quad, default_args(quad, f, lims),
+    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    n, Σ, β; ps=ps, kwargs...)
+end
 
 """
-    KineticIntegrator(bz, HV, n, Σ, [β])
+    KineticIntegrator(bz, HV, n, Σ, β)
 
-Integrates `KineticIntegrand` over `bz` as a function of `Ω`, or `β, Ω`.
+Integrates `KineticIntegrand` over `bz` as a function of `Ω`.
 See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-const KineticIntegrator = FourierIntegrator{typeof(kinetic_frequency_integrator)}
+const KineticIntegrator = FourierIntegrator{typeof(kinetic_frequency_integral)}
+KineticIntegrator(args...; kwargs...) = kinetic_integrator(args...; kwargs...)
+
+export ElectronCountIntegrand, ElectronCountIntegrator
+
+electron_count_integrand(H_k, Σ, ω, β, μ) = fermi(β*ω)*dos_integrand(H_k, Σ, ω+μ)
+
+function electron_count_frequency_integral(H::AbstractFourierSeries, Σ, β, μ; quad=quadgk, quad_kw=(;), kwargs...)
+    # TODO: see if there is a way to safely truncate limits
+    lims = CubicLimits(-Inf, Inf)
+    f = let H_k=H(zero(SVector{3,Float64})), Σ=Σ, β=β, μ=μ
+        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+    end
+    FourierIntegrand(electron_count_frequency_integral, H,
+    quad, default_args(quad, f, lims),
+    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    Σ, β, μ; kwargs...)
+end
+electron_count_frequency_integral(H::AbstractFourierSeries, quad, args, kwargs, Σ, β, μ) =
+    FourierIntegrand(electron_count_frequency_integral, H, quad, args, kwargs, Σ, β, μ)
+
+function electron_count_frequency_integral(H_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
+    f = let H_k=H_k, Σ=Σ, β=β, μ=μ
+        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+    end
+    first(quad(f, args...; kwargs...))
+end
+
+"""
+    ElectronCountIntegrand(HV, Σ, β, μ; routine=quadgk)
+
+A function whose integral over the BZ gives the electron count.
+Mathematically, this computes
+```math
+n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\omega+\\mu)
+```
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+"""
+const ElectronCountIntegrand = FourierIntegrand{typeof(electron_count_frequency_integral)}
+ElectronCountIntegrand(args...; kwargs...) = electron_count_frequency_integral(args...; kwargs...)
+
+function electron_count_frequency_integrator(bz, H::AbstractFourierSeries, Σ, β; μ=0.0, ps=μ, quad=quadgk, quad_kw=(;), kwargs...)
+    # TODO: see if there is a way to safely truncate limits
+    lims = CubicLimits(-Inf, Inf)
+    f = let H_k=H(zero(SVector{3,Float64})), Σ=Σ, β=β, μ=μ
+        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+    end
+    FourierIntegrator(electron_count_frequency_integral, bz, H,
+    routine, default_args(quad, f, lims),
+    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    Σ, β; ps=ps, kwargs...)
+end
+
+"""
+    ElectronCountIntegrator(bz, HV, Σ, β)
+
+Integrates `ElectronCountIntegrand` over `bz` as a function of `μ`.
+See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+"""
+const ElectronCountIntegrator = FourierIntegrator{typeof(electron_count_frequency_integral)}
+ElectronCountIntegrator(args...) = electron_count_integrator(args...; kwargs...)
 
 # replacement for TetrahedralLimits
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)

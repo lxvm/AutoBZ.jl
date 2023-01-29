@@ -24,13 +24,14 @@ shift!(HV, μ)
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
+tols = (atol=atol, rtol=rtol)
 
 # fully adaptive integration
-int, err = Jobs.iterated_integration(σ, IBZ; atol=atol, rtol=rtol)
+int, err = Jobs.iterated_integration(σ, IBZ; tols...)
 
 # adaptive in frequency, automatic equispace in BZ
-σ = KineticIntegrator(HV, 0, Σ, β; atol=atol, rtol=rtol) # adaptive default
-# σ = KineticIntegrator(HV, 0, Σ, β; routine=Jobs.equispace_integration)
-# σ = KineticIntegrator(HV, 0, Σ, β; routine=Jobs.automatic_equispace_integration, atol=atol, rtol=rtol)
+σ = KineticIntegrator(IBZ, HV, 0, Σ, β; tols...) # adaptive default
+# σ = KineticIntegrator(IBZ, HV, 0, Σ, β; routine=Jobs.equispace_integration)
+# σ = KineticIntegrator(IBZ, HV, 0, Σ, β; routine=Jobs.automatic_equispace_integration, tols..., quad_kw=tols)
 
 σ(Ω)
