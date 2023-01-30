@@ -30,7 +30,7 @@ rtol = 0.0
 int_fbz, err_fbz = AutoBZ.iterated_integration(D, FBZ; atol=atol, rtol=rtol)
 inte_fbz, erre_fbz, pre_fbz = AutoBZ.automatic_equispace_integration(D, FBZ; atol=atol, rtol=rtol)
 
-int_ibz, err_ibz = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
+@time int_ibz, err_ibz = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
 inte_ibz, erre_ibz, pre_ibz = AutoBZ.automatic_equispace_integration(D, IBZ; atol=atol, rtol=rtol)
 
 @show int_fbz int_ibz inte_fbz inte_ibz

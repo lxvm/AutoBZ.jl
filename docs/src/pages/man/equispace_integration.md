@@ -3,8 +3,8 @@
 ## Routines
 
 ```@docs
-AutoBZ.AutoBZCore.equispace_integration
-AutoBZ.AutoBZCore.automatic_equispace_integration
+AutoBZ.equispace_integration
+AutoBZ.automatic_equispace_integration
 ```
 
 ## Customization
@@ -12,9 +12,9 @@ AutoBZ.AutoBZCore.automatic_equispace_integration
 The methods below can be extended/customized to integrand types
 
 ```@docs
-AutoBZ.AutoBZCore.equispace_npt_update
-AutoBZ.AutoBZCore.equispace_rule
-AutoBZ.AutoBZCore.equispace_rule!
-AutoBZ.AutoBZCore.equispace_evalrule
-AutoBZ.AutoBZCore.evaluate_integrand
+AutoBZ.equispace_npt_update
+AutoBZ.equispace_rule
+AutoBZ.equispace_rule!
+AutoBZ.equispace_evalrule
+AutoBZ.evaluate_integrand
 ```

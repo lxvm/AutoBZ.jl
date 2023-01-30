@@ -1,6 +1,3 @@
-export equispace_integration, automatic_equispace_integration
-export equispace_npt_update, equispace_rule, equispace_rule!, equispace_integrand, equispace_evalrule
-
 """
     equispace_npt_update(f, npt, [increment=20])
 
@@ -163,8 +160,10 @@ at two levels of grid refinement `npt1`, `rule1` and `npt2`, `rule2` when passed
 as keywords.
 """
 function automatic_equispace_integration(f, bz::AbstractBZ; kwargs...)
-    int, err, buf = automatic_equispace_integration_(f, bz, automatic_equispace_integration_kwargs(f, bz; kwargs...)...)
-    symmetrize(bz, int, err)..., buf
+    kw = automatic_equispace_integration_kwargs(f, bz; kwargs...)
+    atol = kw.atol /nsyms(bz) # need to rescale atol by symmetry factor for IBZ integration
+    int, err, rule_buf = automatic_equispace_integration_(f, bz, kw.npt1, kw.rule1, kw.npt2, kw.rule2, atol, kw.rtol, kw.maxevals)
+    symmetrize(bz, int, err)..., rule_buf
 end
 function automatic_equispace_integration_kwargs(f, bz;
     atol=nothing, rtol=nothing, maxevals=typemax(Int64),
@@ -174,7 +173,7 @@ function automatic_equispace_integration_kwargs(f, bz;
     rule2=equispace_rule(f, bz, npt2),
 )
     T = domain_type(bz)
-    atol_ = something(atol, zero(T))/nsyms(bz)
+    atol_ = something(atol, zero(T))
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(T)) : zero(T))
     (npt1=npt1, rule1=rule1, npt2=npt2, rule2=rule2, atol=atol_, rtol=rtol_, maxevals=maxevals)
 end

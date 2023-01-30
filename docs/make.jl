@@ -22,7 +22,7 @@ makedocs(
             "pages/man/integration_limits.md",
             "pages/man/fourier.md",
             "pages/man/integrands.md",
-            "pages/man/integrator.md",
+            "pages/man/integrators.md",
             ],
         "Jobs" => [
             "pages/app/jobs.md",

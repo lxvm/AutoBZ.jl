@@ -3,9 +3,6 @@
 # - enable reduction over multiple dims simulatneously (?) may not be used
 # - replace contract kernels with the fourier_kernel
 # - add an argument n to fourier_kernel to set `z = cispi(2n*ξ*x)`
-export AbstractFourierSeries, period, contract, value, coefficients, coefficient_type, fourier_type, phase_type
-export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
-export fourier_kernel, fourier_kernel!, fourier_rule!
 
 """
     AbstractFourierSeries{N}

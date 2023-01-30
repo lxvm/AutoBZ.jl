@@ -1,10 +1,22 @@
 """
+    eval_self_energy(M)
+    eval_self_energy(Σ, ω)
+
+Defines the default behavior for handling single Green's function self energy
+arguments
+"""
+eval_self_energy(M) = M
+eval_self_energy(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
+eval_self_energy(Σ::AbstractMatrix, ω) = ω*I-Σ
+
+
+"""
     gloc_integrand(H, Σ, ω)
     gloc_integrand(H, M)
 
 Returns `inv(M-H)` where `M = ω*I-Σ(ω)`
 """
-gloc_integrand(H::AbstractMatrix, M) = inv(M-H)
+gloc_integrand(H::AbstractMatrix, args...) = inv(eval_self_energy(args...)-H)
 
 """
     diaggloc_integrand(H, Σ, ω)
@@ -12,7 +24,7 @@ gloc_integrand(H::AbstractMatrix, M) = inv(M-H)
 
 Returns `diag(inv(M-H))` where `M = ω*I-Σ(ω)`
 """
-diaggloc_integrand(H::AbstractMatrix, M) = diag_inv(M-H)
+diaggloc_integrand(H::AbstractMatrix, args...) = diag_inv(eval_self_energy(args...)-H)
 
 """
     dos_integrand(H, Σ, ω)
@@ -24,7 +36,7 @@ integrand. The default, safe version also integrates the real part which is less
 localized, at the expense of a slight slow-down due to complex arithmetic.
 See [`AutoBZ.Jobs.safedos_integrand`](@ref).
 """
-dos_integrand(H::AbstractMatrix, M) = imag(tr_inv(M-H))/(-pi)
+dos_integrand(H::AbstractMatrix, args...) = imag(tr_inv(eval_self_energy(args...)-H))/(-pi)
 
 """
     safedos_integrand(H, Σ, ω)
@@ -35,18 +47,7 @@ also integrates the real part of DOS which is less localized, at the expense of
 a slight slow-down due to complex arithmetic. See
 [`AutoBZ.Jobs.dos_integrand`](@ref).
 """
-safedos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
-
-
-"""
-    self_energy_args(M)
-    self_energy_args(Σ, ω)
-
-define the default behavior for handling single Green's function self energy arguments
-"""
-self_energy_args(M) = M
-self_energy_args(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
-self_energy_args(Σ::AbstractMatrix, ω) = ω*I-Σ
+safedos_integrand(H::AbstractMatrix, args...) = tr_inv(eval_self_energy(args...)-H)/(-pi)
 
 # Generic behavior for single Green's function integrands (methods and types)
 for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
@@ -57,7 +58,8 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     @eval export $f, $T, $E
 
     # Define interface for converting to the FourierIntegrand
-    @eval $f(H::AbstractFourierSeries, args...) = FourierIntegrand($f, H, self_energy_args(args...))
+    @eval $f(H::AbstractFourierSeries{N}, args...) where N =
+        FourierIntegrand{N}($f, H, eval_self_energy(args...))
 
     # Define the type alias to have the same behavior as the function
     """
@@ -118,9 +120,9 @@ See [`AutoBZ.IteratedFourierIntegrand`](@ref) for more details.
 """
 const ExperimentalDOSIntegrand{N} = IteratedFourierIntegrand{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
 ExperimentalDOSIntegrand(H::AbstractFourierSeries{N}, args...) where N = ExperimentalDOSIntegrand{N}(H, args...)
-function ExperimentalDOSIntegrand{N}(H::AbstractFourierSeries, args...) where N
+function ExperimentalDOSIntegrand{N}(H::AbstractFourierSeries{N}, args...) where N
     fs = ntuple(n -> n==1 ? safedos_integrand : (n==2 ? imag : identity), N)
-    IteratedFourierIntegrand(fs, H, self_energy_args(args...))
+    IteratedFourierIntegrand{N}(fs, H, eval_self_energy(args...))
 end
 
 # For type stability in the 1D case where imag must be taken outside
@@ -146,7 +148,7 @@ spectral_function(H, M) = imag(inv(M-H))/(-pi)
 transport_integrand(HV, Σ::AbstractSelfEnergy, ω) = transport_integrand(HV, ω*I-Σ(ω))
 transport_integrand(HV, Σ::AbstractSelfEnergy, ω₁, ω₂) = transport_integrand(HV, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
 transport_integrand(HV, Σ::AbstractMatrix, ω₁, ω₂) = transport_integrand(HV, ω₁*I-Σ, ω₂*I-Σ)
-transport_integrand(HV::AbstractBandVelocity3D, Mω₁, Mω₂) = FourierIntegrand(transport_integrand, HV, Mω₁, Mω₂)
+transport_integrand(HV::AbstractBandVelocity3D, Mω₁, Mω₂) = FourierIntegrand{3}(transport_integrand, HV, Mω₁, Mω₂)
 transport_integrand(HV::Tuple, Mω₁, Mω₂=Mω₁) = transport_integrand(HV..., Mω₁, Mω₂)
 function transport_integrand(H, ν₁, ν₂, ν₃, Mω₁, Mω₂)
     # Aω₁ = spectral_function(H, Mω₁)
@@ -199,17 +201,6 @@ function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt)
 end
 
 
-# some utilities
-default_args(::typeof(quadgk), f, lims::CubicLimits{1}) = limits(lims, 1)
-default_args(::typeof(iterated_integration), f, lims::CubicLimits{1}) = (lims,)
-function default_kwargs(::typeof(quadgk), f, lims::CubicLimits{1};
-    atol=zero(domain_type(l)), rtol=iszero(atol) ? sqrt(eps(domain_type(l))) : zero(atol),
-    order=7, maxevals=10^7, norm=norm, segbuf=nothing)
-    T = Base.promote_op(f, domain_type(l))
-    segbuf_ = segbufs === nothing ? alloc_segbuf(domain_type(l), T, Base.promote_op(norm, T)) : segbuf
-    (rtol=rtol, atol=atol, order=order, maxevals=maxevals, norm=norm, segbuf=segbuf_)
-end
-
 export KineticIntegrand, KineticIntegrator
 
 kinetic_integrand(HV, Σ, ω, Ω, β, n) = kinetic_integrand(transport_integrand(HV, Σ, ω, ω+Ω), ω, Ω, β, n)
@@ -220,9 +211,9 @@ function kinetic_frequency_integral(HV::AbstractBandVelocity3D, n, Σ, β, Ω; q
     f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
     end
-    FourierIntegrand(kinetic_frequency_integral, HV,
-    quad, default_args(quad, f, lims),
-    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    FourierIntegrand{3}(kinetic_frequency_integral, HV,
+    quad, quad_args(quad, f, lims),
+    default_kwargs(quad, f, lims; quad_kw...),
     n, Σ, β, Ω; kwargs...)
 end
 kinetic_frequency_integral(HV::AbstractBandVelocity3D, quad, args, kwargs, n, Σ, β, Ω) =
@@ -261,8 +252,7 @@ function kinetic_integrator(bz, HV::AbstractBandVelocity3D, n, Σ, β; Ω=1.0, p
         ω -> kinetic_integrand(HV_k, Σ, ω, Ω, β, n)
     end
     FourierIntegrator(kinetic_frequency_integral, bz, HV,
-    quad, default_args(quad, f, lims),
-    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
     n, Σ, β; ps=ps, kwargs...)
 end
 
@@ -279,19 +269,17 @@ export ElectronCountIntegrand, ElectronCountIntegrator
 
 electron_count_integrand(H_k, Σ, ω, β, μ) = fermi(β*ω)*dos_integrand(H_k, Σ, ω+μ)
 
-function electron_count_frequency_integral(H::AbstractFourierSeries, Σ, β, μ; quad=quadgk, quad_kw=(;), kwargs...)
+function electron_count_frequency_integral(H::AbstractFourierSeries{N}, Σ, β, μ; quad=iterated_integration, quad_kw=(;), lims=nothing, kwargs...) where N
     # TODO: see if there is a way to safely truncate limits
-    lims = CubicLimits(-Inf, Inf)
     f = let H_k=H(zero(SVector{3,Float64})), Σ=Σ, β=β, μ=μ
         ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
     end
-    FourierIntegrand(electron_count_frequency_integral, H,
-    quad, default_args(quad, f, lims),
-    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    FourierIntegrand{N}(electron_count_frequency_integral, H,
+    quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
     Σ, β, μ; kwargs...)
 end
-electron_count_frequency_integral(H::AbstractFourierSeries, quad, args, kwargs, Σ, β, μ) =
-    FourierIntegrand(electron_count_frequency_integral, H, quad, args, kwargs, Σ, β, μ)
+electron_count_frequency_integral(H::AbstractFourierSeries{N}, quad, args, kwargs, Σ, β, μ) where N =
+    FourierIntegrand{N}(electron_count_frequency_integral, H, quad, args, kwargs, Σ, β, μ)
 
 function electron_count_frequency_integral(H_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
     f = let H_k=H_k, Σ=Σ, β=β, μ=μ
@@ -301,7 +289,7 @@ function electron_count_frequency_integral(H_k::AbstractMatrix, quad, args, kwar
 end
 
 """
-    ElectronCountIntegrand(HV, Σ, β, μ; quad=quadgk)
+    ElectronCountIntegrand(HV, Σ, β, μ; quad=iterated_integration)
 
 A function whose integral over the BZ gives the electron count.
 Mathematically, this computes
@@ -314,15 +302,13 @@ See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 const ElectronCountIntegrand = FourierIntegrand{typeof(electron_count_frequency_integral)}
 ElectronCountIntegrand(args...; kwargs...) = electron_count_frequency_integral(args...; kwargs...)
 
-function electron_count_frequency_integrator(bz, H::AbstractFourierSeries{N}, Σ, β; μ=0.0, ps=μ, quad=quadgk, quad_kw=(;), kwargs...) where N
+function electron_count_integrator(bz, H::AbstractFourierSeries{N}, Σ, β; μ=0.0, ps=μ, quad=iterated_integration, lims=nothing, quad_kw=(;), kwargs...) where N
     # TODO: see if there is a way to safely truncate limits
-    lims = CubicLimits(-Inf, Inf)
     f = let H_k=H(zero(SVector{N,Float64})), Σ=Σ, β=β, μ=μ
         ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
     end
     FourierIntegrator(electron_count_frequency_integral, bz, H,
-    routine, default_args(quad, f, lims),
-    AutoBZ.default_kwargs(quad, f, lims; quad_kw...),
+    quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
     Σ, β; ps=ps, kwargs...)
 end
 
@@ -333,7 +319,7 @@ Integrates `ElectronCountIntegrand` over `bz` as a function of `μ`.
 See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
 const ElectronCountIntegrator = FourierIntegrator{typeof(electron_count_frequency_integral)}
-ElectronCountIntegrator(args...) = electron_count_integrator(args...; kwargs...)
+ElectronCountIntegrator(args...; kwargs...) = electron_count_integrator(args...; kwargs...)
 
 # replacement for TetrahedralLimits
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)

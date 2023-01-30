@@ -1,6 +1,3 @@
-export AbstractLimits, limits, domain_type
-export CubicLimits, PolyhedralLimits, CompositeLimits
-
 """
     AbstractLimits{d,T<:AbstractFloat}
 
@@ -95,6 +92,9 @@ limits(l::PolyhedralLimits{d}, dim=d) where d =
 """
     CompositeLimits(lims::AbstractLimits...)
     CompositeLimits(::Tuple{Vararg{AbstractLimits}})
+
+!!! warning "Experimental"
+    The behavior may not be well defined
 
 Construct a collection of limits which yields the first limit followed by the
 second, and so on.

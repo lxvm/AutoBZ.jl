@@ -10,7 +10,6 @@ using Printf
 
 using HDF5
 using StaticArrays
-using QuadGK: quadgk, alloc_segbuf
 using Polyhedra: vrep, Line, Ray
 
 using ..AutoBZ

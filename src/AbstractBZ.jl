@@ -1,6 +1,3 @@
-export AbstractBZ, FullBZ, IrreducibleBZ
-export basis, nsyms, symmetries, symmetrize, limits, boundingbox, vol, domain_type
-
 """
     AbstractBZ{d,T,basis}
 
@@ -20,7 +17,7 @@ function limits end
     symmetrize(::AbstractBZ, x)
     symmetrize(::AbstractBZ, xs...)
 
-Transform `x` by the symmetries of the parametrization used to reduce the
+Tranform `x` by the symmetries of the parametrization used to reduce the
 domain, thus mapping the value of `x` on the parametrization to the full domain.
 When the integrand is a scalar, this is equal to `nsyms(l)*x`.
 When the integrand is a vector, this is `sum(S*x for S in symmetries(l))`.
@@ -132,6 +129,10 @@ function iterated_integration(f, bz::AbstractBZ; atol=nothing, kwargs...)
     atol = something(atol, zero(domain_type(bz)))/nsyms(bz) # rescaling by symmetries
     int, err = iterated_integration(f, limits(bz); atol=atol, kwargs...)
     symmetrize(bz, int, err)
+end
+function iterated_integration_kwargs(f, bz::AbstractBZ; atol=nothing, kwargs...)
+    atol = something(atol, zero(domain_type(bz)))/nsyms(bz) # rescaling by symmetries
+    iterated_integration_kwargs(f, limits(bz); atol=atol, kwargs...)
 end
 iterated_integral_type(f, bz::AbstractBZ) = iterated_integral_type(f, limits(bz))
 iterated_inference(f, bz::AbstractBZ) = iterated_inference(f, limits(bz))

@@ -1,44 +1,9 @@
-export AbstractFourierIntegrand
-export ThunkIntegrand, FourierIntegrand, IteratedFourierIntegrand
-
 """
-    ThunkIntegrand(f, x)
-
-Store `f` and `x` to evaluate `f(x)` at a later time. Employed by
-`iterated_integration` for generic integrands that haven't been specialized to
-use `iterated_pre_eval`.
-"""
-struct ThunkIntegrand{T,d,X}
-    f::T
-    x::SVector{d,X}
-end
-
-(f::ThunkIntegrand)(x) = f.f(vcat(x, f.x))
-
-"""
-    thunk(f, x)
-
-Delay the computation of f(x). Needed to normally evaluate an integrand in
-nested integrals, a setting in which the values of the variables of integration
-are passed one at a time. Importantly, `thunk` assumes that the variables of
-integration are passed from the outermost to the innermost. For example, to
-evaluate `f([1, 2])`, call `thunk(f, 2)(1)`.
-
-This behavior is consistent with `CubicLimits`, but may come as a surprise if
-implementing new `IntegrationLimits`.
-"""
-thunk(f, x) = ThunkIntegrand(f, SVector(x))
-thunk(f::ThunkIntegrand, x) = ThunkIntegrand(f.f, vcat(x, f.x))
-
-iterated_pre_eval(f, x) = thunk(f, x)
-
-
-"""
-    AbstractFourierIntegrand{S<:AbstractFourierSeries}
+    AbstractFourierIntegrand{S<:AbstractFourierSeries} <: AbstractIteratedIntegrand
 
 Supertype representing Fourier integrands
 """
-abstract type AbstractFourierIntegrand{S<:AbstractFourierSeries} end
+abstract type AbstractFourierIntegrand{d,S<:AbstractFourierSeries} <: AbstractIteratedIntegrand{d} end
 
 # interface
 
@@ -49,10 +14,13 @@ params(f::AbstractFourierIntegrand) = f.p # collection of additional parameters
 
 # abstract methods
 
-@generated iterated_pre_eval(f::T, x) where {T<:AbstractFourierIntegrand} =
-    :($(nameof(T))(ftotal(f), contract(series(f), x), params(f)))
+iterated_integrand(_::AbstractFourierIntegrand, y, ::Type{Val{d}}) where d = y
+iterated_integrand(f::AbstractFourierIntegrand, x, ::Type{Val{1}}) =
+    finner(f)(series(f)(x), params(f)...)
 
-(f::AbstractFourierIntegrand)(x) = finner(f)(series(f)(x), params(f)...)
+@generated iterated_pre_eval(f::T, x, dim::Int) where {d,T<:AbstractFourierIntegrand{d}} =
+    :($(nameof(T)){$d}(ftotal(f), contract(series(f), x, dim), params(f)))
+iterated_value(f::AbstractFourierIntegrand) = series(f)
 
 equispace_integrand(f::AbstractFourierIntegrand, s_x) = finner(f)(s_x, params(f)...)
 
@@ -68,22 +36,23 @@ equispace_rule!(rule, f::AbstractFourierIntegrand, bz::AbstractBZ, npt) =
 """
     FourierIntegrand(f, s::AbstractFourierSeries, ps...)
 
-A type generically rerulesenting an integrand `f` whose entire dependence on the
+A type generically representing an integrand `f` whose entire dependence on the
 variables of integration is in a Fourier series `s`, and which may also accept
 some input parameters `ps`. The caller must know that their function, `f`, will
 be evaluated at many points, `x`, in the following way: `f(s(x), ps...)`.
 Therefore the caller is expected to know the type of `s(x)` (hint: `eltype(s)`)
 and the layout of the parameters in the tuple `ps`. Additionally, `f` is assumed
-to be type-stable and the inference can be queried by calling `eltype` on the
-`FourierIntegrand`.
+to be type-stable, and is compatible with the equispace integration routines.
 """
-struct FourierIntegrand{F,S,P<:Tuple} <: AbstractFourierIntegrand{S}
+struct FourierIntegrand{F,d,S,P} <: AbstractFourierIntegrand{d,S}
     f::F
     s::S
     p::P
+    FourierIntegrand{d}(f::F, s::S, p::P) where {d,F,S<:AbstractFourierSeries,P<:Tuple} =
+        new{F,d,S,P}(f,s,p)
 end
-FourierIntegrand{F}(s, ps...) where {F<:Function} = FourierIntegrand(F.instance, s, ps) # allows dispatch by aliases
-FourierIntegrand(f, s, ps...) = FourierIntegrand(f, s, ps)
+FourierIntegrand{F}(s::AbstractFourierSeries{N}, ps) where {F<:Function,N} = FourierIntegrand{N}(F.instance, s, ps) # allows dispatch by aliases
+FourierIntegrand{d}(f, s, ps...) where d = FourierIntegrand{d}(f, s, ps)
 
 finner(f::FourierIntegrand) = ftotal(f)
 
@@ -103,10 +72,12 @@ inner function to also be multivariate Fourier series.
     When used as an equispace integrand, this type does each integral one
     variable at a time applying PTR to each dimension. Note that 
 """
-struct IteratedFourierIntegrand{F<:Tuple,S,P<:Tuple} <: AbstractFourierIntegrand{S}
+struct IteratedFourierIntegrand{F,d,S,P} <: AbstractFourierIntegrand{d,S}
     f::F
     s::S
     p::P
+    IteratedFourierIntegrand{d}(f::F, s::S, p::P) where {d,F<:Tuple,S<:AbstractFourierSeries,P<:Tuple} =
+        new{F,d,S,P}(f,s,p)
 end
 IteratedFourierIntegrand{F}(s, ps...) where {F<:Tuple{Vararg{Function}}} =
     IteratedFourierIntegrand(tuple(map(f -> f.instance, F.parameters)...), s, ps) # allows dispatch by aliases

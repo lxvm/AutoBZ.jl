@@ -4,6 +4,13 @@
 
 ```@docs
 AutoBZ.FourierIntegrator
+AutoBZ.IteratedIntegrator
+```
+
+## Abstractions
+
+```@docs
+AutoBZ.AbstractIntegrator
 ```
 
 ## Pre-defined

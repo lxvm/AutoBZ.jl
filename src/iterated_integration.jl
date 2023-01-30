@@ -1,38 +1,10 @@
-export iterated_integration # the main routine
-export iterated_tol_update, iterated_integrand, iterated_pre_eval, iterated_segs, iterated_inference, iterated_integral_type
-
 """
     iterated_tol_update(f, l, atol, rtol)
 
 Choose a new set of error tolerances for the next inner integral. By default
 returns `(atol, rtol)` unchanged.
 """
-iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
-
-"""
-    iterated_integrand(f, y, ::Type{Val{d}}) where d
-
-By default, returns `y` which is the result of an interior integral.
-Can use dispatch on `f` to implement more kinds of iterated integrals, in which
-case the developer should know `d` takes values of `0, 1, ..., ndims(lims)`
-"""
-@inline iterated_integrand(f, x, ::Type{Val{1}}) = f(x) # defined for inference
-@inline iterated_integrand(f, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
-@inline iterated_integrand(f, y, dim) = y
-
-"""
-    iterated_pre_eval(f, x, dim)
-
-Perform a precomputation on `f` using the value of a variable of integration,
-`x`. The default is to store `x` and delay the computation of `f(x)` until all
-of the values of the variables of integration are determined at a integration
-point. Certain types of functions, such as Fourier series, take can use `x` to
-precompute a new integrand for the remaining variables of integration that is
-more computationally efficient. This function must return the integrand for the
-subsequent integral.
-"""
-@inline iterated_pre_eval(f, x, ::Type{Val{d}}) where d = iterated_pre_eval(f, x, d)
-iterated_pre_eval(f, x, dim) = iterated_pre_eval(f, x)
+@inline iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 """
     iterated_inference(f, l::AbstractLimits{d})
@@ -77,7 +49,7 @@ the segments for adaptive integration. By default, returns `initdivs` equally
 spaced panels on `(lower(l), upper(l))`. If `f` is localized, specializing this
 function can also help avoid errors when `QuadGK` fails to adapt.
 """
-function iterated_segs(f, l, d, ::Val{initdivs}) where initdivs
+function iterated_segs(_, l, d, ::Val{initdivs}) where initdivs
     lb, ub = limits(l, d)
     r = range(lb, ub, length=initdivs+1)
     ntuple(i -> r[i], Val{initdivs+1}())
@@ -118,8 +90,11 @@ instead pass a preallocated buffer allocated using `alloc_segbufs` as the segbuf
 argument. This buffer can be used across multiple calls to avoid repeated
 allocation.
 """
-iterated_integration(f, a, b; kwargs...) = iterated_integration(f, CubicLimits(a, b); kwargs...)
-function iterated_integration(f, l::AbstractLimits{d}; kwargs...) where d
+iterated_integration(f, a, b; kwargs...) =
+    iterated_integration(f, CubicLimits(a, b); kwargs...)
+iterated_integration(f, l::AbstractLimits{d}; kwargs...) where d =
+    iterated_integration(ThunkIntegrand{d}(f), l; kwargs...)
+function iterated_integration(f::AbstractIteratedIntegrand{d}, l::AbstractLimits{d}; kwargs...) where d
     int, err = iterated_integration_(Val{d}, f, l, iterated_integration_kwargs(f, l; kwargs...)...)
     iterated_integrand(f, int, Val{0}), err
 end
