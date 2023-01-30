@@ -213,7 +213,7 @@ function kinetic_frequency_integral(HV::AbstractBandVelocity3D, n, Σ, β, Ω; q
     end
     FourierIntegrand{3}(kinetic_frequency_integral, HV,
     quad, quad_args(quad, f, lims),
-    default_kwargs(quad, f, lims; quad_kw...),
+    quad_kwargs(quad, f, lims; quad_kw...),
     n, Σ, β, Ω; kwargs...)
 end
 kinetic_frequency_integral(HV::AbstractBandVelocity3D, quad, args, kwargs, n, Σ, β, Ω) =
