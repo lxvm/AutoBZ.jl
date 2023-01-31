@@ -11,7 +11,9 @@ using Printf
 using HDF5
 using StaticArrays
 using Polyhedra: polyhedron, vrep, Line, Ray
-import ConvexHull
+using Polyhedra: Polyhedron, VRepresentation, vrep, points, fulldim, hasallrays
+
+import Polyhedra
 
 using ..AutoBZ
 

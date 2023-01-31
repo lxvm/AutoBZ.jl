@@ -6,7 +6,7 @@ This fallback option is a heuristic, since the scaling of the error is generally
 problem-dependent, so it is appropriate to specialize this method based on the
 integrand type 
 """
-equispace_npt_update(f, npt, increment=20) = npt + increment
+equispace_npt_update(f, npt::Integer, increment::Integer=20) = npt + increment
 
 """
     equispace_dvol(bz::AbstractBZ, npt::Integer)

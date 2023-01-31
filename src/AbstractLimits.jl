@@ -56,7 +56,7 @@ coefficient_type(::Type{<:AbstractLimits{d,T}}) where {d,T} = T
     CubicLimits(a, b)
 
 Store integration limit information for a hypercube with vertices `a` and `b`.
-which can be can be real numbers, tuples, or `SVector`s.
+which can be can be real numbers, tuples, or `AbstractVector`s.
 The outermost variable of integration corresponds to the last entry.
 """
 struct CubicLimits{d,T,L} <: AbstractLimits{d,T}
@@ -72,7 +72,7 @@ function CubicLimits(a::NTuple{d,A}, b::NTuple{d,B}) where {d,A<:Real,B<:Real}
     )
 end
 CubicLimits(a::Real, b::Real) = CubicLimits((a,), (b,))
-CubicLimits(a::SVector, b::SVector) = CubicLimits(a.data, b.data)
+CubicLimits(a::AbstractVector, b::AbstractVector) = CubicLimits(Tuple(a), Tuple(b))
 
 function endpoints(c::CubicLimits{d}, dim) where d
     1 <= dim <= d || throw(ArgumentError("pick dim=$(dim) in 1:$d"))
@@ -81,25 +81,21 @@ end
 fixandeliminate(c::CubicLimits, _) = CubicLimits(Base.front(c.a), Base.front(c.b))
 
 """
-    PolyhedralLimits(::Polyhedron)
+    TetrahedralLimits(a::NTuple)
 
-Integration endpoints from a convex hull.
+A parametrization of the integration limits for a tetrahedron whose vertices are
+the origin and the unit coordinate vectors rescaled by the components of `a`.
 """
-struct PolyhedralLimits{d,T,P} <: AbstractLimits{d,T}
-    p::P
-    PolyhedralLimits{d}(p::P) where {d,P<:Polyhedron} = new{d,coefficient_type(p),P}(p)
+struct TetrahedralLimits{d,T,A} <: AbstractLimits{d,T}
+    a::A
+    TetrahedralLimits(a::A) where {d,T,A<:NTuple{d,T}} = new{d,T,A}(a)
 end
-PolyhedralLimits(p::Polyhedron) = PolyhedralLimits{fulldim(p)}(p)
+TetrahedralLimits(a::AbstractVector) = TetrahedralLimits(Tuple(a))
 
-fixandeliminate(l::PolyhedralLimits{d}, x) where d =
-    PolyhedralLimits{d-1}(fixandeliminate(l.p, d, x))
-
-endpoints(l::PolyhedralLimits, dim) = endpoints(vrep(l.p), dim)
-function endpoints(v::VRepresentation, dim::Integer)
-    hasallrays(v) && error("Infinite limits not implemented: found ray in V representation")
-    (d = fulldim(v)) >= dim >= 1 || error("V representation of fulldim $d doesn't have index $dim")
-    extrema(v -> v[dim], points(v))
-end
+endpoints(t::TetrahedralLimits) =
+    (zero(coefficient_type(T)), t.a[ndims(t)])
+fixandeliminate(t::TetrahedralLimits, x) =
+    TetrahedralLimits(Base.front(setindex(t.a, convert(coefficient_type(t), x)/t.a[ndims(t)], ndims(t)-1)))
 
 """
     ProductLimits(lims::AbstractLimits...)

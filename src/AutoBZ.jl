@@ -15,9 +15,6 @@ using LinearAlgebra
 
 using StaticArrays
 using QuadGK: quadgk, do_quadgk, alloc_segbuf
-using Polyhedra: Polyhedron, VRepresentation, vrep, points, fulldim, hasallrays
-
-import Polyhedra: fixandeliminate, coefficient_type
 
 
 # Below is a comprehensive list of exports and the files in which they are defined
@@ -26,7 +23,7 @@ import Polyhedra: fixandeliminate, coefficient_type
 # component 1: Generic iterated adaptive integration (IAI)
 
 export AbstractLimits, endpoints, fixandeliminate, coefficient_type
-export CubicLimits, PolyhedralLimits, ProductLimits
+export CubicLimits, TetrahedralLimits, ProductLimits
 include("AbstractLimits.jl")
 
 export AbstractIteratedIntegrand, nvars, iterated_pre_eval, iterated_integrand

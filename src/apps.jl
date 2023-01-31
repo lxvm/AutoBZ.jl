@@ -80,9 +80,9 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     @eval const $E = FourierIntegrator{typeof($f)}
 
     # Define default equispace grid stepping based 
-    @eval function AutoBZ.equispace_npt_update(f::$T, npt)
+    @eval function AutoBZ.equispace_npt_update(f::$T, npt::Integer)
         η = im_sigma_to_eta(-imag(f.p[1]))
-        npt_update_eta(npt, η, period(f.s)[1])
+        eta_npt_update(npt, η, period(f.s)[1])
     end
 
     # TODO: Define job scripts
@@ -94,15 +94,15 @@ im_sigma_to_eta(x::UniformScaling) = -x.λ
 im_sigma_to_eta(x::AbstractMatrix) = minimum(abs, x)
 
 """
-    npt_update_eta(npt, η, [n₀=6.0, Δn=2.3])
+    eta_npt_update(npt, η, [n₀=6.0, Δn=2.3])
 
 Implements the heuristics for incrementing kpts suggested in Appendix A
 http://arxiv.org/abs/2211.12959. Choice of `n₀≈2π`, close to the period of a
 canonical BZ, approximately places a point in every box of size `η`. Choice of
 `Δn≈log(10)` should get an extra digit of accuracy from PTR upon refinement.
 """
-npt_update_eta(npt, η, n₀=6.0, Δn=2.3) = npt + npt_update_eta_(η, npt == 0 ? n₀ : Δn)
-npt_update_eta_(η, c) = max(50, round(Int, c/η))
+eta_npt_update(npt, η, n₀=6.0, Δn=2.3) = npt + eta_npt_update_(η, npt == 0 ? n₀ : Δn)
+eta_npt_update_(η, c) = max(50, round(Int, c/η))
 
 # integrands using IteratedFourierIntegrand (definition is slightly more involved)
 
@@ -194,10 +194,10 @@ See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
 const TransportIntegrator = FourierIntegrand{typeof(transport_integrand)}
 
-function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt)
+function AutoBZ.equispace_npt_update(Γ::TransportIntegrand, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
     ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
-    npt_update_eta(npt, min(ηω₁, ηω₂), period(Γ.s)[1])
+    eta_npt_update(npt, min(ηω₁, ηω₂), period(Γ.s)[1])
 end
 
 
@@ -322,6 +322,29 @@ const ElectronCountIntegrator = FourierIntegrator{typeof(electron_count_frequenc
 ElectronCountIntegrator(args...; kwargs...) = electron_count_integrator(args...; kwargs...)
 
 # replacement for TetrahedralLimits
+
+"""
+    PolyhedralLimits(::Polyhedron)
+
+Integration endpoints from a convex hull.
+"""
+struct PolyhedralLimits{d,T,P} <: AbstractLimits{d,T}
+    p::P
+    PolyhedralLimits{d}(p::P) where {d,P<:Polyhedron} = new{d,Polyhedra.coefficient_type(p),P}(p)
+end
+PolyhedralLimits(p::Polyhedron) = PolyhedralLimits{fulldim(p)}(p)
+
+AutoBZ.fixandeliminate(l::PolyhedralLimits{d}, x) where d =
+    PolyhedralLimits{d-1}(Polyhedra.fixandeliminate(l.p, d, x))
+
+AutoBZ.endpoints(l::PolyhedralLimits, dim) = endpoints(vrep(l.p), dim)
+function AutoBZ.endpoints(v::VRepresentation, dim::Integer)
+    hasallrays(v) && error("Infinite limits not implemented: found ray in V representation")
+    (d = fulldim(v)) >= dim >= 1 || error("V representation of fulldim $d doesn't have index $dim")
+    extrema(v -> v[dim], points(v))
+end
+
+
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)
 cubic_sym_ibz(fbz::FullBZ; kwargs...) = cubic_sym_ibz(fbz.A, fbz.B; kwargs...)
 function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
@@ -329,7 +352,7 @@ function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
     vert = unit_tetrahedron_vertices(AT)
     nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
     hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
-    lims = PolyhedralLimits(polyhedron(hull, ConvexHull.Library()))
+    lims = PolyhedralLimits(polyhedron(hull))
     syms = vec(collect(cube_automorphisms(Val{N}())))
     IrreducibleBZ(A, B, lims, syms; kwargs...)
 end

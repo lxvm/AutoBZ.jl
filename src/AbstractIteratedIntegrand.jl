@@ -75,7 +75,7 @@ struct ThunkIntegrand{d,F,X} <: AbstractIteratedIntegrand{d}
     ThunkIntegrand{d}(f::F, x::X) where {d,F,N,T,X<:NTuple{N,T}} =
         new{d,F,X}(f, x) 
 end
-ThunkIntegrand{d}(f) where {d,T} = ThunkIntegrand{d}(f, ())
+ThunkIntegrand{d}(f) where d = ThunkIntegrand{d}(f, ())
 
 iterated_integrand(f::ThunkIntegrand, x, ::Type{Val{1}}) = f.f(x, f.x...)
 iterated_integrand(_::ThunkIntegrand, x, ::Type{Val{d}}) where d = x
@@ -123,11 +123,11 @@ struct IteratedIntegrand{d,F0,F,X,L} <: AbstractIteratedIntegrand{d}
     f::F
     x::X
     levels::L
-    IteratedIntegrand{d}(f0::F0, f::F, x::X, levels::L) where {d,F0,F<:Tuple,N,T,X<:SVector{N,T},L<:Tuple{Vararg{Int}}} =
+    IteratedIntegrand{d}(f0::F0, f::F, x::X, levels::L) where {d,F0,F<:Tuple,N,T,X<:NTuple{N,T},L<:Tuple{Vararg{Int}}} =
         new{d,F0,F,X,L}(f0, f, x, levels)
 end
 IteratedIntegrand(fs::AbstractIteratedIntegrand...; f0=identity) =
-    IteratedIntegrand{sum(nvars, fs; init=0)}(f0, fs, SVector{0}(), cumsum(map(nvars, fs)))
+    IteratedIntegrand{sum(nvars, fs; init=0)}(f0, fs, (), cumsum(map(nvars, fs)))
 
 iterated_integrand(f::IteratedIntegrand, y, ::Type{Val{0}}) = f.f0(y)
 function iterated_integrand(f::IteratedIntegrand{d}, y, ::Type{Val{dim}}) where {d,dim}
