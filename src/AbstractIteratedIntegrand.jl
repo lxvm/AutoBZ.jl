@@ -63,27 +63,49 @@ iterated_pre_eval(f, x, dim) = f # when f is anything else, leave it
 """
     ThunkIntegrand{d}(f)
 
-Store `f` and `x` to evaluate `f(x)` at a later time. Employed by
+Store `f` and `x` to evaluate `f(x...)` at a later time. Employed by
 `iterated_integration` for generic integrands that haven't been specialized to
-use `iterated_pre_eval`. Note that `x isa Vector`, so the integrand function
+use `iterated_pre_eval`. Note that `x isa Tuple`, so the function arguments
 needs to expect the behavior. `d` is a parameter specifying the number of
 variables in the vector input of `f`. This is good for integrands like `∫∫∫f`.
 """
 struct ThunkIntegrand{d,F,X} <: AbstractIteratedIntegrand{d}
     f::F
     x::X
-    ThunkIntegrand{d}(f::F, x::X) where {d,F,N,T,X<:SVector{N,T}} =
+    ThunkIntegrand{d}(f::F, x::X) where {d,F,N,T,X<:NTuple{N,T}} =
         new{d,F,X}(f, x) 
 end
-ThunkIntegrand{d}(f) where d = ThunkIntegrand{d}(f, SVector{0}())
+ThunkIntegrand{d}(f) where {d,T} = ThunkIntegrand{d}(f, ())
 
-iterated_integrand(f::ThunkIntegrand, x, ::Type{Val{1}}) = f.f(vcat(x, f.x))
+iterated_integrand(f::ThunkIntegrand, x, ::Type{Val{1}}) = f.f(x, f.x...)
 iterated_integrand(_::ThunkIntegrand, x, ::Type{Val{d}}) where d = x
 iterated_pre_eval(f::ThunkIntegrand{d}, x) where d =
-    ThunkIntegrand{d}(f.f, vcat(x, f.x))
+    ThunkIntegrand{d}(f.f, (x, f.x...))
 
 
 # experimental and untested symbolic language for IAI integrals like  ∫(I1 * ∫(I2 + I3), I4)
+
+"""
+    AssociativeOpIntegrand(op, I::AbstractIteratedIntegrand...)
+
+!!! warning "Experimental"
+    This may not work or may change
+
+Constructor for a collection of integrands reduced by an associative `op`.
+"""
+struct AssociativeOpIntegrand{L,O,T} <: AbstractIteratedIntegrand{1}
+    op::O
+    terms::T
+    AssociativeOpIntegrand(op::O,terms::T) where {L,O,T<:Tuple{Vararg{Any,L}}} =
+        new{L,O,T}(op, terms)
+end
+AssociativeOpIntegrand(op, I...) = AssociativeOpIntegrand(op, I)
+
+iterated_integrand(f::AssociativeOpIntegrand{L}, x, ::Type{Val{1}}) where L =
+    reduce(f.op, ntuple(n -> iterated_integrand(f.terms[n], x, Val{nvars(f.terms[n])}), Val{L}()))
+iterated_pre_eval(f::AssociativeOpIntegrand{L}, x, ::Type{Val{1}}) where L =
+    AssociativeOpIntegrand(f.op, ntuple(n -> iterated_pre_eval(f.terms[n], x, Val{nvars(f.terms[n])}), Val{L}()))
+
 
 """
     IteratedIntegrand(fs...; f0=identity)
@@ -130,25 +152,3 @@ function iterated_pre_eval(f::IteratedIntegrand{d}, x, ::Type{Val{dim}}) where {
 end
 
 const ∫ = IteratedIntegrand
-
-
-"""
-    AssociativeOpIntegrand(op, I::AbstractIteratedIntegrand...)
-
-!!! warning "Experimental"
-    This may not work or may change
-
-Constructor for a collection of integrands reduced by an associative `op`.
-"""
-struct AssociativeOpIntegrand{L,O,T} <: AbstractIteratedIntegrand{1}
-    op::O
-    terms::T
-    AssociativeOpIntegrand(op::O,terms::T) where {L,O,T<:Tuple{Vararg{Any,L}}} =
-        new{L,O,T}(op, terms)
-end
-AssociativeOpIntegrand(op, I...) = AssociativeOpIntegrand(op, I)
-
-iterated_integrand(f::AssociativeOpIntegrand{L}, x, ::Type{Val{1}}) where L =
-    reduce(f.op, ntuple(n -> iterated_integrand(f.terms[n], x, Val{nvars(f.terms[n])}), Val{L}()))
-iterated_pre_eval(f::AssociativeOpIntegrand{L}, x, ::Type{Val{1}}) where L =
-    AssociativeOpIntegrand(f.op, ntuple(n -> iterated_pre_eval(f.terms[n], x, Val{nvars(f.terms[n])}), Val{L}()))

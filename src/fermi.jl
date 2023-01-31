@@ -70,14 +70,14 @@ EXP_P1_SMALL_X(::Type{Float32}) = -15.942385f0
 """
     fermi_window_limits(Ω, β [; atol=0.0, rtol=1e-20])
 
-Returns `CubicLimits` over ω restricted to the interval where the Fermi window
+Returns limits `(a,b)` over ω restricted to the interval where the Fermi window
 is larger than `max(atol,rtol*fermi_window(0,β*Ω))`. Choosing `atol` and `rtol`
 wisely is important to integrating the entire region of interest, since this is
-a truncation of an infinite interval, and 
+a truncation of an infinite interval, and should be tested for convergence.
 """
 function fermi_window_limits(Ω, β; atol=0.0, rtol=1e-20)
     Δω = fermi_window_halfwidth(Ω, β, select_fermi_atol(β*Ω, atol, rtol))
-    CubicLimits(SVector(-Ω/2-Δω), SVector(-Ω/2+Δω))
+    (-Ω/2-Δω, -Ω/2+Δω)
 end
 select_fermi_atol(x, atol, rtol) = ifelse(x == zero(x), max(atol, 0.25rtol), max(atol, tanh(x/4)/x*rtol))
 """

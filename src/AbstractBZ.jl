@@ -9,7 +9,7 @@ abstract type AbstractBZ{d,T,basis} end
 # interface
 function symmetries end
 function nsyms end
-function domain_type end
+function coefficient_type end
 function limits end
 
 # TODO: incorporate rotations to Cartesian basis due to lattice vectors 
@@ -57,12 +57,12 @@ Return a tuple of the endpoints of the BZ in each lattice coordinate
 """
 function boundingbox(bz::AbstractBZ)
     c = limits(convert(FullBZ{basis(bz)}, bz))
-    ntuple(i -> limits(c, i),  ndims(bz))
+    ntuple(i -> endpoints(c, i),  ndims(bz))
 end
 
 # abstract methods
 Base.ndims(::AbstractBZ{d}) where d = d
-domain_type(::Type{<:AbstractBZ{d,T}}) where {d,T} = T
+coefficient_type(::Type{<:AbstractBZ{d,T}}) where {d,T} = T
 basis(::AbstractBZ{d,T,b}) where {d,T,b} = b
 
 # utilities
@@ -83,7 +83,7 @@ struct FullBZ{basis,d,T,L,C<:CubicLimits{d},Td} <: AbstractBZ{d,Td,basis}
     B::SMatrix{d,d,T,L}
     lims::C
     FullBZ{basis}(A::M, B::M, lims::C) where {basis,d,T,L,M<:SMatrix{d,d,T,L},C<:CubicLimits} =
-        new{basis,d,T,L,C,domain_type(lims)}(A, B, lims)
+        new{basis,d,T,L,C,coefficient_type(lims)}(A, B, lims)
 end
 function FullBZ(A::SMatrix{d,d,T}, B::SMatrix{d,d,T}; atol=sqrt(eps()), basis=:lattice) where {d,T}
     check_bases_canonical(A, B, atol)
@@ -108,7 +108,7 @@ struct IrreducibleBZ{basis,d,L<:AbstractLimits{d},S,T,d2,Td} <: AbstractBZ{d,Td,
     lims::L
     syms::S
     IrreducibleBZ{basis}(A::M, B::M, lims::L, syms::S) where {basis,d,T,d2,M<:SMatrix{d,d,T,d2},L<:AbstractLimits,S} =
-        new{basis,d,L,S,T,d2,domain_type(lims)}(A, B, lims, syms)
+        new{basis,d,L,S,T,d2,coefficient_type(lims)}(A, B, lims, syms)
 end
 
 function IrreducibleBZ(A::SMatrix{d,d,T}, B::SMatrix{d,d,T}, lims, syms::Vector; atol=sqrt(eps()), basis=:lattice) where {d,T}
@@ -126,12 +126,12 @@ Base.convert(::Type{<:FullBZ{basis}}, ibz::IrreducibleBZ) where basis = FullBZ{b
 # iterated integration customizations
 
 function iterated_integration(f, bz::AbstractBZ; atol=nothing, kwargs...)
-    atol = something(atol, zero(domain_type(bz)))/nsyms(bz) # rescaling by symmetries
+    atol = something(atol, zero(coefficient_type(bz)))/nsyms(bz) # rescaling by symmetries
     int, err = iterated_integration(f, limits(bz); atol=atol, kwargs...)
     symmetrize(bz, int, err)
 end
 function iterated_integration_kwargs(f, bz::AbstractBZ; atol=nothing, kwargs...)
-    atol = something(atol, zero(domain_type(bz)))/nsyms(bz) # rescaling by symmetries
+    atol = something(atol, zero(coefficient_type(bz)))/nsyms(bz) # rescaling by symmetries
     iterated_integration_kwargs(f, limits(bz); atol=atol, kwargs...)
 end
 iterated_integral_type(f, bz::AbstractBZ) = iterated_integral_type(f, limits(bz))

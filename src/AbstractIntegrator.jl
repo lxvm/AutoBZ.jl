@@ -106,7 +106,7 @@ without over-writing those already provided in `kwargs`
 """
 quad_kwargs(::typeof(quadgk), f, lims; kwargs...) = quad_kwargs(quadgk, f, quad_args(quadgk, f, lims)...; kwargs...)
 function quad_kwargs(::typeof(quadgk), f, segs::T...;
-    atol=zero(domain_type(lims)), rtol=iszero(atol) ? sqrt(eps(domain_type(lims))) : zero(atol),
+    atol=zero(coefficient_type(lims)), rtol=iszero(atol) ? sqrt(eps(coefficient_type(lims))) : zero(atol),
     order=7, maxevals=10^7, norm=norm, segbuf=nothing) where T
     F = Base.promote_op(f, T)
     segbuf_ = segbuf === nothing ? alloc_segbuf(T, F, Base.promote_op(norm, F)) : segbuf

@@ -42,15 +42,15 @@ function iterated_integral_type(f, l::AbstractLimits{d}) where d
 end
 
 """
-    iterated_segs(f, l, d, initdivs)
+    iterated_segs(f, l::AbstractLimits, ::Val{initdivs}) where initdivs
 
 Returns a `Tuple` of integration nodes that are passed to `QuadGK` to initialize
 the segments for adaptive integration. By default, returns `initdivs` equally
-spaced panels on `(lower(l), upper(l))`. If `f` is localized, specializing this
+spaced panels on `endpoints(l)`. If `f` is localized, specializing this
 function can also help avoid errors when `QuadGK` fails to adapt.
 """
-function iterated_segs(_, l, d, ::Val{initdivs}) where initdivs
-    lb, ub = limits(l, d)
+function iterated_segs(_, l::AbstractLimits, ::Val{initdivs}) where initdivs
+    lb, ub = endpoints(l)
     r = range(lb, ub, length=initdivs+1)
     ntuple(i -> r[i], Val{initdivs+1}())
 end
@@ -92,45 +92,45 @@ allocation.
 """
 iterated_integration(f, a, b; kwargs...) =
     iterated_integration(f, CubicLimits(a, b); kwargs...)
-iterated_integration(f, l::AbstractLimits{d}; kwargs...) where d =
-    iterated_integration(ThunkIntegrand{d}(f), l; kwargs...)
+iterated_integration(f, l::AbstractLimits{d,T}; kwargs...) where {d,T} =
+    iterated_integration(ThunkIntegrand{d,T}(f), l; kwargs...)
 function iterated_integration(f::AbstractIteratedIntegrand{d}, l::AbstractLimits{d}; kwargs...) where d
     int, err = iterated_integration_(Val{d}, f, l, iterated_integration_kwargs(f, l; kwargs...)...)
     iterated_integrand(f, int, Val{0}), err
 end
 function iterated_integration_kwargs(f, l::AbstractLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
     segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
-    atol_ = something(atol, zero(domain_type(l)))
-    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(domain_type(l)))) : zero(domain_type(l)))
+    atol_ = something(atol, zero(coefficient_type(l)))
+    rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(one(coefficient_type(l)))) : zero(coefficient_type(l)))
     (order=order, atol=atol_, rtol=rtol_, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs_)
 end
 
 function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
-    do_quadgk(f, iterated_segs(f, l, 1, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
+    do_quadgk(f, iterated_segs(f, l, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
 end
 function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs) where d
     # avoid runtime dispatch when capturing variables
     # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
     f_ = let f=f, l=l, order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs
-        x -> iterated_integrand(f, first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, Val{d}), setindex(l, x, d), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs)), Val{d})
+        x -> iterated_integrand(f, first(iterated_integration_(Val{d-1}, iterated_pre_eval(f, x, Val{d}), fixandeliminate(l, x), order, iterated_tol_update(f, l, atol, rtol, d)..., maxevals, norm, initdivs, segbufs)), Val{d})
     end
-    do_quadgk(f_, iterated_segs(f, l, d, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
+    do_quadgk(f_, iterated_segs(f, l, initdivs[d]), order, atol, rtol, maxevals, norm, segbufs[d])
 end
 
 """
-    alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim)
+    alloc_segbufs(coefficient_type, typesof_fx, typesof_nfx, ndim)
     alloc_segbufs(f, l::AbstractLimits)
 
 This helper function will allocate enough segment buffers as are needed for an
 `iterated_integration` call of integrand `f` and integration limits `l`.
-`domain_type` should be `domain_type(l)`, `typesof_fx` should be the return type of the
+`coefficient_type` should be `coefficient_type(l)`, `typesof_fx` should be the return type of the
 integrand `f` for each iteration of integration, `typesof_nfx` should be the
 types of the norms of a value of `f` for each iteration of integration, and
 `ndim` should be `ndims(l)`.
 """
-alloc_segbufs(domain_type, typesof_fx, typesof_nfx, ndim) = ntuple(n -> alloc_segbuf(domain_type, typesof_fx[n], typesof_nfx[n]), Val{ndim}())
+alloc_segbufs(coefficient_type, typesof_fx, typesof_nfx, ndim) = ntuple(n -> alloc_segbuf(coefficient_type, typesof_fx[n], typesof_nfx[n]), Val{ndim}())
 function alloc_segbufs(f, l::AbstractLimits{d}) where d
     typesof_fx = iterated_inference(f, l)
     typesof_nfx = ntuple(n -> Base.promote_op(norm, typesof_fx[n]), Val{d}())
-    alloc_segbufs(domain_type(l), typesof_fx, typesof_nfx, d)
+    alloc_segbufs(coefficient_type(l), typesof_fx, typesof_nfx, d)
 end

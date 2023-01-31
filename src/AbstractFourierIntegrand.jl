@@ -25,7 +25,7 @@ iterated_value(f::AbstractFourierIntegrand) = series(f)
 equispace_integrand(f::AbstractFourierIntegrand, s_x) = finner(f)(s_x, params(f)...)
 
 function equispace_rule(f::AbstractFourierIntegrand, bz::AbstractBZ, npt)
-    rule = Vector{Tuple{fourier_type(series(f),domain_type(bz)),domain_type(bz)}}(undef, 0)
+    rule = Vector{Tuple{fourier_type(series(f),coefficient_type(bz)),coefficient_type(bz)}}(undef, 0)
     equispace_rule!(rule, f, bz, npt)
 end
 equispace_rule!(rule, f::AbstractFourierIntegrand, bz::AbstractBZ, npt) =

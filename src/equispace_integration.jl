@@ -25,7 +25,7 @@ integration weight in the first position and the precomputation in the second.
 This output is passed to the argument `pre` of `equispace_evalrule`.
 """
 function equispace_rule(f, bz::AbstractBZ, npt)
-    pre = Vector{Tuple{SVector{ndims(bz),domain_type(bz)},domain_type(bz)}}(undef, 0)
+    pre = Vector{Tuple{SVector{ndims(bz),coefficient_type(bz)},coefficient_type(bz)}}(undef, 0)
     equispace_rule!(pre, f, bz, npt)
 end
 
@@ -46,7 +46,7 @@ function equispace_rule!(pre, fbz::FullBZ, npt)
 end
 function equispace_rule!(pre, bz::AbstractBZ, npt)
     flag, wsym, nsym = equispace_rule(bz, npt)
-    T = SVector{ndims(bz),domain_type(bz)}
+    T = SVector{ndims(bz),coefficient_type(bz)}
     resize!(pre, nsym)
     box = boundingbox(bz)
     dvol = equispace_dvol(bz, npt)
@@ -67,7 +67,7 @@ Returns a generator of the coordinates in a uniform grid and the corresponding
 unit integration weights.
 """
 equispace_rule(fbz::FullBZ, npt) =
-    ((SVector{ndims(fbz),domain_type(fbz)}(x...), true) for x in Iterators.product([range(l, step=(u-l)/npt, length=npt) for (l,u) in boundingbox(fbz)]...))
+    ((SVector{ndims(fbz),coefficient_type(fbz)}(x...), true) for x in Iterators.product([range(l, step=(u-l)/npt, length=npt) for (l,u) in boundingbox(fbz)]...))
 
 
 """
@@ -172,7 +172,7 @@ function automatic_equispace_integration_kwargs(f, bz;
     npt2=equispace_npt_update(f, npt1),
     rule2=equispace_rule(f, bz, npt2),
 )
-    T = domain_type(bz)
+    T = coefficient_type(bz)
     atol_ = something(atol, zero(T))
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(T)) : zero(T))
     (npt1=npt1, rule1=rule1, npt2=npt2, rule2=rule2, atol=atol_, rtol=rtol_, maxevals=maxevals)

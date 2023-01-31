@@ -10,7 +10,8 @@ using Printf
 
 using HDF5
 using StaticArrays
-using Polyhedra: vrep, Line, Ray
+using Polyhedra: polyhedron, vrep, Line, Ray
+import ConvexHull
 
 using ..AutoBZ
 
@@ -422,12 +423,12 @@ continue with the truncated limits.
 get_safe_freq_limits(Ωs::AbstractVector, β, lb, ub) =
     map(Ω -> get_safe_freq_limits(Ω, β, lb, ub), Ωs)
 function get_safe_freq_limits(Ω::Number, β, lb, ub)
-    c = fermi_window_limits(Ω, β)
-    if (l = only(c.l)) < lb
+    l, u = fermi_window_limits(Ω, β)
+    if l < lb
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
         l = lb
     end
-    if (u = only(c.u)) > ub
+    if u > ub
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
         u = ub
     end

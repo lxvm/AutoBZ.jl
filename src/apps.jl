@@ -329,7 +329,7 @@ function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
     vert = unit_tetrahedron_vertices(AT)
     nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
     hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
-    lims = PolyhedralLimits(hull)
+    lims = PolyhedralLimits(polyhedron(hull, ConvexHull.Library()))
     syms = vec(collect(cube_automorphisms(Val{N}())))
     IrreducibleBZ(A, B, lims, syms; kwargs...)
 end

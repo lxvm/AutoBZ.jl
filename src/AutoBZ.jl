@@ -14,10 +14,10 @@ module AutoBZ
 using LinearAlgebra
 
 using StaticArrays
-using Polyhedra: Hull, HyperPlane, intersect, points, fulldim
 using QuadGK: quadgk, do_quadgk, alloc_segbuf
+using Polyhedra: Polyhedron, VRepresentation, vrep, points, fulldim, hasallrays
 
-import Polyhedra: coefficient_type
+import Polyhedra: fixandeliminate, coefficient_type
 
 
 # Below is a comprehensive list of exports and the files in which they are defined
@@ -25,12 +25,12 @@ import Polyhedra: coefficient_type
 
 # component 1: Generic iterated adaptive integration (IAI)
 
-export AbstractLimits, limits, domain_type
-export CubicLimits, PolyhedralLimits, CompositeLimits
+export AbstractLimits, endpoints, fixandeliminate, coefficient_type
+export CubicLimits, PolyhedralLimits, ProductLimits
 include("AbstractLimits.jl")
 
 export AbstractIteratedIntegrand, nvars, iterated_pre_eval, iterated_integrand
-export ThunkIntegrand, IteratedIntegrand, AssociativeOpIntegrand
+export ThunkIntegrand, AssociativeOpIntegrand#, IteratedIntegrand # in progress
 include("AbstractIteratedIntegrand.jl")
 
 export iterated_integration # the main routine
@@ -41,7 +41,7 @@ include("iterated_integration.jl")
 # component 2: Brillouin zones and symmetrized equispace integration / periodic trapezoidal rule (PTR)
 
 export AbstractBZ, FullBZ, IrreducibleBZ
-export basis, nsyms, symmetries, symmetrize, limits, boundingbox, vol, domain_type
+export basis, nsyms, symmetries, symmetrize, limits, boundingbox, vol, coefficient_type
 include("AbstractBZ.jl")
 
 export equispace_integration, automatic_equispace_integration # main routines

@@ -17,98 +17,112 @@ abstract type AbstractLimits{d,T<:AbstractFloat} end
 # Interface for AbstractLimits types
 
 """
-    limits(::AbstractLimits, dim)
+    endpoints(::AbstractLimits{d}, [dim=d]) where d
 
 Return a tuple with the lower and upper limit of the `dim`th variable of
-integration.
+integration, which is the outermost by default. This is equivalent to projecting
+the integration domain onto one dimension.
 """
-function limits end
+endpoints(l::AbstractLimits{d}) where d = endpoints(l, d)
+
+"""
+    fixandeliminate(l::AbstractLimits, x)
+
+Fix the outermost variable of integration and return the inner limits.
+
+!!! note "For developers"
+    Realizations of type `T<:AbstractLimits` only have to implement a method
+    with signature `fixandeliminate(::T, ::Number)`. The result must also have
+    dimension one less than the input, and this should only be called when ndims
+    >= 1
+"""
+function fixandeliminate end
 
 # Generic methods for AbstractLimits
 
-"""
-    setindex(l::AbstractLimits, x, dims)
-
-Compute the outermost `length(x)` variables of integration at the given `dims`.
-Realizations of type `T<:AbstractLimits` only have to implement a method with
-signature `setindex(::T, ::Number, ::Int)`.
-"""
-Base.setindex(l::AbstractLimits, x::SVector{N}, dims::NTuple{N,Int}) where N = setindex(setindex(l, last(x), dims[N]), pop(x), dims[1:N-1])
-Base.setindex(l::AbstractLimits, ::SVector{0}, ::Tuple{}) = l
+Base.ndims(::AbstractLimits{d}) where {d} = d
 
 """
-    domain_type(x::AbstractLimits)
+    coefficient_type(x::AbstractLimits)
 
 Returns the type of the coordinate coefficients for the domain
 """
-domain_type(x) = domain_type(typeof(x))
-domain_type(::Type{<:AbstractLimits{d,T}}) where {d,T} = T
-
-Base.ndims(::T) where {T<:AbstractLimits} = ndims(T)
-Base.ndims(::Type{<:AbstractLimits{d}}) where {d} = d
+coefficient_type(x) = coefficient_type(typeof(x))
+coefficient_type(::Type{<:AbstractLimits{d,T}}) where {d,T} = T
 
 # Implementations of AbstractLimits
 
 """
-    CubicLimits(a, [b])
+    CubicLimits(a, b)
 
 Store integration limit information for a hypercube with vertices `a` and `b`.
-If `b` is not passed as an argument, then the lower limit defaults to `zero(a)`.
+which can be can be real numbers, tuples, or `SVector`s.
+The outermost variable of integration corresponds to the last entry.
 """
-struct CubicLimits{d,T} <: AbstractLimits{d,T}
-    l::SVector{d,T}
-    u::SVector{d,T}
+struct CubicLimits{d,T,L} <: AbstractLimits{d,T}
+    a::L
+    b::L
+    CubicLimits{d,T}(a::L, b::L) where {d,T,L<:NTuple{d,T}} = new{d,T,L}(a, b)
 end
-function CubicLimits(l::SVector{d,Tl}, u::SVector{d,Tu}) where {d,Tl<:Real,Tu<:Real}
-    T = float(promote_type(Tl, Tu))
-    CubicLimits{d,T}(SVector{d,T}(l), SVector{d,T}(u))
+function CubicLimits(a::NTuple{d,A}, b::NTuple{d,B}) where {d,A<:Real,B<:Real}
+    T = float(promote_type(A, B))
+    CubicLimits{d,T}(
+        ntuple(n -> T(a[n]), Val{d}()),
+        ntuple(n -> T(b[n]), Val{d}()),
+    )
 end
-CubicLimits(l::Tl, u::Tu) where {Tl<:Real,Tu<:Real} = CubicLimits(SVector{1,Tl}(l), SVector{1,Tu}(u))
-CubicLimits(u::SVector) = CubicLimits(zero(u), u)
-CubicLimits(u::NTuple{N,T}) where {N,T} = CubicLimits(SVector{N,T}(u))
+CubicLimits(a::Real, b::Real) = CubicLimits((a,), (b,))
+CubicLimits(a::SVector, b::SVector) = CubicLimits(a.data, b.data)
 
-function limits(c::CubicLimits{d}, dim) where d
+function endpoints(c::CubicLimits{d}, dim) where d
     1 <= dim <= d || throw(ArgumentError("pick dim=$(dim) in 1:$d"))
-    return (c.l[dim], c.u[dim])
+    return (c.a[dim], c.b[dim])
 end
-Base.setindex(c::CubicLimits, ::Number, dim::Int) = CubicLimits(deleteat(c.l, dim), deleteat(c.u, dim))
+fixandeliminate(c::CubicLimits, _) = CubicLimits(Base.front(c.a), Base.front(c.b))
 
 """
-    PolyhedralLimits(::Hull)
+    PolyhedralLimits(::Polyhedron)
 
-Integration limits from a convex hull.
+Integration endpoints from a convex hull.
 """
-struct PolyhedralLimits{d,T,P<:Hull{T}} <: AbstractLimits{d,T}
-    ch::P
-    PolyhedralLimits{d}(ch::P) where {d,P} = new{d,coefficient_type(ch),P}(ch)
+struct PolyhedralLimits{d,T,P} <: AbstractLimits{d,T}
+    p::P
+    PolyhedralLimits{d}(p::P) where {d,P<:Polyhedron} = new{d,coefficient_type(p),P}(p)
 end
-PolyhedralLimits(ch) = PolyhedralLimits{fulldim(ch)}(ch)
-Base.setindex(l::PolyhedralLimits{d}, x, dim=d) where d =
-    PolyhedralLimits{d-1}(intersect(l.ch, HyperPlane(setindex!(zeros(fulldim(l.ch)), 1, dim), x)))
-limits(l::PolyhedralLimits{d}, dim=d) where d =
-    (minimum(x -> x[dim], points(l.ch)), maximum(x -> x[dim], points(l.ch)))
+PolyhedralLimits(p::Polyhedron) = PolyhedralLimits{fulldim(p)}(p)
 
+fixandeliminate(l::PolyhedralLimits{d}, x) where d =
+    PolyhedralLimits{d-1}(fixandeliminate(l.p, d, x))
+
+endpoints(l::PolyhedralLimits, dim) = endpoints(vrep(l.p), dim)
+function endpoints(v::VRepresentation, dim::Integer)
+    hasallrays(v) && error("Infinite limits not implemented: found ray in V representation")
+    (d = fulldim(v)) >= dim >= 1 || error("V representation of fulldim $d doesn't have index $dim")
+    extrema(v -> v[dim], points(v))
+end
 
 """
-    CompositeLimits(lims::AbstractLimits...)
-    CompositeLimits(::Tuple{Vararg{AbstractLimits}})
-
-!!! warning "Experimental"
-    The behavior may not be well defined
+    ProductLimits(lims::AbstractLimits...)
+    ProductLimits(::Tuple{Vararg{AbstractLimits}})
 
 Construct a collection of limits which yields the first limit followed by the
-second, and so on.
+second, and so on. The inner limits are not allowed to depend on the outer ones.
+The outermost variable of integration should be placed first, i.e.
+``\\int_{\\Omega} \\int_{\\Gamma}`` should be `ProductLimits(Ω, Γ)`.
 """
-struct CompositeLimits{d,T,L<:Tuple{Vararg{AbstractLimits}}} <: AbstractLimits{d,T}
+struct ProductLimits{d,T,L<:Tuple{Vararg{AbstractLimits}}} <: AbstractLimits{d,T}
     lims::L
 end
-CompositeLimits(lims::AbstractLimits...) = CompositeLimits(lims)
-function CompositeLimits(lims::L) where {L<:Tuple{Vararg{AbstractLimits}}}
-    CompositeLimits{mapreduce(ndims, +, lims; init=0),mapreduce(eltype, promote_type, lims),L}(lims)
+ProductLimits(lims::AbstractLimits...) = ProductLimits(lims)
+function ProductLimits(lims::L) where {L<:Tuple{Vararg{AbstractLimits}}}
+    ProductLimits{mapreduce(ndims, +, lims; init=0),mapreduce(coefficient_type, promote_type, lims),L}(lims)
 end
-CompositeLimits{d,T}(lims::AbstractLimits...) where {d,T} = CompositeLimits{d,T}(lims)
-CompositeLimits{d,T}(lims::L) where {d,T,L} = CompositeLimits{d,T,L}(lims)
-Base.setindex(l::CompositeLimits{d,T,L}, x::Number, dim) where {d,T,L} =
-    CompositeLimits{d-1,T}(first(l.lims)(x), Base.rest(l.lims, 2)...)
-Base.setindex(l::CompositeLimits{d,T,L}, ::Number, dim) where {d,T,L<:Tuple{<:AbstractLimits{1},Vararg{AbstractLimits}}} =
-    CompositeLimits{d-1,T}(Base.rest(l.lims, 2)...)
+ProductLimits{d,T}(lims::AbstractLimits...) where {d,T} = ProductLimits{d,T}(lims)
+ProductLimits{d,T}(lims::L) where {d,T,L} = ProductLimits{d,T,L}(lims)
+
+endpoints(l::ProductLimits) = endpoints(l.lims[1])
+
+fixandeliminate(l::ProductLimits{d,T}, x::Number) where {d,T} =
+    ProductLimits{d-1,T}(Base.setindex(l.lims, fixandeliminate(l.lims[1], x), 1))
+fixandeliminate(l::ProductLimits{d,T,<:Tuple{<:AbstractLimits{1},Vararg{AbstractLimits}}}, x::Number) where {d,T} =
+    ProductLimits{d-1,T}(Base.setindex(l.lims, fixandeliminate(l.lims[1], x), 1))
