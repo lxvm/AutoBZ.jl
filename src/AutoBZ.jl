@@ -51,7 +51,7 @@ include("equispace_integration.jl")
 
 # component 3: Fourier series with IAI & PTR optimizations
 
-export AbstractFourierSeries, period, contract, value, coefficients, coefficient_type, fourier_type, phase_type
+export AbstractFourierSeries, period, contract, value, coefficient_type, fourier_type, phase_type
 export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
 export fourier_kernel, fourier_kernel!, fourier_rule!
 include("AbstractFourierSeries.jl")

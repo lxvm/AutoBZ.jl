@@ -70,13 +70,6 @@ dimension as the Fourier series
 
 
 """
-    coefficients(::AbstractFourierSeries)
-
-Return the array of coefficients defining the Fourier series
-"""
-function coefficients end
-
-"""
     coefficient_type(::AbstractFourierSeries)
 
 Return the type of the coefficients defining the Fourier series.
@@ -168,7 +161,6 @@ struct FourierSeries{N,T} <: AbstractFourierSeries{N}
 end
 
 FourierSeries(coeffs::AbstractArray{T,N}, period::Real) where {T,N} = FourierSeries(coeffs, fill(period, SVector{N,Float64}))
-coefficients(f::FourierSeries) = f.coeffs
 coefficient_type(::Type{FourierSeries{N,T}}) where {N,T} = eltype(T)
 
 """
