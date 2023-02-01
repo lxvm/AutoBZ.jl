@@ -78,47 +78,93 @@ function endpoints(c::CubicLimits{d}, dim) where d
     1 <= dim <= d || throw(ArgumentError("pick dim=$(dim) in 1:$d"))
     return (c.a[dim], c.b[dim])
 end
-fixandeliminate(c::CubicLimits, _) = CubicLimits(Base.front(c.a), Base.front(c.b))
+
+fixandeliminate(c::CubicLimits{d,T}, _) where {d,T} =
+    CubicLimits{d-1,T}(Base.front(c.a), Base.front(c.b))
 
 """
-    TetrahedralLimits(a::NTuple)
+    TetrahedralLimits(a::NTuple{d}) where d
 
 A parametrization of the integration limits for a tetrahedron whose vertices are
-the origin and the unit coordinate vectors rescaled by the components of `a`.
+```
+( 0.0,  0.0, ...,  0.0)
+( 0.0,  0.0, ..., a[d])
+…
+( 0.0, a[2], ..., a[d])
+(a[1], a[2], ..., a[d])
+```
 """
 struct TetrahedralLimits{d,T,A} <: AbstractLimits{d,T}
     a::A
-    TetrahedralLimits(a::A) where {d,T,A<:NTuple{d,T}} = new{d,T,A}(a)
+    TetrahedralLimits{d,T}(a::A) where {d,T,A<:NTuple{d,T}} = new{d,T,A}(a)
 end
+TetrahedralLimits(a::NTuple{d,T}) where {d,T} =
+    TetrahedralLimits{d,float(T)}(ntuple(n -> float(a[n]), Val{d}()))
+TetrahedralLimits(a::Tuple) = TetrahedralLimits(promote(a...))
 TetrahedralLimits(a::AbstractVector) = TetrahedralLimits(Tuple(a))
 
-endpoints(t::TetrahedralLimits) =
-    (zero(coefficient_type(T)), t.a[ndims(t)])
-fixandeliminate(t::TetrahedralLimits, x) =
-    TetrahedralLimits(Base.front(setindex(t.a, convert(coefficient_type(t), x)/t.a[ndims(t)], ndims(t)-1)))
+endpoints(t::TetrahedralLimits{d,T}) where {d,T} = (zero(T), t.a[d])
+
+fixandeliminate(t::TetrahedralLimits{d,T}, x) where {d,T} =
+    TetrahedralLimits{d-1,T}(ntuple(n -> n==d-1 ? (iszero(t.a[d]) ? t.a[d] : convert(T, x)*t.a[d-1]/t.a[d]) : t.a[n], Val{d-1}()))
+
+
+function corners(t::AbstractLimits)
+    a, b = endpoints(t)
+    ndims(t) == 1 && return [(a,), (b,)]
+    ta = corners(fixandeliminate(t, a))
+    tb = corners(fixandeliminate(t, b))
+    unique((map(x -> (x..., a), ta)..., map(x -> (x..., b), tb)...))
+end
+
 
 """
     ProductLimits(lims::AbstractLimits...)
-    ProductLimits(::Tuple{Vararg{AbstractLimits}})
 
 Construct a collection of limits which yields the first limit followed by the
 second, and so on. The inner limits are not allowed to depend on the outer ones.
 The outermost variable of integration should be placed first, i.e.
 ``\\int_{\\Omega} \\int_{\\Gamma}`` should be `ProductLimits(Ω, Γ)`.
 """
-struct ProductLimits{d,T,L<:Tuple{Vararg{AbstractLimits}}} <: AbstractLimits{d,T}
+struct ProductLimits{d,T,L} <: AbstractLimits{d,T}
     lims::L
+    ProductLimits{d,T}(lims::L) where {d,T,L<:Tuple{Vararg{AbstractLimits}}} =
+        ProductLimits{d,T,L}(lims)
 end
 ProductLimits(lims::AbstractLimits...) = ProductLimits(lims)
 function ProductLimits(lims::L) where {L<:Tuple{Vararg{AbstractLimits}}}
-    ProductLimits{mapreduce(ndims, +, lims; init=0),mapreduce(coefficient_type, promote_type, lims),L}(lims)
+    d = mapreduce(ndims, +, lims; init=0)
+    T = mapreduce(coefficient_type, promote_type, lims)
+    ProductLimits{d,T}(lims)
 end
-ProductLimits{d,T}(lims::AbstractLimits...) where {d,T} = ProductLimits{d,T}(lims)
-ProductLimits{d,T}(lims::L) where {d,T,L} = ProductLimits{d,T,L}(lims)
 
 endpoints(l::ProductLimits) = endpoints(l.lims[1])
 
-fixandeliminate(l::ProductLimits{d,T}, x::Number) where {d,T} =
+fixandeliminate(l::ProductLimits{d,T}, x) where {d,T} =
     ProductLimits{d-1,T}(Base.setindex(l.lims, fixandeliminate(l.lims[1], x), 1))
-fixandeliminate(l::ProductLimits{d,T,<:Tuple{<:AbstractLimits{1},Vararg{AbstractLimits}}}, x::Number) where {d,T} =
-    ProductLimits{d-1,T}(Base.setindex(l.lims, fixandeliminate(l.lims[1], x), 1))
+fixandeliminate(l::ProductLimits{d,T,<:Tuple{<:AbstractLimits{1},Vararg{AbstractLimits}}}, x) where {d,T} =
+    ProductLimits{d-1,T}(Base.front(l.lims))
+
+
+"""
+    TranslatedLimits(lims::AbstractLimits{d}, t::NTuple{d}) where d
+
+Returns the limits of `lims` translated by offsets in `t`.
+"""
+struct TranslatedLimits{d,C,L,T} <: AbstractLimits{d,C}
+    l::L
+    t::T
+    TranslatedLimits{d,C}(l::L, t::T) where {d,C,L<:AbstractLimits{d,C},T<:NTuple{d,C}} =
+        new{d,C,L,T}(l, t)
+end
+TranslatedLimits(l::AbstractLimits{d,C}, t::NTuple{d}) where {d,C} =
+    TranslatedLimits{d,C}(l, map(x -> convert(C, x), t))
+
+endpoints(t::TranslatedLimits) =
+    map(x -> x + t.t[ndims(t)], endpoints(t.l))
+fixandeliminate(t::TranslatedLimits{d,C}, x) where {d,C} =
+    TranslatedLimits{d-1,C}(fixandeliminate(t.l, convert(C, x) - t.t[ndims(t)]), Base.front(t.t))
+
+# More ideas for transformed limits requiring linear programming
+# RotatedLimits
+# AffineLimits

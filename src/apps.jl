@@ -1,3 +1,11 @@
+struct DOSIntegrand2{TH<:AbstractFourierSeries3D,TM}
+    H::TH
+    M::TM
+end
+(D::DOSIntegrand2)(k) = imag(tr_inv(D.M-D.H(k)))/(-pi)
+AutoBZ.iterated_pre_eval(D::DOSIntegrand2, k, ::Type{Val{dim}}) where dim =
+    (contract!(D.H, k, dim); return D)
+
 """
     eval_self_energy(M)
     eval_self_energy(Σ, ω)
@@ -334,6 +342,7 @@ struct PolyhedralLimits{d,T,P} <: AbstractLimits{d,T}
 end
 PolyhedralLimits(p::Polyhedron) = PolyhedralLimits{fulldim(p)}(p)
 
+# TODO: compute vrep at the same time
 AutoBZ.fixandeliminate(l::PolyhedralLimits{d}, x) where d =
     PolyhedralLimits{d-1}(Polyhedra.fixandeliminate(l.p, d, x))
 
@@ -347,12 +356,16 @@ end
 
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)
 cubic_sym_ibz(fbz::FullBZ; kwargs...) = cubic_sym_ibz(fbz.A, fbz.B; kwargs...)
-function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
-    F = float(T); AT = SVector{N,F}
-    vert = unit_tetrahedron_vertices(AT)
+function cubic_sym_ibz(A::M, B::M; kind=:tetra, kwargs...) where {N,T,M<:SMatrix{N,N,T}}
     nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
-    hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
-    lims = PolyhedralLimits(polyhedron(hull))
+    if kind == :tetra
+        lims = TetrahedralLimits(nrmb)
+    else
+        F = float(T); AT = SVector{N,F}
+        vert = unit_tetrahedron_vertices(AT)
+        hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
+        lims = PolyhedralLimits(polyhedron(hull))
+    end
     syms = vec(collect(cube_automorphisms(Val{N}())))
     IrreducibleBZ(A, B, lims, syms; kwargs...)
 end

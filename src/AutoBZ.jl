@@ -23,7 +23,7 @@ using QuadGK: quadgk, do_quadgk, alloc_segbuf
 # component 1: Generic iterated adaptive integration (IAI)
 
 export AbstractLimits, endpoints, fixandeliminate, coefficient_type
-export CubicLimits, TetrahedralLimits, ProductLimits
+export CubicLimits, TetrahedralLimits, ProductLimits, TranslatedLimits
 include("AbstractLimits.jl")
 
 export AbstractIteratedIntegrand, nvars, iterated_pre_eval, iterated_integrand
