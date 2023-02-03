@@ -10,7 +10,7 @@ abstract type AbstractIntegrator{F} <: Function end
 function limits end # return the limits object(s) used by the routine
 function quad_integrand end # return the integrand used by the quadrature routine, optionally with arguments
 quad_routine(f::AbstractIntegrator) = f.routine # integration routine
-quad_args(f::AbstractIntegrator, ps...) = (quad_integrand(f.f, ps...), limits(f)...) # integration routine arguments
+quad_args(f::AbstractIntegrator, ps...) = (quad_integrand(f, ps...), limits(f)...) # integration routine arguments
 quad_kwargs(f::AbstractIntegrator; kwargs...) = (f.kwargs..., kwargs...) # keyword arguments to routine
 
 # abstract methods
@@ -38,7 +38,7 @@ function IteratedIntegrator(f::F, l, p...; ps=0.0, routine=iterated_integration,
     IteratedIntegrator(f, l, p, routine, quad_kwargs(routine, test, l; kwargs...))
 end
 
-limits(f::IteratedIntegrator) = f.l
+limits(f::IteratedIntegrator) = (f.l,)
 IteratedIntegrator{F}(args...; kwargs...) where {F<:Function} =
     IteratedIntegrator(F.instance, args...; kwargs...)
 
@@ -82,9 +82,13 @@ FourierIntegrator{F}(args...; kwargs...) where {F<:Function} =
 FourierIntegrator{F}(args...; kwargs...) where {F<:Tuple{Vararg{Function}}} =
     FourierIntegrator(tuple(map(f -> f.instance, F.parameters)...), args...; kwargs...)
 
-limits(f::FourierIntegrator) = f.bz
+limits(f::FourierIntegrator) = (f.bz,)
 
-build_integrand(f::FourierIntegrator{F}, ps...) where {F<:Tuple} = IteratedFourierIntegrand{F}(f.s, f.p..., ps...)
+
+quad_integrand(f::FourierIntegrator{F}, ps...) where {F<:Function} =
+    FourierIntegrand{F}(f.s, f.p..., ps...)
+quad_integrand(f::FourierIntegrator{F}, ps...) where {F<:Tuple} =
+    IteratedFourierIntegrand{F}(f.s, f.p..., ps...)
 
 
 """
@@ -95,7 +99,7 @@ test integrand  `f`, depending on the test integrand `f` and `lims`.
 """
 quad_args(::typeof(quadgk), f, segs::T...) where T = segs
 quad_args(::typeof(quadgk), f, lims::NTuple{N,T}) where {N,T} = lims
-quad_args(::typeof(quadgk), f, lims::CubicLimits{1}) = limits(lims, 1)
+quad_args(::typeof(quadgk), f, lims::CubicLimits{1}) = endpoints(lims)
 quad_args(::typeof(iterated_integration), f, lims::CubicLimits{1}) = (lims,)
 
 """

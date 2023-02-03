@@ -146,7 +146,7 @@ points per dimension, optionally using precomputation `pre`
 function equispace_integration(f, bz::AbstractBZ; kwargs...)
     buf = equispace_integration_kwargs(f, bz; kwargs...)
     int = equispace_evalrule(f, buf.rule)
-    symmetrize(bz, int), buf
+    symmetrize(f, bz, int), buf
 end
 equispace_integration_kwargs(f, bz; npt=equispace_npt_update(f,0), rule=equispace_rule(f, bz, npt)) =
     (npt=npt, rule=rule)
@@ -163,7 +163,7 @@ function automatic_equispace_integration(f, bz::AbstractBZ; kwargs...)
     kw = automatic_equispace_integration_kwargs(f, bz; kwargs...)
     atol = kw.atol /nsyms(bz) # need to rescale atol by symmetry factor for IBZ integration
     int, err, rule_buf = automatic_equispace_integration_(f, bz, kw.npt1, kw.rule1, kw.npt2, kw.rule2, atol, kw.rtol, kw.maxevals)
-    symmetrize(bz, int, err)..., rule_buf
+    symmetrize(f, bz, int, err)..., rule_buf
 end
 function automatic_equispace_integration_kwargs(f, bz;
     atol=nothing, rtol=nothing, maxevals=typemax(Int64),

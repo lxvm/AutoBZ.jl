@@ -96,17 +96,18 @@ A parametrization of the integration limits for a tetrahedron whose vertices are
 """
 struct TetrahedralLimits{d,T,A} <: AbstractLimits{d,T}
     a::A
-    TetrahedralLimits{d,T}(a::A) where {d,T,A<:NTuple{d,T}} = new{d,T,A}(a)
+    s::T
+    TetrahedralLimits{d,T}(a::A, s::T) where {d,T,A<:NTuple{d,T}} = new{d,T,A}(a, s)
 end
 TetrahedralLimits(a::NTuple{d,T}) where {d,T} =
-    TetrahedralLimits{d,float(T)}(ntuple(n -> float(a[n]), Val{d}()))
+    TetrahedralLimits{d,float(T)}(ntuple(n -> float(a[n]), Val{d}()), one(T))
 TetrahedralLimits(a::Tuple) = TetrahedralLimits(promote(a...))
 TetrahedralLimits(a::AbstractVector) = TetrahedralLimits(Tuple(a))
 
-endpoints(t::TetrahedralLimits{d,T}) where {d,T} = (zero(T), t.a[d])
+endpoints(t::TetrahedralLimits{d,T}) where {d,T} = (zero(T), t.a[d]*t.s)
 
 fixandeliminate(t::TetrahedralLimits{d,T}, x) where {d,T} =
-    TetrahedralLimits{d-1,T}(ntuple(n -> n==d-1 ? (iszero(t.a[d]) ? t.a[d] : convert(T, x)*t.a[d-1]/t.a[d]) : t.a[n], Val{d-1}()))
+    TetrahedralLimits{d-1,T}(Base.front(t.a), convert(T, x)/t.a[d])
 
 
 function corners(t::AbstractLimits)

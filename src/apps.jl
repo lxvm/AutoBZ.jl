@@ -1,11 +1,3 @@
-struct DOSIntegrand2{TH<:AbstractFourierSeries3D,TM}
-    H::TH
-    M::TM
-end
-(D::DOSIntegrand2)(k) = imag(tr_inv(D.M-D.H(k)))/(-pi)
-AutoBZ.iterated_pre_eval(D::DOSIntegrand2, k, ::Type{Val{dim}}) where dim =
-    (contract!(D.H, k, dim); return D)
-
 """
     eval_self_energy(M)
     eval_self_energy(Σ, ω)
@@ -23,7 +15,8 @@ eval_self_energy(Σ::AbstractMatrix, ω) = ω*I-Σ
 
 Returns `inv(M-H)` where `M = ω*I-Σ(ω)`
 """
-gloc_integrand(H::AbstractMatrix, args...) = inv(eval_self_energy(args...)-H)
+gloc_integrand(H::AbstractMatrix, M) = inv(M-H)
+gloc_integrand(H::AbstractMatrix, Σ, ω) = gloc_integrand(H, eval_self_energy(Σ, ω))
 
 """
     diaggloc_integrand(H, Σ, ω)
@@ -31,7 +24,8 @@ gloc_integrand(H::AbstractMatrix, args...) = inv(eval_self_energy(args...)-H)
 
 Returns `diag(inv(M-H))` where `M = ω*I-Σ(ω)`
 """
-diaggloc_integrand(H::AbstractMatrix, args...) = diag_inv(eval_self_energy(args...)-H)
+diaggloc_integrand(H::AbstractMatrix, M) = diag_inv(M-H)
+diaggloc_integrand(H::AbstractMatrix, Σ, ω) = diaggloc_integrand(H, eval_self_energy(Σ, ω))
 
 """
     dos_integrand(H, Σ, ω)
@@ -55,7 +49,8 @@ also integrates the real part of DOS which is less localized, at the expense of
 a slight slow-down due to complex arithmetic. See
 [`AutoBZ.Jobs.dos_integrand`](@ref).
 """
-safedos_integrand(H::AbstractMatrix, args...) = tr_inv(eval_self_energy(args...)-H)/(-pi)
+safedos_integrand(H::AbstractMatrix, M) = tr_inv(M-H)/(-pi)
+safedos_integrand(H::AbstractMatrix, Σ, ω) = safedos_integrand(H, eval_self_energy(Σ, ω))
 
 # Generic behavior for single Green's function integrands (methods and types)
 for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
@@ -385,6 +380,24 @@ const ElectronCountIntegrator =
     FourierIntegrator{typeof(electron_count_frequency_integral)}
 ElectronCountIntegrator(args...; kwargs...) =
     electron_count_integrator(args...; kwargs...)
+
+# define how to symmetrize matrix-valued integrands with coordinate indices
+
+"""
+    CoordinateMatrixIntegrand
+
+A type union of integrands whose return value is a matrix with coordinate indices
+"""
+const CoordinateMatrixIntegrand = Union{TransportDistributionIntegrand,TransportFunctionIntegrand,KineticCoefficientIntegrand}
+
+# TODO: incorporate rotations to Cartesian basis due to lattice vectors
+function AutoBZ.symmetrize(::CoordinateMatrixIntegrand, l::AbstractBZ, x::AbstractMatrix)
+    r = zero(x)
+    for S in symmetries(l)
+        r += S * x * S'
+    end
+    r
+end
 
 # replacement for TetrahedralLimits
 

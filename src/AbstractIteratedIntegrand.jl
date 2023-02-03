@@ -38,8 +38,8 @@ case the developer should know `d` takes values of `0, 1, ..., ndims(lims)`.
 `d=1` evaluates the innermost integral, `d=0` evaluates a function outside the
 last integral. Subtypes of `AbstractFourierIntegrand` 
 """
-@inline iterated_integrand(f::AbstractIteratedIntegrand, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
-@inline iterated_integrand(f, x, ::Type{Val{-1}}) = f(x)
+iterated_integrand(f::AbstractIteratedIntegrand, y, ::Type{Val{d}}) where d = iterated_integrand(f, y, d)
+iterated_integrand(f, x, ::Type{Val{-1}}) = f(x)
 
 """
     iterated_pre_eval(f, x, dim)
@@ -53,7 +53,7 @@ precompute a new integrand for the remaining variables of integration that is
 more computationally efficient. This function must return the integrand for the
 subsequent integral.
 """
-@inline iterated_pre_eval(f::AbstractIteratedIntegrand, x, ::Type{Val{d}}) where d = iterated_pre_eval(f, x, d)
+iterated_pre_eval(f::AbstractIteratedIntegrand, x, ::Type{Val{d}}) where d = iterated_pre_eval(f, x, d)
 iterated_pre_eval(f::AbstractIteratedIntegrand, x, dim) = iterated_pre_eval(f, x)
 iterated_pre_eval(f, x, dim) = f # when f is anything else, leave it
 
@@ -137,11 +137,11 @@ end
 # since IteratedIntegrand will return a tuple of the coordinate and inner
 # integrand make the default behavior to pass the inner integrand
 # e.g. ∫dx ∫dy f(x,y) -> (x,Ix) -> 
-@inline iterated_integrand(f::AbstractIteratedIntegrand, _, y, ::Type{Val{d}}) where d =
+iterated_integrand(f::AbstractIteratedIntegrand, _, y, ::Type{Val{d}}) where d =
     iterated_integrand(f, y, d)
 # for a bare function, evaluate f(coordinate, inner_integral)
 # e.g ∫dx exp(x + ∫dy_0^x sin(xy)) becomes (x, Ix) -> exp(x + Ix) 
-@inline iterated_integrand(f, x, y, dim) = f(x, y)
+iterated_integrand(f, x, y, dim) = f(x, y)
 
 
 function iterated_pre_eval(f::IteratedIntegrand{d}, x, ::Type{Val{dim}}) where {d,dim}

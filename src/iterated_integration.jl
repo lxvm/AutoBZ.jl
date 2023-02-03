@@ -4,7 +4,7 @@
 Choose a new set of error tolerances for the next inner integral. By default
 returns `(atol, rtol)` unchanged.
 """
-@inline iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
+iterated_tol_update(f, l, atol, rtol, dim) = (atol, rtol)
 
 """
     iterated_inference(f, l::AbstractLimits{d})
@@ -26,6 +26,7 @@ iterated_inference_down(F, T, ::Val{1}) = (F,)
 function iterated_inference_up(Fs::NTuple{d_}, T, dim::Val{d}) where {d_,d}
     # go up the call stack and get the integrand result types
     Fouter = Base.promote_op(iterated_integrand, Fs[1], T, Type{Val{d-d_+1}}) # output type
+    Fouter === Union{} && error("Could not infer the output type of the integrand. Check that it runs and is type stable")
     (Fouter, iterated_inference_up(Fs[2:d_], Fouter, dim)...)
 end
 iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d =
@@ -34,7 +35,7 @@ iterated_inference_up(Fs::NTuple{1}, T, ::Val{d}) where d =
 """
     iterated_integral_type(f, l)
 
-Returns the result type 
+Returns the output type of an iterated integral of `f` over domain `l`
 """
 function iterated_integral_type(f, l::AbstractLimits{d}) where d
     T = iterated_inference(f, l)[d]
@@ -50,8 +51,8 @@ spaced panels on `endpoints(l)`. If `f` is localized, specializing this
 function can also help avoid errors when `QuadGK` fails to adapt.
 """
 function iterated_segs(_, l::AbstractLimits, ::Val{initdivs}) where initdivs
-    lb, ub = endpoints(l)
-    r = range(lb, ub, length=initdivs+1)
+    a, b = endpoints(l)
+    r = range(a, b, length=initdivs+1)
     ntuple(i -> r[i], Val{initdivs+1}())
 end
 
@@ -93,11 +94,9 @@ allocation.
 iterated_integration(f, a, b; kwargs...) =
     iterated_integration(f, CubicLimits(a, b); kwargs...)
 iterated_integration(f, l::AbstractLimits{d,T}; kwargs...) where {d,T} =
-    iterated_integration(ThunkIntegrand{d,T}(f), l; kwargs...)
-function iterated_integration(f::AbstractIteratedIntegrand{d}, l::AbstractLimits{d}; kwargs...) where d
-    int, err = iterated_integration_(Val{d}, f, l, iterated_integration_kwargs(f, l; kwargs...)...)
-    iterated_integrand(f, int, Val{0}), err
-end
+    iterated_integration(ThunkIntegrand{d}(f), l; kwargs...)
+iterated_integration(f::AbstractIteratedIntegrand{d}, l::AbstractLimits{d}; kwargs...) where d =
+    iterated_integration_(Val{d}, f, l, iterated_integration_kwargs(f, l; kwargs...)...)
 function iterated_integration_kwargs(f, l::AbstractLimits{d}; order=7, atol=nothing, rtol=nothing, norm=norm, maxevals=10^7, initdivs=ntuple(i -> Val(1), Val{d}()), segbufs=nothing) where d
     segbufs_ = segbufs === nothing ? alloc_segbufs(f, l) : segbufs
     atol_ = something(atol, zero(coefficient_type(l)))

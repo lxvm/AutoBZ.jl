@@ -12,34 +12,19 @@ function nsyms end
 function coefficient_type end
 function limits end
 
-# TODO: incorporate rotations to Cartesian basis due to lattice vectors 
 """
-    symmetrize(::AbstractBZ, x)
-    symmetrize(::AbstractBZ, xs...)
+    symmetrize(f, ::AbstractBZ, xs...)
+    symmetrize(f, ::AbstractBZ, x::Number)
 
 Tranform `x` by the symmetries of the parametrization used to reduce the
 domain, thus mapping the value of `x` on the parametrization to the full domain.
-When the integrand is a scalar, this is equal to `nsyms(l)*x`.
-When the integrand is a vector, this is `sum(S*x for S in symmetries(l))`.
-When the integrand is a matrix, this is `sum(S*x*S' for S in symmetries(l))`.
+
 """
-symmetrize(l::AbstractBZ, xs...) = map(x -> symmetrize(l, x), xs)
-symmetrize(l::AbstractBZ, x) = symmetrize_(x, nsyms(l), symmetries(l))
-symmetrize_(x::Number, nsym, syms) = nsym*x
-symmetrize_(x::AbstractArray{<:Any,0}, nsym, syms) = symmetrize_(only(x), nsym, syms)
-function symmetrize_(x::AbstractVector, nsym, syms)
-    r = zero(x)
-    for S in syms
-        r += S * x
-    end
-    r
-end
-function symmetrize_(x::AbstractMatrix, nsym, syms)
-    r = zero(x)
-    for S in syms
-        r += S * x * S'
-    end
-    r
+symmetrize(f, l::AbstractBZ, xs...) = map(x -> symmetrize(f, l, x), xs)
+symmetrize(_, l::AbstractBZ, x::Number) = nsyms(l)*x
+function symmetrize(_, ::AbstractBZ, x)
+    @warn "Specialized BZ detected and returning integral computed from limits. Define a method for symmetrize() for your integrand type that maps to the full BZ value"
+    x
 end
 
 """
@@ -95,6 +80,9 @@ nsyms(::FullBZ) = 1
 symmetries(::FullBZ) = tuple(I)
 limits(bz::FullBZ) = bz.lims
 Base.convert(::Type{<:FullBZ}, fbz::FullBZ) = fbz
+symmetrize(_, ::FullBZ, x) = x
+symmetrize(_, ::FullBZ, x::Number) = x
+
 
 """
     IrreducibleBZ(A, B, lims, syms)
@@ -128,7 +116,7 @@ Base.convert(::Type{<:FullBZ{basis}}, ibz::IrreducibleBZ) where basis = FullBZ{b
 function iterated_integration(f, bz::AbstractBZ; atol=nothing, kwargs...)
     atol = something(atol, zero(coefficient_type(bz)))/nsyms(bz) # rescaling by symmetries
     int, err = iterated_integration(f, limits(bz); atol=atol, kwargs...)
-    symmetrize(bz, int, err)
+    symmetrize(f, bz, int, err)
 end
 function iterated_integration_kwargs(f, bz::AbstractBZ; atol=nothing, kwargs...)
     atol = something(atol, zero(coefficient_type(bz)))/nsyms(bz) # rescaling by symmetries
