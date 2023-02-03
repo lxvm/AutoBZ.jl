@@ -24,8 +24,8 @@ rtol = 0.0
 tols = (atol=atol, rtol=rtol)
 
 # fully adaptive integration
-σ = KineticIntegrand(HV, 0, Σ, β, Ω; quad=Jobs.AutoBZ.quadgk, quad_kw=(atol=atol/48, rtol=rtol)) # here quad_kw passes info to the inner integrator
-@time int, err = Jobs.iterated_integration(σ, FBZ; tols...)
+σ = KineticCoefficientIntegrand(HV, 0, Σ, β, Ω; quad=Jobs.AutoBZ.quadgk, quad_kw=(atol=atol/Jobs.nsyms(IBZ), rtol=rtol)) # here quad_kw passes info to the inner integrator
+@time int, err = Jobs.iterated_integration(σ, IBZ; tols...)
 
 # adaptive in frequency, automatic equispace in BZ
 # σ = KineticIntegrator(IBZ, HV, 0, Σ, β; tols..., quad_kw=tols) # adaptive default

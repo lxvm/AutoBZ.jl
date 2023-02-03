@@ -104,10 +104,20 @@ function iterated_integration_kwargs(f, l::AbstractLimits{d}; order=7, atol=noth
     (order=order, atol=atol_, rtol=rtol_, maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs_)
 end
 
-function iterated_integration_(::Type{Val{1}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs)
+function iterated_integration_(::Type{Val{1}}, f::F, l::L, order, atol, rtol, maxevals, norm::N, initdivs, segbufs) where {F,L,N}
+    # see notes on plain quadgk below
+    # quadgk(f, iterated_segs(f, l, initdivs[1])...; order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, segbuf=segbufs[1])
     do_quadgk(f, iterated_segs(f, l, initdivs[1]), order, atol, rtol, maxevals, norm, segbufs[1])
 end
-function iterated_integration_(::Type{Val{d}}, f, l, order, atol, rtol, maxevals, norm, initdivs, segbufs) where d
+function iterated_integration_(::Type{Val{d}}, f::F, l::L, order, atol, rtol, maxevals, norm::N, initdivs, segbufs) where {d,F,L,N}
+    # using plain quadgk (below) doesn't work so well because of the anonymous
+    # function in the handle_infinities routine. The inference problem can be
+    # fixed but it makes precompilation incredibly tedious. see the `alloc`
+    # branch of lxvm/QuadGK.jl for the fix. Perhaps the fix could also be done
+    # by writing handle_infinities here instead of modifying QuadGK.jl
+    
+    # quadgk(f_, iterated_segs(f, l, initdivs[d])...; order=order, atol=atol, rtol=rtol, maxevals=maxevals, norm=norm, segbuf=segbufs[d])
+    
     # avoid runtime dispatch when capturing variables
     # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
     f_ = let f=f, l=l, order=order, (atol, rtol)=iterated_tol_update(f, l, atol, rtol, d), maxevals=maxevals, norm=norm, initdivs=initdivs, segbufs=segbufs

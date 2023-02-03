@@ -391,7 +391,7 @@ A type union of integrands whose return value is a matrix with coordinate indice
 const CoordinateMatrixIntegrand = Union{TransportDistributionIntegrand,TransportFunctionIntegrand,KineticCoefficientIntegrand}
 
 # TODO: incorporate rotations to Cartesian basis due to lattice vectors
-function AutoBZ.symmetrize(::CoordinateMatrixIntegrand, l::AbstractBZ, x::AbstractMatrix)
+function AutoBZ.symmetrize(::CoordinateMatrixIntegrand, l::IrreducibleBZ, x::AbstractMatrix)
     r = zero(x)
     for S in symmetries(l)
         r += S * x * S'

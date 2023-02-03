@@ -27,16 +27,16 @@ rtol = 0.0
 
 @show atol rtol
 
-int_fbz, err_fbz = AutoBZ.iterated_integration(D, FBZ; atol=atol, rtol=rtol)
-inte_fbz, erre_fbz, pre_fbz = AutoBZ.automatic_equispace_integration(D, FBZ; atol=atol, rtol=rtol)
+# int_fbz, err_fbz = AutoBZ.iterated_integration(D, FBZ; atol=atol, rtol=rtol)
+# inte_fbz, erre_fbz, pre_fbz = AutoBZ.automatic_equispace_integration(D, FBZ; atol=atol, rtol=rtol)
 
-@time int_ibz, err_ibz = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
-inte_ibz, erre_ibz, pre_ibz = AutoBZ.automatic_equispace_integration(D, IBZ; atol=atol, rtol=rtol)
+int_ibz, err_ibz = AutoBZ.iterated_integration(D, IBZ; atol=atol, rtol=rtol)
+# inte_ibz, erre_ibz, pre_ibz = AutoBZ.automatic_equispace_integration(D, IBZ; atol=atol, rtol=rtol)
 
-@show int_fbz int_ibz inte_fbz inte_ibz
+# @show int_fbz int_ibz inte_fbz inte_ibz
 
 SD = SafeDOSIntegrand(H, Σ, ω)
-
+#=
 safe_int_fbz, safe_err_fbz = AutoBZ.iterated_integration(SD, FBZ; atol=atol, rtol=rtol)
 safe_inte_fbz, safe_erre_fbz, safe_pre_fbz = AutoBZ.automatic_equispace_integration(SD, FBZ; atol=atol, rtol=rtol)
 
@@ -44,5 +44,5 @@ safe_int_ibz, safe_err_ibz = AutoBZ.iterated_integration(SD, IBZ; atol=atol, rto
 safe_inte_ibz, safe_erre_ibz, safe_pre_ibz = AutoBZ.automatic_equispace_integration(SD, IBZ; atol=atol, rtol=rtol)
 
 @show safe_int_fbz safe_int_ibz safe_inte_fbz safe_inte_ibz
-
+=#
 nothing
