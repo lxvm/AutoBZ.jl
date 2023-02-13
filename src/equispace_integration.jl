@@ -1,187 +1,96 @@
-"""
-    equispace_npt_update(f, npt, [increment=20])
-
-Returns `npt + increment` to try and get another digit of accuracy from PTR.
-This fallback option is a heuristic, since the scaling of the error is generally
-problem-dependent, so it is appropriate to specialize this method based on the
-integrand type 
-"""
-equispace_npt_update(f, npt::Integer, increment::Integer=20) = npt + increment
-
-"""
-    equispace_dvol(bz::AbstractBZ, npt::Integer)
-
-Return the symmetry-reduced volume of an equispace discretization point.
-"""
-equispace_dvol(bz::AbstractBZ, npt::Integer) = vol(bz)/nsyms(bz)/npt^ndims(bz)
-
-"""
-    equispace_rule(f, bz, npt)
-
-Precomputes the grid points and weights to use for equispace quadrature of `f`
-on the domain `bz` while applying the relevant symmetries to `l` to reduce the
-number of evaluation points. Should return a vector of tuples with the
-integration weight in the first position and the precomputation in the second.
-This output is passed to the argument `pre` of `equispace_evalrule`.
-"""
-function equispace_rule(f, bz::AbstractBZ, npt)
-    pre = Vector{Tuple{SVector{ndims(bz),coefficient_type(bz)},coefficient_type(bz)}}(undef, 0)
-    equispace_rule!(pre, f, bz, npt)
-end
-
-"""
-    equispace_rule!(pre::Vector, f, bz::AbstractBZ, npt)
-
-In-place version of [`AutoBZ.equispace_rule`](@ref). This function may still
-allocate if it needs to resize `pre`
-"""
-equispace_rule!(pre, f, bz::AbstractBZ, npt) = equispace_rule!(pre, bz, npt)
-function equispace_rule!(pre, fbz::FullBZ, npt)
-    resize!(pre, npt^ndims(fbz))
-    dvol = equispace_dvol(bz, npt)
-    for (n, (x, w)) in equispace_rule(fbz, npt)
-        pre[n] = (x, dvol*w)
-    end
-    pre
-end
-function equispace_rule!(pre, bz::AbstractBZ, npt)
-    flag, wsym, nsym = equispace_rule(bz, npt)
-    T = SVector{ndims(bz),coefficient_type(bz)}
-    resize!(pre, nsym)
-    box = boundingbox(bz)
-    dvol = equispace_dvol(bz, npt)
-    n = 0
-    for i in CartesianIndices(flag)
-        flag[i] || continue
-        n += 1
-        pre[n] = (StaticArrays.sacollect(T, (p[2]-p[1])*(j-1)/npt + p[1] for (j, p) in zip(Tuple(i), box)), dvol*wsym[n])
-        n >= nsym && break
-    end
-    pre
-end
-
-"""
-    equispace_rule(fbz::FullBZ, npt)
-
-Returns a generator of the coordinates in a uniform grid and the corresponding
-unit integration weights.
-"""
-equispace_rule(fbz::FullBZ, npt) =
-    ((SVector{ndims(fbz),coefficient_type(fbz)}(x...), true) for x in Iterators.product([range(l, step=(u-l)/npt, length=npt) for (l,u) in boundingbox(fbz)]...))
+# TODO: allow an arbitrary shift of the grid
 
 
 """
-    equispace_rule(bz::AbstractBZ, npt)
+    equispace_rule(f, a, b, npt)
 
-Returns `flag`, `wsym`, and `nsym` containing a mask for the nodes of an
-`npt` symmetrized PTR quadrature rule, and the corresponding integer weights
-(see Algorithm 3. in [Kaye et al.](http://arxiv.org/abs/2211.12959)).
+Returns an iterator over the grid points for dimension `n` equispace grid on the
+hypercube with extremal vertices `a` and `b`. The points along dimension `n` are
+`range(a[n], b[n], length=npt+1)[1:npt]`.
 """
-@generated function equispace_rule(bz::T, npt) where {d,T<:AbstractBZ{d}}
-    quote
-    xsym = Matrix{Float64}(undef, $d, nsyms(bz))
-    syms = symmetries(bz)
-    nsbz = nsyms(bz)
-    x = range(-1.0, step=2inv(npt), length=npt)
-    flag = ones(Bool, Base.Cartesian.@ntuple $d _ -> npt)
-    nsym = 0
-    wsym = Vector{Int}(undef, npt^$d)
-    Base.Cartesian.@nloops $d i _ -> Base.OneTo(npt) begin
-        (Base.Cartesian.@nref $d flag i) || continue
-        for (j, S) in enumerate(syms)
-            xsym[:, j] = S * (Base.Cartesian.@ncall $d SVector{$d,Float64} k -> x[i_k])
-        end
-        nsym += 1
-        wsym[nsym] = 1
-        for j in 2:nsbz
-            Base.Cartesian.@nexprs $d k -> begin
-                ii_k = 0.5npt * (xsym[k, j] + 1.0) + 1.0
-                iii_k = round(Int, ii_k)
-                (iii_k - ii_k) > 1e-12 && throw("Inexact index")
-            end
-            (Base.Cartesian.@nany $d k -> (iii_k > npt)) && continue
-            (Base.Cartesian.@nall $d k -> (iii_k == i_k)) && continue
-            if (Base.Cartesian.@nref $d flag iii)
-                (Base.Cartesian.@nref $d flag iii) = false
-                wsym[nsym] += 1
-            end
-        end
-    end
-    return flag, wsym, nsym
-    end
-end
-
+equispace_rule(_, a::SVector{N}, b::SVector{N}, npt) where N =
+    Iterators.product(ntuple(n -> range(a[n], b[n], length=npt+1)[1:npt], Val(N))...)
 
 """
-    equispace_evalrule(f, rule)
+    equispace_evalrule(f, a, b, npt)
 
-Sums the values of `f` on the precomputed grid points with corresponding
-quadrature weights to obtain the integral on the precomputed domain represented
-by `rule`, obtained from `equispace_rule`. Evaluation of `f` is done by the
-function `equispace_integrand` in order to create a function boundary between
-the quadrature and the integrand evaluation.
+Sums the values of `f` on an equispace grid of `npt` points per dimension on the
+hypercube with extremal vertices `a` and `b`.
 
-!!! note "This routine computes the IBZ integral" For getting the full integral
-    from this result, use [`AutoBZ.symmetrize`](@ref)
+!!! note "For developers"
+
+Evaluation of `f` is done by the function [`equispace_integrand`](@ref) in order
+to create a function boundary between the quadrature and the integrand
+evaluation.
 """
-equispace_evalrule(f, rule) = sum(x -> x[2]*equispace_integrand(f, x[1]), rule)
-
+equispace_evalrule(f, a::SVector{N}, b::SVector{N}, npt::Integer) where N =
+    sum(x -> equispace_integrand(f, x), equispace_rule(f, a, b, npt)) * prod(b-a) / npt^N
 
 """
-    equispace_integrand(f, x)
+    equispace_integrand(f, x) = f(x)
 
-By default, this calls `f(x)`, however the caller may dispatch on the type of
-`f` if they would like to specialize this function together with
-`equispace_rule` so that `x` is a more useful precomputation (e.g. a Fourier
-series evaluated at a grid point).
+!!! note "For developers"
+    The caller may dispatch on the type of `f` if they would like to specialize
+    this function together with [`equispace_rule`](@ref) so that `x` is
+    a more useful precomputation (e.g. a Fourier series evaluated at `x`).
 """
 equispace_integrand(f, x) = f(x)
 
 """
-    equispace_integration(f, bz, npt; pre=equispace_rule(f, l, npt))
+    equispace_integration(f, a, b; npt=equispace_npt_update(f, 0), rule=equispace_rule(f, l, npt))
 
-Evaluate the integral of `f` over the `bz` using an equispace grid of `npt`
-points per dimension, optionally using precomputation `pre`
+Evaluates the integral of a periodic function `f` over the limits `l` using an
+equispace integration rule of `npt` points per dimension When the keyword `npt`
+is provided, `rule`, in which case `npt` is ignored.
+
+The limits of integration `l` can be any tuple or vector whose entries are
+floating-point numbers and give the period of `f` for each variable. The
+integration points will be of the same type as `l`, and see
+[`equispace_integrand`](@ref) 
+
+Returns `(int, buf)` where `int` is the result and 
 """
-function equispace_integration(f, bz::AbstractBZ; kwargs...)
-    buf = equispace_integration_kwargs(f, bz; kwargs...)
-    int = equispace_evalrule(f, buf.rule)
-    symmetrize(f, bz, int), buf
+function equispace_integration(f, a::AbstractVector{T}, b::AbstractVector{S}; kwargs...) where {T,S}
+    length(a) == length(b) || throw(DimensionMismatch("endpoints $a and $b must have the same length"))
+    F = float(promote_type(T, S))
+    a_ = SVector{length(a),F}(a)
+    b_ = SVector{length(a),F}(b)
+    buf = equispace_integration_kwargs(f, a_, b_; kwargs...)
+    int = equispace_evalrule(f, a_, b_, buf.npt)
+    int, buf
 end
-equispace_integration_kwargs(f, bz; npt=equispace_npt_update(f,0), rule=equispace_rule(f, bz, npt)) =
-    (npt=npt, rule=rule)
+equispace_integration_kwargs(f, _, _; npt=equispace_npt_update(f,0)) =
+    (npt=npt,)
 
 """
-    automatic_equispace_integration(f, bz::AbstractBZ; atol=0.0, rtol=sqrt(eps()), maxevals=typemax(Int64))
+    automatic_equispace_integration(f, l; atol=0.0, rtol=sqrt(eps()), maxevals=typemax(Int64))
 
-Automatically evaluates the integral of `f` over the `bz` to within the
+Automatically evaluates the integral of `f` over the `l` to within the
 requested error tolerances `atol` and `rtol`. Allows optional precomputed data
 at two levels of grid refinement `npt1`, `rule1` and `npt2`, `rule2` when passed
 as keywords.
 """
-function automatic_equispace_integration(f, bz::AbstractBZ; kwargs...)
-    kw = automatic_equispace_integration_kwargs(f, bz; kwargs...)
-    atol = kw.atol /nsyms(bz) # need to rescale atol by symmetry factor for IBZ integration
-    int, err, rule_buf = automatic_equispace_integration_(f, bz, kw.npt1, kw.rule1, kw.npt2, kw.rule2, atol, kw.rtol, kw.maxevals)
-    symmetrize(f, bz, int, err)..., rule_buf
+function automatic_equispace_integration(f, l_; kwargs...)
+    l = float(l_)
+    automatic_equispace_integration_(f, l, automatic_equispace_integration_kwargs(f, l; kwargs...)...)
 end
-function automatic_equispace_integration_kwargs(f, bz;
+function automatic_equispace_integration_kwargs(f, l;
     atol=nothing, rtol=nothing, maxevals=typemax(Int64),
     npt1=equispace_npt_update(f, 0),
-    rule1=equispace_rule(f, bz, npt1),
+    rule1=equispace_rule(f, l, npt1),
     npt2=equispace_npt_update(f, npt1),
-    rule2=equispace_rule(f, bz, npt2),
+    rule2=equispace_rule(f, l, npt2),
 )
-    T = coefficient_type(bz)
+    T = eltype(l)
     atol_ = something(atol, zero(T))
     rtol_ = something(rtol, iszero(atol_) ? sqrt(eps(T)) : zero(T))
     (npt1=npt1, rule1=rule1, npt2=npt2, rule2=rule2, atol=atol_, rtol=rtol_, maxevals=maxevals)
 end
 
-function automatic_equispace_integration_(f, bz, npt1, rule1, npt2, rule2, atol, rtol, maxevals)
-    int1 = equispace_evalrule(f, rule1)
-    int2 = equispace_evalrule(f, rule2)
-    numevals = length(rule1) + length(rule2)
+function automatic_equispace_integration_(f, a, b, npt1, npt2, atol, rtol, maxevals)
+    int1 = equispace_evalrule(f, a, b, npt1)
+    int2 = equispace_evalrule(f, a, b, npt2)
+    numevals = npt1^length(a) + npt2^length(a)
     int2norm = norm(int2)
     err = norm(int1 - int2)
     while true
@@ -189,24 +98,22 @@ function automatic_equispace_integration_(f, bz, npt1, rule1, npt2, rule2, atol,
         # update coarse result with finer result
         int1 = int2
         npt1 = npt2
-        resize!(rule1, length(rule2))
-        copyto!(rule1, rule2)
         # evaluate integral on finer grid
         npt2 = equispace_npt_update(f, npt1)
-        rule2 = equispace_rule!(rule2, f, bz, npt2)
-        int2 = equispace_evalrule(f, rule2)
-        numevals += length(rule2)
+        int2 = equispace_evalrule(f, a, b, npt2)
+        numevals += npt2^length(a)
         # self-convergence error estimate
         int2norm = norm(int2)
         err = norm(int1 - int2)
     end
-    return int2, err, (npt1=npt1, rule1=rule1, npt2=npt2, rule2=rule2)
+    return int2, err, (npt1=npt1, npt2=npt2, numevals=numevals)
 end
 
 """
     equispace_index(npt, i::Int...)
 
-Return the linear index from the Cartesian index
+Return the linear index from the Cartesian index assuming a grid with `npt`
+points per axis.
 """
 equispace_index(npt, i::Int...) = equispace_index(npt, i) + 1
 equispace_index(npt, i::NTuple{N,Int}) where N = i[1] - 1 + npt*equispace_index(npt, i[2:N])

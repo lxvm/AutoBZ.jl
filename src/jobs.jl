@@ -1,41 +1,3 @@
-"""
-    AutoBZ.Jobs
-
-A module that implements applications of AutoBZ
-"""
-module Jobs
-
-using LinearAlgebra
-using Printf
-
-using HDF5
-using StaticArrays
-using Polyhedra: polyhedron, vrep, Line, Ray
-using Polyhedra: Polyhedron, VRepresentation, vrep, points, fulldim, hasallrays
-
-import Polyhedra
-
-using ..AutoBZ
-
-export read_h5_to_nt, write_nt_to_h5
-export adaptive_fourier_integration, automatic_equispace_fourier_integration, equispace_fourier_integration, auto_fourier_integration
-export run_dos_adaptive, run_dos_auto_equispace, run_dos_equispace, run_dos
-export run_kinetic_adaptive, run_kinetic_auto_equispace, run_kinetic_equispace, run_kinetic
-
-include("AdaptChebInterp.jl")
-include("EquiBaryInterp.jl")
-
-using .EquiBaryInterp: LocalEquiBaryInterp
-
-include("linalg.jl")
-include("fourier3d.jl")
-include("band_velocities.jl")
-include("self_energies.jl")
-include("self_energies_io.jl")
-include("wannier90io.jl")
-include("fermi.jl")
-include("apps.jl")
-
 #=
 Section: loading data from HDF5
 - NamedTuples
@@ -611,9 +573,9 @@ function run_kinetic(HV, Σ::AbstractSelfEnergy, β, n, Ωs, BZ::AbstractLimits{
 end
 
 # enables kpt parallelization by default for all BZ integrals
-function AutoBZ.equispace_evalrule(f::FourierIntegrand, rule, min_per_thread=1, nthreads=Threads.nthreads())
+function AutoSymPTR.evalptr(f::FourierIntegrand, rule, min_per_thread=1, nthreads=Threads.nthreads())
     n = length(rule)
-    acc = rule[n][2]*equispace_integrand(f, rule[n][1]) # unroll first term in sum to get right types
+    acc = rule[n][2]*ptr_integrand(f, rule[n][1]) # unroll first term in sum to get right types
     n == 1 && return acc
     runthreads = min(nthreads, div(n-1, min_per_thread)) # choose the actual number of threads
     d, r = divrem(n-1, runthreads)
@@ -624,7 +586,7 @@ function AutoBZ.equispace_evalrule(f::FourierIntegrand, rule, min_per_thread=1, 
         offset = min(i-1, r)*(d+1) + max(i-1-r, 0)*d
         # partial_sums[i] = sum(x -> x[2]*evaluate_integrand(f, x[1]), view(pre, (offset+1):(offset+jmax)); init=zero(acc))
         @inbounds for j in 1:jmax
-            partial_sums[i] += rule[offset + j][2]*equispace_integrand(f, rule[offset + j][1])
+            partial_sums[i] += rule[offset + j][2]*ptr_integrand(f, rule[offset + j][1])
         end
     end
     # dsum(partial_sums; init=acc)
@@ -634,9 +596,3 @@ function AutoBZ.equispace_evalrule(f::FourierIntegrand, rule, min_per_thread=1, 
     acc
 end
 
-# function AutoBZ.equispace_int_eval(f::IteratedFourierIntegrand, pre, dvol, min_per_thread=1, nthreads=Threads.nthreads())
-#     error("not implemented")
-# end
-
-
-end # module

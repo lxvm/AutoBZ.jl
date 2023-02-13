@@ -54,10 +54,10 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_hamiltonian(filename; period=1.0, compact=:N)
+function load_hamiltonian(filename; gauge=:Wannier, period=1.0, compact=:N)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
     C = load_coefficients(Val{compact}(), num_wann, irvec, C_)[1]
-    FourierSeries3D(C, to_3period(period))
+    Hamiltonian3D(C; period=to_3period(period), gauge=gauge)
 end
 
 to_3period(x::Real) = to_3period(convert(Float64, x))
@@ -169,33 +169,31 @@ function load_position_operator(filename; period=1.0, compact=:N)
 end
 
 """
-    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N, kind=:full)
+    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
 
 Load the Hamiltonian and band velocities, which may later be passed to one of
 the integrand constructors. When called with one filename, that file is parsed
-as a Wannier 90 Hamiltonian and the resulting Band velocities are just the
-gradient of the Hamiltonian. The return type is `BandEnergyVelocity3D`. When
+as a Wannier 90 Hamiltonian and the resulting band velocities are just the
+gradient of the Hamiltonian. The return type is [`HamiltonianVelocity3D`](@ref). When
 called with two filenames, the second is parsed as a position operator from
 Wannier 90 and adds a contribution to band velocities from the Berry connection.
-The return type is `BandEnergyBerryVelocity3D`.The keywords `period` and
+The return type is [`CovariantHamiltonianVelocity3D`](@ref).The keywords `period` and
 `compact` set the reciprocal unit cell length and whether the coefficients of
 the Fourier series should be compressed as Hermitian matrices. Typically the
 coefficients cannot be compressed despite the values of the series being
-Hermitian. The keyword `kind` can take values `:full`, `:inter`, and `:intra`,
-referring to whether the Hamiltonian and band velocities are kept in the Wannier
-gauge, or rotated to the Hamiltonian gauge to take just the inter/intra-band
-part (i.e. the off-diagonal/diagonal part of the band velocities, respectively).
-
-Warning: a `kind` of `:inter` or `:intra` is incompatible with a non-scalar Σ
+Hermitian. The keyword `gauge` can take values of `:Wannier` and `:Hamiltonian`
+and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
+[`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
+details.
 """
-function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, kind=:orbital)
+function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
     H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
-    BandEnergyVelocity3D(H, kind)
+    HamiltonianVelocity3D(H; vcomp=vcomp)
 end
-function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, kind=:orbital)
-    H = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
+function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
+    H = load_hamiltonian(f_hamiltonian; gauge=gauge, period=period, compact=compact)
     Ax, Ay, Az = load_position_operator(f_pos_op; period=period, compact=compact)
-    BandEnergyBerryVelocity3D(H, Ax, Ay, Az, kind)
+    CovariantHamiltonianVelocity3D(H, Ax, Ay, Az; vcomp=vcomp)
 end
 
 """
@@ -281,20 +279,20 @@ parse_sym(filename) = open(filename) do file
         translate[i] = S[:,4]
         readline(file)
     end
-    return nsymmetry, syms
+    return nsymmetry, point_sym, translate
 end
 
 """
-    load_wannier90_data(seedname; velocity_kind=:none, read_pos_op=true, compact=:N)
+    load_wannier90_data(seedname; gauge=:Wannier, vcomp=:none, read_pos_op=true, compact=:N)
 
 Reads Wannier90 output files with the given `seedname` to return the Hamiltonian
-(optionally with band velocities if `velocity_kind` is specified (see
-[`AutoBZ.band_velocities`](@ref)), and orbital velocities if `read_pos_op` is
+(optionally with band velocities if `vcomp` is specified (see
+[`AutoBZ.band_velocities`](@ref)), and gauge-covariant velocities if `read_pos_op` is
 true) and the full Brillouin zone limits. The keyword `compact` is available if
 to compress the Fourier series if its Fourier coefficients are known to be
 Hermitian.
 """
-function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, velocity_kind=:none, compact=:N, atol=1e-5)
+function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true, gauge=:Wannier, vcomp=:none, compact=:N, atol=1e-5)
     A, B, = try
         parse_wout(seedname * ".wout")
     catch
@@ -303,16 +301,16 @@ function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true,
     end
 
     periods = ntuple(i -> norm(B[:,i]), Val{3}())
-    HV = if velocity_kind == :none
-        load_hamiltonian(seedname * "_hr.dat"; period=periods, compact=compact)
+    HV = if vcomp == :none
+        load_hamiltonian(seedname * "_hr.dat"; period=periods, compact=compact, gauge=gauge)
     else
         try
             read_pos_op || error()
-            @info "Using orbital velocities"
-            load_hamiltonian_velocities(seedname * "_hr.dat", seedname * "_r.dat"; period=periods, compact=compact, kind=velocity_kind)
+            @info "Using gauge-covariant velocities"
+            load_hamiltonian_velocities(seedname * "_hr.dat", seedname * "_r.dat"; period=periods, compact=compact, gauge=gauge, vcomp=vcomp)
         catch
-            @info "Using band velocities"
-            load_hamiltonian_velocities(seedname * "_hr.dat"; period=periods, compact=compact, kind=velocity_kind)
+            @warn "Using non gauge-covariant velocities"
+            load_hamiltonian_velocities(seedname * "_hr.dat"; period=periods, compact=compact, gauge=gauge, vcomp=vcomp)
         end
     end
 

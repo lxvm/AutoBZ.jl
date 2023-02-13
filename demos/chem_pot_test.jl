@@ -16,19 +16,30 @@ IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
 β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 Σ = EtaSelfEnergy(η)
 
+Σ = load_self_energy("svo_self_energy_scalar.txt")
+T = 50 # K
+β = 1/(8.617333262e-5*T) # eV
+
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
 tols = (atol=atol, rtol=rtol)
-flims = Jobs.CubicLimits(μ-20.0, μ+20.0) # TODO: figure out how to safely truncate frequency integral limits
+quad_kw = (atol=atol/Jobs.nsyms(IBZ), rtol=rtol) # error tolerance for innermost frequency integral
+# k-points/dim for equispace integration
+npt = 100
 
-# fully adaptive integration
-n = ElectronCountIntegrand(H, Σ, β, μ; lims=flims, quad_kw=tols) # here quad_kw passes info to the inner integrator
+# fully adaptive integration with innermost frequency integral
+n = ElectronDensityIntegrand(H, Σ, β, μ; quad_kw=tols) # here quad_kw passes info to the inner integrator
 @time int, err = Jobs.iterated_integration(n, IBZ; tols...)
 
-# adaptive in frequency, automatic equispace in BZ
-# n = ElectronCountIntegrator(IBZ, H, Σ, β; tols..., lims=lims, quad_kw=tols) # adaptive default
-n = ElectronCountIntegrator(IBZ, H, Σ, β; npt=100, routine=Jobs.equispace_integration, lims=flims, quad_kw=tols)
-# n = ElectronCountIntegrator(IBZ, H, Σ, β; routine=Jobs.automatic_equispace_integration, lims=flims, tols..., quad_kw=tols)
+# vary routines for the BZ integral
+for (routine, kwargs) in (
+    (Jobs.iterated_integration, tols),
+    (Jobs.equispace_integration, (npt=npt,)),
+    (Jobs.automatic_equispace_integration, tols)
+)
+    n_ = ElectronDensityIntegrator(IBZ, H, Σ, β; routine=routine, kwargs..., quad_kw=quad_kw)
+    @show @time Jobs.norm(int - first(n_(μ)))
+end
 
 @time n(μ)

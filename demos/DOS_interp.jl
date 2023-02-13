@@ -27,13 +27,13 @@ atol = 1e-3
 rtol = 0.0
 
 # set interpolation parameters
-interp_atol=1e-1
+interp_atol=1e-3
 order = 4
 fast_order = 15
 
-# D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol) # adaptive default
-# D = DOSIntegrator(IBZ, H, Σ; routine=Jobs.AutoBZ.equispace_integration)
-D = DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol, routine=Jobs.AutoBZ.automatic_equispace_integration)
+# D = first ∘ DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol) # adaptive default
+# D = first ∘ DOSIntegrator(IBZ, H, Σ; routine=Jobs.AutoBZ.equispace_integration)
+D = first ∘ DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol, routine=Jobs.AutoBZ.automatic_equispace_integration)
 
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()

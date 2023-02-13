@@ -83,7 +83,7 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     @eval const $E = FourierIntegrator{typeof($f)}
 
     # Define default equispace grid stepping based 
-    @eval function AutoBZ.equispace_npt_update(f::$T, npt::Integer)
+    @eval function AutoSymPTR.npt_update(f::$T, npt::Integer)
         η = im_sigma_to_eta(-imag(f.p[1]))
         eta_npt_update(npt, η, period(f.s)[1])
     end
@@ -149,7 +149,7 @@ ExperimentalDOSIntegrator(lims::AbstractLimits{d}, args...; kwargs...) where d =
 
 export TransportFunctionIntegrand, TransportFunctionIntegrator
 
-transport_function_integrand(HV::AbstractBandVelocity3D, β) =
+transport_function_integrand(HV::AbstractHamiltonianVelocity, β) =
     FourierIntegrand{3}(transport_function_integrand, HV, β)
 transport_function_integrand(HV, β) =
     transport_function_integrand(HV[1], HV[2], HV[3], HV[4], β)
@@ -173,7 +173,7 @@ Computes the following integral
 """
 const TransportFunctionIntegrand =
     FourierIntegrand{typeof(transport_function_integrand)}
-TransportFunctionIntegrand(args...; kwargs...) =
+TransportFunctionIntegrand(; kwargs...) =
     transport_function_integrand(args...; kwargs...)
 
 
@@ -190,7 +190,7 @@ transport_distribution_integrand(HV, Σ::AbstractSelfEnergy, ω₁, ω₂) =
     transport_distribution_integrand(HV, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
 transport_distribution_integrand(HV, Σ::AbstractMatrix, ω₁, ω₂) =
     transport_distribution_integrand(HV, ω₁*I-Σ, ω₂*I-Σ)
-transport_distribution_integrand(HV::AbstractBandVelocity3D, Mω₁, Mω₂) =
+transport_distribution_integrand(HV::AbstractHamiltonianVelocity, Mω₁, Mω₂) =
     FourierIntegrand{3}(transport_distribution_integrand, HV, Mω₁, Mω₂)
 transport_distribution_integrand(HV::Tuple, Mω₁, Mω₂=Mω₁) =
     transport_distribution_integrand(HV[1], HV[2], HV[3], HV[4], Mω₁, Mω₂)
@@ -243,7 +243,7 @@ See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 const TransportDistributionIntegrator =
     FourierIntegrand{typeof(transport_distribution_integrand)}
 
-function AutoBZ.equispace_npt_update(Γ::TransportDistributionIntegrand, npt::Integer)
+function AutoSymPTR.npt_update(Γ::TransportDistributionIntegrand, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
     ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
     eta_npt_update(npt, min(ηω₁, ηω₂), period(Γ.s)[1])
@@ -257,8 +257,8 @@ kinetic_coefficient_integrand(HV, Σ, ω, Ω, β, n) =
 kinetic_coefficient_integrand(Γ, ω, Ω, β, n) =
     (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-function kinetic_coefficient_frequency_integral(HV::AbstractBandVelocity3D, n, Σ, β, Ω; quad=iterated_integration, quad_kw=(;), kwargs...)
-    lims = get_safe_freq_limits(Ω, β, lb(Σ), ub(Σ))
+function kinetic_coefficient_frequency_integral(HV::AbstractHamiltonianVelocity, n, Σ, β, Ω; quad=quadgk, quad_kw=(;), kwargs...)
+    lims = get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
     f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_coefficient_integrand(HV_k, Σ, ω, Ω, β, n)
     end
@@ -267,8 +267,8 @@ function kinetic_coefficient_frequency_integral(HV::AbstractBandVelocity3D, n, �
     quad_kwargs(quad, f, lims; quad_kw...),
     n, Σ, β, Ω; kwargs...)
 end
-kinetic_coefficient_frequency_integral(HV::AbstractBandVelocity3D, quad, args, kwargs, n, Σ, β, Ω) =
-    FourierIntegrand(kinetic_coefficient_frequency_integral, HV, quad, args, kwargs, n, Σ, β, Ω)
+kinetic_coefficient_frequency_integral(HV::AbstractHamiltonianVelocity, quad, args, kwargs, n, Σ, β, Ω) =
+    FourierIntegrand{3}(kinetic_coefficient_frequency_integral, HV, quad, args, kwargs, n, Σ, β, Ω)
 
 function kinetic_coefficient_frequency_integral(HV_k::Tuple, quad, args, kwargs, n, Σ, β, Ω=0)
     # deal with distributional integral case
@@ -299,8 +299,8 @@ KineticCoefficientIntegrand(args...; kwargs...) =
 
 
 # TODO, decide if β can be made a parameter as well
-function kinetic_coefficient_integrator(bz, HV::AbstractBandVelocity3D, n, Σ, β; Ω=1.0, ps=Ω, quad=iterated_integration, quad_kw=(;), kwargs...)
-    lims = get_safe_freq_limits(Ω, β, lb(Σ), ub(Σ))
+function kinetic_coefficient_integrator(bz, HV::AbstractHamiltonianVelocity, n, Σ, β; Ω=1.0, ps=Ω, quad=quadgk, quad_kw=(;), kwargs...)
+    lims = get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
     f = let HV_k=HV(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_coefficient_integrand(HV_k, Σ, ω, Ω, β, n)
     end
@@ -320,34 +320,35 @@ const KineticCoefficientIntegrator =
 KineticCoefficientIntegrator(args...; kwargs...) =
     kinetic_coefficient_integrator(args...; kwargs...)
 
-export ElectronCountIntegrand, ElectronCountIntegrator
+export ElectronDensityIntegrand, ElectronDensityIntegrator
 
-electron_count_integrand(H_k, Σ, ω, β, μ) =
-    fermi(β*ω)*dos_integrand(H_k, Σ, ω+μ)
+electron_density_integrand(H_k, Σ, ω, β, μ) =
+    fermi(β*ω)*dos_integrand(H_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
 
-function electron_count_frequency_integral(H::AbstractFourierSeries{N}, Σ, β, μ; quad=iterated_integration, quad_kw=(;), lims=nothing, kwargs...) where N
-    # TODO: see if there is a way to safely truncate limits
-    f = let H_k=H(zero(SVector{3,Float64})), Σ=Σ, β=β, μ=μ
-        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+function electron_density_frequency_integral(H::AbstractFourierSeries{N}, Σ, β, μ; quad=quadgk, quad_kw=(;), kwargs...) where N
+    # choose limits as wide as self energy allows
+    lims = (lb(Σ), ub(Σ))
+    f = let H_k=H(zero(SVector{N,eltype(lims)})), Σ=Σ, β=β, μ=μ
+        ω -> electron_density_integrand(H_k, Σ, ω, β, μ)
     end
-    FourierIntegrand{N}(electron_count_frequency_integral, H,
+    FourierIntegrand{N}(electron_density_frequency_integral, H,
     quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
     Σ, β, μ; kwargs...)
 end
-electron_count_frequency_integral(H::AbstractFourierSeries{N}, quad, args, kwargs, Σ, β, μ) where N =
-    FourierIntegrand{N}(electron_count_frequency_integral, H, quad, args, kwargs, Σ, β, μ)
+electron_density_frequency_integral(H::AbstractFourierSeries{N}, quad, args, kwargs, Σ, β, μ) where N =
+    FourierIntegrand{N}(electron_density_frequency_integral, H, quad, args, kwargs, Σ, β, μ)
 
-function electron_count_frequency_integral(H_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
+function electron_density_frequency_integral(H_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
     f = let H_k=H_k, Σ=Σ, β=β, μ=μ
-        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+        ω -> electron_density_integrand(H_k, Σ, ω, β, μ)
     end
     first(quad(f, args...; kwargs...))
 end
 
 """
-    ElectronCountIntegrand(HV, Σ, β, μ; quad=iterated_integration)
+    ElectronDensityIntegrand(HV, Σ, β, μ; quad=iterated_integration)
 
-A function whose integral over the BZ gives the electron count.
+A function whose integral over the BZ gives the electron density.
 Mathematically, this computes
 ```math
 n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\omega+\\mu)
@@ -355,31 +356,31 @@ n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
 See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-const ElectronCountIntegrand =
-    FourierIntegrand{typeof(electron_count_frequency_integral)}
-ElectronCountIntegrand(args...; kwargs...) =
-    electron_count_frequency_integral(args...; kwargs...)
+const ElectronDensityIntegrand =
+    FourierIntegrand{typeof(electron_density_frequency_integral)}
+ElectronDensityIntegrand(args...; kwargs...) =
+    electron_density_frequency_integral(args...; kwargs...)
 
-function electron_count_integrator(bz, H::AbstractFourierSeries{N}, Σ, β; μ=0.0, ps=μ, quad=iterated_integration, lims=nothing, quad_kw=(;), kwargs...) where N
-    # TODO: see if there is a way to safely truncate limits
-    f = let H_k=H(zero(SVector{N,Float64})), Σ=Σ, β=β, μ=μ
-        ω -> electron_count_integrand(H_k, Σ, ω, β, μ)
+function electron_density_integrator(bz, H::AbstractFourierSeries{N}, Σ, β; μ=0.0, ps=μ, quad=quadgk, quad_kw=(;), kwargs...) where N
+    lims = (lb(Σ), ub(Σ))
+    f = let H_k=H(zero(SVector{N,coefficient_type(bz)})), Σ=Σ, β=β, μ=μ
+        ω -> electron_density_integrand(H_k, Σ, ω, β, μ)
     end
-    FourierIntegrator(electron_count_frequency_integral, bz, H,
+    FourierIntegrator(electron_density_frequency_integral, bz, H,
     quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
     Σ, β; ps=ps, kwargs...)
 end
 
 """
-    ElectronCountIntegrator(bz, HV, Σ, β)
+    ElectronDensityIntegrator(bz, HV, Σ, β)
 
-Integrates `ElectronCountIntegrand` over `bz` as a function of `μ`.
+Integrates `ElectronDensityIntegrand` over `bz` as a function of `μ`.
 See [`AutoBZ.FourierIntegrator`](@ref) for more details.
 """
-const ElectronCountIntegrator =
-    FourierIntegrator{typeof(electron_count_frequency_integral)}
-ElectronCountIntegrator(args...; kwargs...) =
-    electron_count_integrator(args...; kwargs...)
+const ElectronDensityIntegrator =
+    FourierIntegrator{typeof(electron_density_frequency_integral)}
+ElectronDensityIntegrator(args...; kwargs...) =
+    electron_density_integrator(args...; kwargs...)
 
 # define how to symmetrize matrix-valued integrands with coordinate indices
 
@@ -391,9 +392,9 @@ A type union of integrands whose return value is a matrix with coordinate indice
 const CoordinateMatrixIntegrand = Union{TransportDistributionIntegrand,TransportFunctionIntegrand,KineticCoefficientIntegrand}
 
 # TODO: incorporate rotations to Cartesian basis due to lattice vectors
-function AutoBZ.symmetrize(::CoordinateMatrixIntegrand, l::IrreducibleBZ, x::AbstractMatrix)
+function AutoBZCore.symmetrize(::CoordinateMatrixIntegrand, l::SymmetricBZ, x::AbstractMatrix)
     r = zero(x)
-    for S in symmetries(l)
+    for S in symmetries(bz)
         r += S * x * S'
     end
     r
@@ -401,51 +402,13 @@ end
 
 # replacement for TetrahedralLimits
 
-"""
-    PolyhedralLimits(::Polyhedron)
-
-Integration endpoints from a convex hull.
-"""
-struct PolyhedralLimits{d,T,P} <: AbstractLimits{d,T}
-    p::P
-    PolyhedralLimits{d}(p::P) where {d,P<:Polyhedron} = new{d,Polyhedra.coefficient_type(p),P}(p)
-end
-PolyhedralLimits(p::Polyhedron) = PolyhedralLimits{fulldim(p)}(p)
-
-# TODO: compute vrep at the same time
-AutoBZ.fixandeliminate(l::PolyhedralLimits{d}, x) where d =
-    PolyhedralLimits{d-1}(Polyhedra.fixandeliminate(l.p, d, x))
-
-AutoBZ.endpoints(l::PolyhedralLimits, dim) = endpoints(vrep(l.p), dim)
-function AutoBZ.endpoints(v::VRepresentation, dim::Integer)
-    hasallrays(v) && error("Infinite limits not implemented: found ray in V representation")
-    (d = fulldim(v)) >= dim >= 1 || error("V representation of fulldim $d doesn't have index $dim")
-    extrema(v -> v[dim], points(v))
-end
-
-
 cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZ.canonical_reciprocal_basis(A); kwargs...)
 cubic_sym_ibz(fbz::FullBZ; kwargs...) = cubic_sym_ibz(fbz.A, fbz.B; kwargs...)
-function cubic_sym_ibz(A::M, B::M; kind=:tetra, kwargs...) where {N,T,M<:SMatrix{N,N,T}}
+function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
     nrmb = ntuple(n -> norm(B[:,n])/2, Val{N}())
-    if kind == :tetra
-        lims = TetrahedralLimits(nrmb)
-    else
-        F = float(T); AT = SVector{N,F}
-        vert = unit_tetrahedron_vertices(AT)
-        hull = vrep(map(v -> nrmb .* v, vert), Line{F,AT}[], Ray{F,AT}[])
-        lims = PolyhedralLimits(polyhedron(hull))
-    end
+    lims = TetrahedralLimits(nrmb)
     syms = vec(collect(cube_automorphisms(Val{N}())))
-    IrreducibleBZ(A, B, lims, syms; kwargs...)
-end
-
-function unit_tetrahedron_vertices(::Type{AT}) where {N,T,AT<:SVector{N,T}}
-    vertices = Vector{AT}(undef, N+1)
-    for n in 1:N+1
-        vertices[n] = ntuple(i -> i < n ? T(1) : T(0), Val{N}())
-    end
-    vertices
+    SymmetricBZ(A, B, lims, syms; kwargs...)
 end
 
 """

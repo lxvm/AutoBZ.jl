@@ -1,73 +1,43 @@
 """
     AutoBZ
 
-A package implementing iterated-adaptive integration and equispace integration
-specialized for Brillouin-zone integration of localized and broadened
-integrands, respectively, using the algorithms described by [Kaye et
-al.](http://arxiv.org/abs/2211.12959). For tree-adaptive integration, see
-[HCubature.jl](https://github.com/JuliaMath/HCubature.jl). The package also
-provides utilities for user-defined integrands based on Fourier series.
+An applications package implementing iterated-adaptive integration and equispace
+integration for electronic structure and transport calculations. It excels at
+integrating both localized and also broadened Brillouin-zone integrands, using
+the algorithms described by [Kaye et al.](http://arxiv.org/abs/2211.12959). This
+package also provides multi-threaded routines for parallelized calculations.
+See `AutoBZCore` if you only need the essential functionality of the library.
 """
 module AutoBZ
 
-
 using LinearAlgebra
+using Printf
 
+using HDF5
 using StaticArrays
-using QuadGK: quadgk, do_quadgk, alloc_segbuf
+using QuadGK: quadgk
 
 
-# Below is a comprehensive list of exports and the files in which they are defined
+using AutoSymPTR
+using IteratedIntegration
+using FourierSeriesEvaluators
+using AutoBZCore
 
 
-# component 1: Generic iterated adaptive integration (IAI)
-
-export AbstractLimits, endpoints, fixandeliminate, coefficient_type
-export CubicLimits, TetrahedralLimits, ProductLimits, TranslatedLimits
-include("AbstractLimits.jl")
-
-export AbstractIteratedIntegrand, nvars, iterated_pre_eval, iterated_integrand
-export ThunkIntegrand, AssociativeOpIntegrand#, IteratedIntegrand # in progress
-include("AbstractIteratedIntegrand.jl")
-
-export iterated_integration # the main routine
-export iterated_tol_update, iterated_segs, iterated_inference, iterated_integral_type
-include("iterated_integration.jl")
+export read_h5_to_nt, write_nt_to_h5
+export adaptive_fourier_integration, automatic_equispace_fourier_integration, equispace_fourier_integration, auto_fourier_integration
+export run_dos_adaptive, run_dos_auto_equispace, run_dos_equispace, run_dos
+export run_kinetic_adaptive, run_kinetic_auto_equispace, run_kinetic_equispace, run_kinetic
 
 
-# component 2: Brillouin zones and symmetrized equispace integration / periodic trapezoidal rule (PTR)
-
-export AbstractBZ, FullBZ, IrreducibleBZ
-export basis, nsyms, symmetries, symmetrize, limits, boundingbox, vol, coefficient_type
-include("AbstractBZ.jl")
-
-export equispace_integration, automatic_equispace_integration # main routines
-export equispace_npt_update, equispace_rule, equispace_rule!, equispace_integrand, equispace_evalrule
-include("equispace_integration.jl")
-
-
-# component 3: Fourier series with IAI & PTR optimizations
-
-export AbstractFourierSeries, period, contract, value, coefficient_type, fourier_type, phase_type
-export FourierSeries, FourierSeriesDerivative, OffsetFourierSeries, ManyFourierSeries, ManyOffsetsFourierSeries
-export fourier_kernel, fourier_kernel!, fourier_rule!
-include("AbstractFourierSeries.jl")
-
-export AbstractFourierIntegrand, finner, ftotal, series, params
-export FourierIntegrand, IteratedFourierIntegrand
-include("AbstractFourierIntegrand.jl")
-
-
-# component 4: convenient interface to integration routines
-
-export AbstractIntegrator, quad_integrand, quad_routine, quad_args, quad_kwargs, limits
-export IteratedIntegrator, FourierIntegrator
-include("AbstractIntegrator.jl")
-
-
-# component 5: Submodule containing applications
-
-include("Jobs.jl")
-
+include("linalg.jl")
+include("wannier_interp_3d.jl")
+include("band_velocities_3d.jl")
+include("self_energies.jl")
+include("self_energies_io.jl")
+include("wannier90io.jl")
+include("fermi.jl")
+include("apps.jl")
+include("jobs.jl")
 
 end
