@@ -71,7 +71,7 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     See [`AutoBZ.FourierIntegrand`](@ref) for more details.
     """
     @eval const $T = FourierIntegrand{typeof($f)}
-    @eval $T(args...) = $f(args...)
+    @eval $T(s::AbstractFourierSeries, args...) = $f(s, args...)
 
     # Define an integrator based on the function
     """
@@ -412,7 +412,7 @@ function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
 end
 
 """
-    cube_automorphisms(d::Integer)
+    cube_automorphisms(::Val{d}) where d
 
 return a generator of the symmetries of the cube in `d` dimensions including the
 identity.

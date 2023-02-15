@@ -57,12 +57,8 @@ keyword `compact` to specify:
 function load_hamiltonian(filename; gauge=:Wannier, period=1.0, compact=:N)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
     C = load_coefficients(Val{compact}(), num_wann, irvec, C_)[1]
-    Hamiltonian3D(C; period=to_3period(period), gauge=gauge)
+    Hamiltonian(C; period=period, gauge=gauge, offset=map(s -> -div(s,2)-1, size(C)))
 end
-
-to_3period(x::Real) = to_3period(convert(Float64, x))
-to_3period(x::Float64) = (x,x,x)
-to_3period(x::NTuple{3,Float64}) = x
 
 load_coefficients(compact, num_wann, irvec, cs...) = load_coefficients(compact, num_wann, irvec, cs)
 @generated function load_coefficients(compact, num_wann, irvec, cs::NTuple{N}) where N
@@ -77,24 +73,24 @@ load_coefficients(compact, num_wann, irvec, cs...) = load_coefficients(compact, 
     elseif compact === Val{:S}
         T = T_compact; expr = :($T(0.5*(c[i]+c[i]')))
     end
-quote
-    nmodes = zeros(Int, 3)
-    for idx in irvec
-        @inbounds for i in 1:3
-            if (n = abs(idx[i])) > nmodes[i]
-                nmodes[i] = n
+    quote
+        nmodes = zeros(Int, 3)
+        for idx in irvec
+            @inbounds for i in 1:3
+                if (n = abs(idx[i])) > nmodes[i]
+                    nmodes[i] = n
+                end
             end
         end
-    end
-    Cs = Base.Cartesian.@ntuple $N _ -> zeros($T, (2nmodes .+ 1)...)
-    for (i,idx) in enumerate(irvec)
-        idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
-        for (j,c) in enumerate(cs)
-            Cs[j][idx_] = $expr
+        Cs = Base.Cartesian.@ntuple $N _ -> zeros($T, (2nmodes .+ 1)...)
+        for (i,idx) in enumerate(irvec)
+            idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
+            for (j,c) in enumerate(cs)
+                Cs[j][idx_] = $expr
+            end
         end
+        Cs
     end
-    Cs
-end
 end
 
 
@@ -161,10 +157,9 @@ values of the series are.
 function load_position_operator(filename; period=1.0, compact=:N)
     date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(filename)
     X, Y, Z = load_coefficients(Val{compact}(), num_wann, irvec, X_, Y_, Z_)
-    periods = to_3period(period)
-    FX = FourierSeries3D(X, periods)
-    FY = FourierSeries3D(Y, periods)
-    FZ = FourierSeries3D(Z, periods)
+    FX = InplaceFourierSeries(X; period=period)
+    FY = InplaceFourierSeries(Y; period=period)
+    FZ = InplaceFourierSeries(Z; period=period)
     FX, FY, FZ
 end
 
@@ -321,7 +316,8 @@ function load_wannier90_data(seedname::String; read_sym=false, read_pos_op=true,
         #=
         nsymmetry, syms = parse_sym(seedname * ".sym")
         @info "Using irreducible Brillouin zone"
-        IrreducibleBZ(a, b, syms)
+        lims = ??? # use SymmetryReduceBZ
+        SymmetricBZ(a, b, lims, syms)
         =#
     catch
         @info "Using full Brillouin zone"

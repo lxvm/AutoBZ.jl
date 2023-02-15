@@ -73,7 +73,7 @@ Section: User-defined integral calculations
 =#
 
 """
-    adaptive_fourier_integration(integrand, BZ, fs, ps, rtol, atol, [nthreads=Threads.nthreads()])
+    adaptive_fourier_integration(integrand, bz, fs, ps, rtol, atol, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
 and timings for a user-defined `integrand` of a Fourier series `fs` and
@@ -82,9 +82,9 @@ constructs a [`AutoBZ.FourierIntegrand`](@ref) for each parameter value and
 calls [`AutoBZ.iterated_integration`](@ref) with limits of integration `BZ` to
 get the results.
 """
-function adaptive_fourier_integration(integrand, BZ::AbstractBZ{d}, fs, ps, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ps)); order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
+function adaptive_fourier_integration(integrand, bz::SymmetricBZ, fs, ps, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ps)); order=7, initdivs=ntuple(i -> Val(1), Val(ndims(bz))))
     test = FourierIntegrand(integrand, fs, ps[1])
-    T = AutoBZ.iterated_integral_type(test, BZ)
+    T = AutoBZ.iterated_integral_type(test, bz)
     ints = Vector{T}(undef, length(ps))
     errs = Vector{Float64}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
@@ -94,12 +94,12 @@ function adaptive_fourier_integration(integrand, BZ::AbstractBZ{d}, fs, ps, rtol
     t = time()
     Threads.@threads for batch in batches
         fs_ = deepcopy(fs) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(test, BZ)
+        segbufs = AutoBZ.alloc_segbufs(test, bz)
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
             f = FourierIntegrand(integrand, fs_, p)
-            ints[i], errs[i] = iterated_integration(f, BZ; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            ints[i], errs[i] = iterated_integration(f, bz; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
@@ -109,7 +109,7 @@ function adaptive_fourier_integration(integrand, BZ::AbstractBZ{d}, fs, ps, rtol
 end
 
 """
-    automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, atol, [nthreads=1])
+    automatic_equispace_fourier_integration(integrand, bz, fs, ps, rtol, atol, [nthreads=1])
 
 Returns a `NamedTuple` with names `I, E, t, p, npt1, npt2` containing the
 integrals, errors, timings, and number of kpts per dimension for a user-defined
@@ -119,9 +119,9 @@ tolerances are `rtol, atol`. This function constructs a
 [`AutoBZ.automatic_equispace_integration`](@ref) with limits of integration
 `BZ` to get the results.
 """
-function automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, atol, nthreads=1)
+function automatic_equispace_fourier_integration(integrand, bz, fs, ps, rtol, atol, nthreads=1)
     test = FourierIntegrand(integrand, fs, ps[1])
-    T = AutoBZ.iterated_integral_type(test, BZ)
+    T = AutoBZ.iterated_integral_type(test, bz)
     ints = Vector{T}(undef, length(ps))
     errs = Vector{Float64}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
@@ -138,7 +138,7 @@ function automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, at
         @info @sprintf "starting parameter %i" batch[1][1]
         t_ = time()
         f = FourierIntegrand(integrand, fs_, batch[1][2])
-        ints[1], errs[1], rule_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol)
+        ints[1], errs[1], rule_buf = automatic_equispace_integration(f, bz; atol=atol, rtol=rtol)
         ts[1] = time() - t_
         npt1s[1] = rule_buf.npt1
         npt2s[1] = rule_buf.npt2
@@ -146,7 +146,7 @@ function automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, at
             @info @sprintf "starting parameter %i" i
             t_ = time()
             f = FourierIntegrand(integrand, fs_, p)
-            ints[i], errs[i], rule_buf = automatic_equispace_integration(f, BZ; atol=atol, rtol=rtol, rule_buf...)
+            ints[i], errs[i], rule_buf = automatic_equispace_integration(f, bz; atol=atol, rtol=rtol, rule_buf...)
             ts[i] = time() - t_
             npt1s[i] = rule_buf.npt1
             npt2s[i] = rule_buf.npt2
@@ -158,7 +158,7 @@ function automatic_equispace_fourier_integration(integrand, BZ, fs, ps, rtol, at
 end
 
 """
-    equispace_fourier_integration(integrand, BZ, fs, ps, npt, [nthreads=Threads.nthreads()])
+    equispace_fourier_integration(integrand, bz, fs, ps, npt, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, t, p` containing the integrals and timings
 for a user-defined `integrand` of a Fourier series `fs` and parameters `ps`.
@@ -168,9 +168,9 @@ a [`AutoBZ.FourierIntegrand`](@ref) for each parameter value and calls
 the results. The caller should check that the result is converged with respect
 to `npt`.
 """
-function equispace_fourier_integration(integrand, BZ, fs, ps, npt, nthreads=Threads.nthreads())
+function equispace_fourier_integration(integrand, bz, fs, ps, npt, nthreads=Threads.nthreads())
     test = FourierIntegrand(integrand, fs, ps[1])
-    T = AutoBZ.iterated_integral_type(test, BZ)
+    T = AutoBZ.iterated_integral_type(test, bz)
     ints = Vector{T}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
     
@@ -178,7 +178,7 @@ function equispace_fourier_integration(integrand, BZ, fs, ps, npt, nthreads=Thre
     
     @info "pre-evaluating Fourier series..."
     t = time()
-    rule = equispace_rule(test, BZ, npt)
+    rule = equispace_rule(test, bz, npt)
     @info "finished pre-evaluating Fourier series in $(time() - t) (s)"
     
     @info "using $nthreads threads for frequency parallelization"
@@ -189,7 +189,7 @@ function equispace_fourier_integration(integrand, BZ, fs, ps, npt, nthreads=Thre
             @info @sprintf "starting parameter %i" i
             t_ = time()
             f = FourierIntegrand(integrand, fs, p)
-            ints[i], = equispace_integration(f, BZ; npt=npt, rule=rule)
+            ints[i], = equispace_integration(f, bz; npt=npt, rule=rule)
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
         end
@@ -200,7 +200,7 @@ end
 
 
 """
-    auto_fourier_integration(integrand, BZ, fs, ps, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
+    auto_fourier_integration(integrand, bz, fs, ps, rtol, atol, [nthreads=Threads.nthreads()]; ertol=1.0, eatol=0.0)
 
 Returns a `NamedTuple` with names `I, E, t, p` containing the integrals, errors,
 and timings for obtained for a user-defined `integrand` of a Fourier series `fs`
@@ -210,10 +210,10 @@ tolerances are `atol, rtol`. The integral is evaluated adaptively. However if
 tolerances `eatol` and `ertol`, and then uses a narrow absolute tolerance set by
 `max(atol,rtol*norm(int))` to evaluate and return the adaptive integral.
 """
-function auto_fourier_integration(integrand, BZ::AbstractBZ{d}, fs, ps, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
-    rtol == 0 && return adaptive_fourier_integration(integrand, BZ, fs, ps, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = automatic_equispace_fourier_integration(integrand, BZ, fs, ps, ertol, eatol)
-    results = adaptive_fourier_integration(integrand, BZ, fs, ps, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function auto_fourier_integration(integrand, bz::SymmetricBZ, fs, ps, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val(ndims(bz))))
+    rtol == 0 && return adaptive_fourier_integration(integrand, bz, fs, ps, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = automatic_equispace_fourier_integration(integrand, bz, fs, ps, ertol, eatol)
+    results = adaptive_fourier_integration(integrand, bz, fs, ps, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, p=ps)
 end
 
@@ -224,7 +224,7 @@ Section: DOS calculations
 =#
 
 """
-    run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, BZ, rtol, atol, [nthreads=Threads.nthreads()])
+    run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, bz, rtol, atol, [nthreads=Threads.nthreads()])
 
 Returns a `NamedTuple` with names `I, E, t, omega` containing the results,
 errors, and timings for a density of states calculation done at frequencies `ωs`
@@ -232,9 +232,9 @@ with parameters `atol, rtol`. This function constructs a [`AutoBZ.DOSIntegrand`]
 each parameter value and calls [`AutoBZ.iterated_integration`](@ref) on it over the domain of
 the `BZ` to get the results.
 """
-function run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, BZ::AbstractBZ{d}, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
+function run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, bz::SymmetricBZ, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(ωs)); order=7, initdivs=ntuple(i -> Val(1), Val(ndims(bz))))
     test = DOSIntegrand(H, Σ, zero(eltype(ωs)))
-    T = AutoBZ.iterated_integral_type(test, BZ)
+    T = AutoBZ.iterated_integral_type(test, bz)
     ints = Vector{T}(undef, length(ωs))
     errs = Vector{Float64}(undef, length(ωs))
     ts = Vector{Float64}(undef, length(ωs))
@@ -244,12 +244,12 @@ function run_dos_adaptive(H, Σ::AbstractSelfEnergy, ωs, BZ::AbstractBZ{d}, rto
     t = time()
     Threads.@threads for batch in batches
         H_ = deepcopy(H) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(test, BZ)
+        segbufs = AutoBZ.alloc_segbufs(test, bz)
         for (i, ω) in batch
             @info @sprintf "starting ω=%e" ω
             t_ = time()
             D = DOSIntegrand(H_, Σ, ω)
-            ints[i], errs[i] = iterated_integration(D, BZ; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
+            ints[i], errs[i] = iterated_integration(D, bz; atol=atols[i], rtol=rtol, order=order, initdivs=initdivs, segbufs=segbufs)
             ts[i] = time() - t_
             @info @sprintf "finished ω=%e in %e (s) wall clock time" ω ts[i]
         end
@@ -358,10 +358,10 @@ recommended to over-ride the default ``k``-grid refinement step to something
 
     AutoBZ.equispace_npt_update(npt, ::DOSIntegrand, atol, rtol) = npt + 50
 """
-function run_dos(H, Σ::AbstractSelfEnergy, ωs, BZ::AbstractBZ{d}, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val{d}())) where d
-    rtol == 0 && return run_dos_adaptive(H, Σ, ωs, BZ, rtol, atol, nthreads; order=order, initdivs=initdivs)
-    equi_results = run_dos_auto_equispace(H, Σ, ωs, BZ, ertol, eatol)
-    results = run_dos_adaptive(H, Σ, ωs, BZ, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
+function run_dos(H, Σ::AbstractSelfEnergy, ωs, bz::SymmetricBZ, rtol, atol, nthreads=Threads.nthreads(); ertol=1.0, eatol=0.0, order=7, initdivs=ntuple(i -> Val(1), Val(ndims(bz))))
+    rtol == 0 && return run_dos_adaptive(H, Σ, ωs, bz, rtol, atol, nthreads; order=order, initdivs=initdivs)
+    equi_results = run_dos_auto_equispace(H, Σ, ωs, bz, ertol, eatol)
+    results = run_dos_adaptive(H, Σ, ωs, bz, 0.0, 0.0, nthreads, [max(atol, rtol*norm(I)) for I in equi_results.I]; order=order, initdivs=initdivs)
     (I=results.I, E=results.E, t=results.t, pre_I=equi_results.I, pre_E=equi_results.E, pre_t=equi_results.t, npt1=equi_results.npt1, npt2=equi_results.npt2, omega=ωs)
 end
 
@@ -432,9 +432,9 @@ errors, and timings for a kinetic coefficient calculation done at frequencies
 it over the domain of the `BZ` and a safely truncated frequency integral to get
 the results. The calculation is parallelized over `Ωs` on `nthreads` threads.
 """
-function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, n, Ωs, BZ::AbstractBZ{d}, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(Ωs)); order=7, initdivs=ntuple(i -> Val(1), Val{d+1}())) where d
+function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, n, Ωs, bz::SymmetricBZ, rtol, atol, nthreads=Threads.nthreads(), atols=fill(atol, length(Ωs)); order=7, initdivs=ntuple(i -> Val(1), Val(ndims(bz))))
     freq_BZ = get_safe_freq_limits(Ωs, β, lb(Σ), ub(Σ))
-    # T = AutoBZ.iterated_integral_type(test, BZ)
+    T = AutoBZ.iterated_integral_type(test, bz)
     ints = Vector{T}(undef, length(Ωs))
     errs = Vector{Float64}(undef, length(Ωs))
     ts = Vector{Float64}(undef, length(Ωs))
@@ -445,11 +445,11 @@ function run_kinetic_adaptive(HV, Σ::AbstractSelfEnergy, β, n, Ωs, BZ::Abstra
     t = time()
     Threads.@threads for batch in batches
         HV_ = deepcopy(HV) # to avoid data races for AbstractFourierSeries3D
-        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(BZ)+1)
+        segbufs = AutoBZ.alloc_segbufs(Float64, eltype(KineticIntegrand), Float64, ndims(bz)+1)
         for (i, (freq_lim, Ω)) in batch
             @info @sprintf "starting Ω=%e" Ω
             t_ = time()
-            l = CompositeLimits(BZ, freq_lim)
+            l = CompositeLimits(bz, freq_lim)
             A = KineticIntegrand(HV_, Σ, β, n, Ω)
             ints[i], errs[i] = iterated_integration(A, l; atol=atols[i], rtol=rtol, segbufs=segbufs, order=order, initdivs=initdivs)
             ts[i] = time() - t_

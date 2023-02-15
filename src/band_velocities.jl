@@ -75,10 +75,10 @@ vcomp(::AbstractHamiltonianVelocity{vcomp}) where vcomp = vcomp
 
 Evaluates the band velocities by directly computing the Hamiltonian gradient,
 which is not gauge-covariant. Returns a tuple of the Hamiltonian and the three
-velocity matrices. See [`AutoBZ.Jobs.band_velocities`](@ref) for the `vcomp` keyword.
+velocity matrices. See [`band_velocities`](@ref) for the `vcomp` keyword.
 """
 struct HamiltonianVelocity3D{vcomp,gauge,T,TV,TH} <: AbstractHamiltonianVelocity{vcomp,gauge,3,T}
-    H::Hamiltonian3D{gauge,T,TH}
+    H::Hamiltonian{gauge,T,TH}
     # vi_j where i represents array dims and j the coordinate index
     v2_3::Array{T,2}
     v1_3::Array{T,1}
@@ -88,7 +88,7 @@ struct HamiltonianVelocity3D{vcomp,gauge,T,TV,TH} <: AbstractHamiltonianVelocity
     v0_1::Array{TV,0}
 end
 
-function HamiltonianVelocity3D(H::Hamiltonian3D{gauge,T}; vcomp=:whole) where {gauge,T}
+function HamiltonianVelocity3D(H::Hamiltonian{gauge,T}; vcomp=:whole) where {gauge,T}
     v32 = similar(H.h2)
     v31 = similar(H.h1)
     v21 = similar(H.h1)
@@ -159,9 +159,9 @@ struct CovariantHamiltonianVelocity3D{vcomp,gauge,T,TV,TH,A} <: AbstractHamilton
     A_2::A
     A_3::A
 end
-function CovariantHamiltonianVelocity3D(HV::V, A1::F, A2::F, A3::F; gauge=:Wannier, vcomp=:whole) where {T,TH,TV,V<:HamiltonianVelocity3D{Val{:whole}(),Val{:Wannier}(),T,TV,TH},TA,F<:AbstractInplaceFourierSeries{3}}
+function CovariantHamiltonianVelocity3D(HV::V, A1::F, A2::F, A3::F; gauge=:Wannier, vcomp=:whole) where {T,TH,TV,V<:HamiltonianVelocity3D{Val{:whole}(),Val{:Wannier}(),T,TV,TH},F<:AbstractInplaceFourierSeries{3}}
     @assert period(H) == period(Ax) == period(Ay) == period(Az)
-    CovariantHamiltonianVelocity3D{Val(vcomp),Val(gauge),T,TA,TV,TH}(HV, A1, A2, A3)
+    CovariantHamiltonianVelocity3D{Val(vcomp),Val(gauge),T,TV,TH,F}(HV, A1, A2, A3)
 end
 #=
 AutoBZ.period(b::CovariantHamiltonianVelocity3D) = period(b.H)

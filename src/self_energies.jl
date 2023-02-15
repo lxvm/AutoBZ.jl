@@ -1,4 +1,5 @@
-export AbstractSelfEnergy, lb, ub, EtaSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
+export AbstractSelfEnergy, lb, ub
+export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
 
 """
     AbstractSelfEnergy
@@ -26,16 +27,23 @@ Return the least upper bound of the domain of the self energy evaluator
 function ub end
 
 """
+    ConstScalarSelfEnergy(v::Number)
+
+Construct a self-energy evaluator which returns ``v I`` for any frequency.
+"""
+struct ConstScalarSelfEnergy{T<:Number} <: AbstractSelfEnergy
+    v::T
+end
+(Σ::ConstScalarSelfEnergy)(::Number) = Σ.v*I
+lb(::ConstScalarSelfEnergy) = -Inf
+ub(::ConstScalarSelfEnergy) = Inf
+
+"""
     EtaSelfEnergy(η::Real)
 
-Construct a self-energy evaluator which returns ``-i\\eta I`` for any frequency.
+Construct a [`ConstScalarSelfEnergy`](@ref) with value `-im*η`.
 """
-struct EtaSelfEnergy{T<:Real} <: AbstractSelfEnergy
-    η::T
-end
-(Σ::EtaSelfEnergy)(::Number) = complex(zero(Σ.η), -Σ.η)*I
-lb(::EtaSelfEnergy) = -Inf
-ub(::EtaSelfEnergy) = Inf
+EtaSelfEnergy(η::Real) = ConstScalarSelfEnergy(-im*η)
 
 """
     ScalarSelfEnergy(interpolant, lb, ub)
