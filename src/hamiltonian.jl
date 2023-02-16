@@ -1,80 +1,62 @@
-export AbstractWannierInterp, hamiltonian, gauge, to_gauge, shift!
-export Hamiltonian
-
 """
-    hamiltonian(::AbstractWannierInterp)
+    Hamiltonian(f::InplaceFourierSeries; gauge=:Wannier)
 
-Return the Hamiltonian object used for Wannier interpolation
+A wrapper for `InplaceFourierSeries` with an additional gauge that allows for
+convenient diagonalization of the result. For details see [`to_gauge`](@ref).
 """
-function hamiltonian end
-
-"""
-    to_gauge(::Val{gauge}, H) where gauge
-
-Transform the Hamiltonian according to the following values of `gauge`
-- `:Wannier`: keeps `H, vs` in the original, orbital basis
-- `:Hamiltonian`: diagonalizes `H` and rotates `H` into the energy, band basis
-"""
-to_gauge(::Val{:Wannier}, H::AbstractMatrix) = H
-function to_gauge(::Val{:Wannier}, E::Eigen)
-    H, U = E
-    U * Diagonal(H) * U'
-end
-function to_gauge(::Val{:Hamiltonian}, H::AbstractMatrix)
-    ishermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
-    eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
-end
-
-"""
-    shift!(::AbstractWannierInterp, λ)
-
-
-"""
-function shift!(w::AbstractWannierInterp, λ)
-    shift!(hamiltonian(w), λ)
-    return HV
-end
-
-# TODO define a mechanism for converting gauge 
-
-"""
-    Hamiltonian(coeffs::Array{T,3}; period=(1.0, 1.0, 1.0), gauge=:Wannier)
-
-This type is an `AbstractFourierSeries{3}` designed for in-place evaluation of
-`FourierSeries`, and unlike `FourierSeries` is specialized for 3D Fourier series
-and does not allocate a new array every time `contract` is called on it. This
-type stores the intermediate arrays used in a calculation and assumes that the
-size of `coeffs` on each axis is odd because it treats the zeroth harmonic as
-the center of the array (i.e. `(size(coeffs) .÷ 2) .+ 1`).
-"""
-struct Hamiltonian{G,N,T,F} <: AbstractWannierInterp{G,N,T}
+struct Hamiltonian{G,N,T,H,F} <: AbstractWannierInterp{G,N,T}
+    h::H
     f::F
-    Hamiltonian{G}(f::F) where {G,F<:InplaceFourierSeries} =
-        new{G,ndims(f),eltype(f),F}(f)
+    Hamiltonian{G}(h::H, f::F) where {G,H,F<:InplaceFourierSeries} =
+        new{G,ndims(f),eltype(f),H,F}(h,f)
 end
 
-Hamiltonian(h; gauge=:Wannier, kwargs...) =
-    Hamiltonian{Val(gauge)}(InplaceFourierSeries(h; kwargs...))
-    
+# recursively wrap inner Fourier series with Hamiltonian
+Hamiltonian(f::InplaceFourierSeries; gauge=:Wannier) =
+    Hamiltonian{Val(gauge)}(Hamiltonian(f.f; gauge=gauge), f)
+Hamiltonian(f::InplaceFourierSeries{0}; gauge=:Wannier) =
+    Hamiltonian{Val(gauge)}((), f)
+
+hamiltonian(h::Hamiltonian) = h
+
+"""
+    shift!(h::Hamiltonian, λ::Number)
+
+Modifies and returns `h` such that it returns `h - λ*I`.
+"""
+function shift!(h::Hamiltonian, λ_::Number)
+    λ = convert(eltype(eltype(h)), λ_)
+    for i in CartesianIndices(h.f.c)
+        all(iszero, i.I .+ h.f.o) || continue
+        h.f.c[i] -= λ*I
+        break
+    end
+    return h
+end
+
 period(h::Hamiltonian) = period(h.f)
 
-contract!(h::Hamiltonian{G}, x::Number, ::Val{d}) where {G,d} =
-    Hamiltonian{G}(contract!(h.f, x, Val(d)))
+function contract!(h::Hamiltonian, x::Number, ::Val{d}) where d
+    contract!(h.f, x, Val(d))
+    return h.h
+end
 
 evaluate(h::Hamiltonian{G,1}, x::NTuple{1}) where G =
     to_gauge(G, evaluate(h.f, x))
 
 """
-    shift!(H::Hamiltonian, λ::Number)
+    to_gauge(::Val{gauge}, h) where gauge
 
-Modifies and returns `H` such that it returns `H - λ*I`.
+Transform the Hamiltonian according to the following values of `gauge`
+- `:Wannier`: keeps `h, vs` in the original, orbital basis
+- `:Hamiltonian`: diagonalizes `h` and rotates `h` into the energy, band basis
 """
-function shift!(H::Hamiltonian, λ_::Number)
-    λ = convert(eltype(eltype(H)), λ_)
-    for i in CartesianIndices(H.f.c)
-        all(iszero, i.I .+ H.f.o) || continue
-        H.f.c[i] -= λ*I
-        break
-    end
-    return H
+to_gauge(::Val{:Wannier}, H::AbstractMatrix) = H
+to_gauge(::Val{:Wannier}, (h,U)::Eigen) = U * Diagonal(h) * U'
+
+function to_gauge(::Val{:Hamiltonian}, H::AbstractMatrix)
+    ishermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
+    eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
 end
+
+coefficients(h::Hamiltonian) = coefficients(h.f)

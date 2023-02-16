@@ -1,5 +1,3 @@
-export load_self_energy
-
 get_self_energy_format(filename) = open(filename) do file
     col = split(readline(file))
     while length(col) == 1
@@ -85,24 +83,16 @@ the frequency data is assumed to be an equispace grid. The optional argument
 `sigdigits` indicates the number of significant digits used to round the
 frequency data so as to avoid rounding errors.
 """
-function load_self_energy(filename, degree=8, sigdigits=8)
+function load_self_energy(filename; sigdigits=8)
     fmt = get_self_energy_format(filename)
     if fmt == :scalar
         nfpts, omegas, values = parse_self_energy_scalar(filename)
-        omegas .= round.(omegas; sigdigits=sigdigits)
-        interpolant = LocalEquiBaryInterp(omegas, values, degree)
-        return ScalarSelfEnergy(interpolant, minimum(omegas), maximum(omegas))
     elseif fmt == :diagonal
         nfpts, num_wann, omegas, values = parse_self_energy_diagonal(filename)
-        omegas .= round.(omegas; sigdigits=sigdigits)
-        interpolant = LocalEquiBaryInterp(omegas, values, degree)
-        return MatrixSelfEnergy(interpolant, minimum(omegas), maximum(omegas))
     elseif fmt == :matrix
         nfpts, num_wann, omegas, values = parse_self_energy_matrix(filename)
-        omegas .= round.(omegas; sigdigits=sigdigits)
-        interpolant = LocalEquiBaryInterp(omegas, values, degree)
-        return MatrixSelfEnergy(interpolant, minimum(omegas), maximum(omegas))
     else
         throw(ErrorException("self energy format not implemented"))
     end
+    return round.(omegas; sigdigits=sigdigits), values
 end

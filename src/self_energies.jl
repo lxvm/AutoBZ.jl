@@ -1,31 +1,3 @@
-export AbstractSelfEnergy, lb, ub
-export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
-
-"""
-    AbstractSelfEnergy
-
-An abstract type whose instances implement the following interface:
-- instances are callable and return a square matrix as a function of frequency
-- instances have methods `lb` and `ub` that return the lower and upper bounds of
-  of the frequency domain for which the instance can be evaluated
-"""
-abstract type AbstractSelfEnergy end
-
-"""
-    lb(::AbstractSelfEnergy)
-
-Return the greatest lower bound of the domain of the self energy evaluator
-"""
-function lb end
-
-
-"""
-    ub(::AbstractSelfEnergy)
-
-Return the least upper bound of the domain of the self energy evaluator
-"""
-function ub end
-
 """
     ConstScalarSelfEnergy(v::Number)
 

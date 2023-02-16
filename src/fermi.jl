@@ -1,5 +1,3 @@
-export fermi, fermi′, fermi_window, fermi_window_limits
-
 """
     fermi(x)
 

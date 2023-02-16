@@ -2,12 +2,12 @@
 In this script we compute the electron count at single chemical potential using the interface in AutoBZ.jl
 =#
 
-using AutoBZ.Jobs
+using AutoBZ
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 H, FBZ = load_wannier90_data("svo")
 
-IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
+IBZ = AutoBZ.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
 
 
 # Define problem parameters
