@@ -39,7 +39,7 @@ raise_multiplier(a) = a + 1
 
 function evaluate(hv::HamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G}
     f = hv.h.f
-    v1 = fourier_evaluate(coefficients(hv), x[1]-f.q, f.k, f.a, f.o)
+    v1 = fourier_evaluate(coefficients(hv), x[1]-f.q, f.k, raise_multiplier(f.a), f.o)
     to_vcomp_gauge(C, G, evaluate(hv.h, x), v1, map(v -> evaluate(v, x), hv.v)...)
 end
 
