@@ -12,7 +12,10 @@ using AutoBZ
 
 
     @testset "linalg" begin
-    
+        # diag_inv == diag ∘ inv
+        # tr_inv == tr ∘ inv
+        # commutator
+        # herm
     end
 
     @testset "fermi" begin
@@ -24,10 +27,11 @@ using AutoBZ
     end
 
     @testset "HamiltonianVelocity" begin
-        
+        # check that it evaluates to the same as 4 independent fourier series
     end
 
     @testset "CovariantHamiltonianVelocity" begin
-        
+        # check that it evaluates to the same as 4 independent fourier series
+        # check for gauge covariance (eigenvalues of velocities the same in both gauges)
     end
 end

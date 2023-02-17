@@ -13,7 +13,7 @@ using LinearAlgebra
 using Printf
 
 using StaticArrays
-using QuadGK: quadgk
+using QuadGK: quadgk, alloc_segbuf
 
 
 using AutoSymPTR
@@ -21,9 +21,31 @@ using IteratedIntegration
 using FourierSeriesEvaluators
 using AutoBZCore
 
-import AutoBZCore: symmetrize
+import AutoBZCore: quad_args, quad_kwargs, symmetrize
 import AutoSymPTR: evalptr, ptr_integrand
 import FourierSeriesEvaluators: period, contract!, evaluate, coefficients, show_details
+
+
+export QuadGKIntegrator
+
+const QuadIntegrator = Integrator{QuadIntegrand}
+QuadGKIntegrator(args...; kwargs...) =
+    QuadIntegrator(quadgk, args...; kwargs...)
+
+"""
+    quad_args(routine, l, f)
+
+Return the tuple of arguments needed by the quadrature `routine` depending on
+the limits `l` and integrand `f`.
+"""
+quad_args(::typeof(quadgk), segs::NTuple{N,T}, f) where {N,T} = (f, segs...)
+function quad_kwargs(::typeof(quadgk), segs::NTuple{N,T}, f;
+    atol=zero(T), rtol=iszero(atol) ? sqrt(eps(T)) : zero(atol),
+    order=7, maxevals=10^7, norm=norm, segbuf=nothing) where {N,T}
+    F = Base.promote_op(f, T)
+    segbuf_ = segbuf === nothing ? alloc_segbuf(T, F, Base.promote_op(norm, F)) : segbuf
+    (rtol=rtol, atol=atol, order=order, maxevals=maxevals, norm=norm, segbuf=segbuf_)
+end
 
 
 export AbstractSelfEnergy, lb, ub
@@ -53,7 +75,6 @@ export load_wannier90_data
 include("wannier90io.jl")
 
 export GlocIntegrator, DiagGlocIntegrator, DOSIntegrator, SafeDOSIntegrator
-export ExperimentalDOSIntegrator
 export TransportFunctionIntegrator, TransportDistributionIntegrator
 export KineticCoefficientIntegrator, OpticalConductivityIntegrator
 export ElectronDensityIntegrator

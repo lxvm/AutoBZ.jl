@@ -23,12 +23,12 @@ parallel. Returns a named tuple `(I, E, t, p)` containing the integrals `I`, the
 extra data from the integration routine `E`, timings `t`, and the original
 parameters `p`. The parameter layout in `ps` should such that `f(ps[i]...)` runs
 """
-function parallel_integration(f::AbstractIntegrator, ps; nthreads=Threads.nthreads())
+function parallel_integration(f::Integrator, ps; nthreads=Threads.nthreads())
     T = Base.promote_op(first∘f, eltype(ps))
     ints = Vector{T}(undef, length(ps))
     # extra = Vector{???}(undef, length(ps))
     ts = Vector{Float64}(undef, length(ps))
-    @info "Beginning parameter sweep using $(routine(f))"
+    @info "Beginning parameter sweep using $(f.routine)"
     @info "using $nthreads threads for parameter parallelization"
     batches = batch_smooth_param(ps, nthreads)
     t = time()
@@ -37,6 +37,7 @@ function parallel_integration(f::AbstractIntegrator, ps; nthreads=Threads.nthrea
         for (i, p) in batch
             @info @sprintf "starting parameter %i" i
             t_ = time()
+            ints[i], = f_(p...)
             # TODO: ints[i], extra[i] = quad_return(routine(f), f_(p...))
             ts[i] = time() - t_
             @info @sprintf "finished parameter %i in %e (s) wall clock time" i ts[i]
@@ -48,7 +49,7 @@ end
 
 # enables kpt parallelization by default for all BZ integrals
 # with symmetries
-function evalptr(rule, npt, f::FourierIntegrand, B::SMatrix{N,N}, syms, min_per_thread=1, nthreads=Threads.nthreads()) where N
+function evalptr(rule, npt::Int, f::FourierIntegrand, B::SMatrix{N,N}, syms, min_per_thread=1, nthreads=Threads.nthreads()) where N
     n = length(rule.x)
     acc = rule.w[n]*ptr_integrand(f, rule.x[n]) # unroll first term in sum to get right types
     n == 1 && return acc*det(B)/length(syms)/npt^N
@@ -69,7 +70,7 @@ function evalptr(rule, npt, f::FourierIntegrand, B::SMatrix{N,N}, syms, min_per_
     acc*det(B)/length(syms)/npt^N
 end
 # without symmetries
-function evalptr(rule, npt, f::FourierIntegrand, B::SMatrix{N,N}, ::Nothing, min_per_thread=1, nthreads=Threads.nthreads()) where N
+function evalptr(rule, npt::Int, f::FourierIntegrand, B::SMatrix{N,N}, ::Nothing, min_per_thread=1, nthreads=Threads.nthreads()) where N
     n = length(rule.x)
     acc = ptr_integrand(f, rule.x[n]) # unroll first term in sum to get right types
     n == 1 && return acc*det(B)/npt^N

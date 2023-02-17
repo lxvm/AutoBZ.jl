@@ -5,6 +5,7 @@
 Defines the default behavior for handling single Green's function self energy
 arguments
 """
+eval_self_energy(M) = M
 eval_self_energy(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
 eval_self_energy(Σ::AbstractMatrix, ω) = ω*I-Σ
 
@@ -62,24 +63,24 @@ for name in ("Gloc", "DiagGloc", "DOS", "SafeDOS")
     E = Symbol(name, "Integrator")
 
     # Define interface for converting to the FourierIntegrand
-    @eval $f(h::AbstractFourierSeries{N}, args...) where N =
-        FourierIntegrand{N}($f, h, eval_self_energy(args...))
+    @eval $f(h::AbstractFourierSeries, args...) =
+        FourierIntegrand($f, h, eval_self_energy(args...))
 
     # Define the type alias to have the same behavior as the function
     """
     $(T)(h, Σ, ω)
 
-    See [`AutoBZ.FourierIntegrand`](@ref) for more details.
+    See `FourierIntegrand` for more details.
     """
     @eval const $T = FourierIntegrand{typeof($f)}
-    @eval $T(s::AbstractFourierSeries, args...) = $f(s, args...)
+    @eval $T(h::AbstractFourierSeries, args...) = $f(h, args...)
 
     # Define an integrator based on the function
     """
-    $(E)(bz, h, Σ)
+    $(E)(routine, bz, h, Σ)
 
     Integrates `$(T)` over `bz` as a function of `ω`.
-    See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+    See `AutoBZCore.FourierIntegrator` for more details.
     """
     @eval const $E = FourierIntegrator{typeof($f)}
 
@@ -105,42 +106,6 @@ canonical BZ, approximately places a point in every box of size `η`. Choice of
 """
 eta_npt_update(npt, η, n₀=6.0, Δn=2.3) = npt + eta_npt_update_(η, npt == 0 ? n₀ : Δn)
 eta_npt_update_(η, c) = max(50, round(Int, c/η))
-
-# integrands using IteratedFourierIntegrand (definition is slightly more involved)
-
-"""
-    ExperimentalDOSIntegrand(h, Σ, ω)
-
-Constructor+Type alias for the DOS integrand implemented with
-IteratedFourierIntegrand. Since taking the imaginary part after all of the
-integrals doesn't cost much more than taking it after the first, use
-[`AutoBZ.Jobs.SafeDOSIntegrand`](@ref). This type's purpose is to test
-general-purpose iterated integration, which is incompatible with symmetries.
-See [`AutoBZ.IteratedFourierIntegrand`](@ref) for more details.
-"""
-const ExperimentalDOSIntegrand{N} =
-    IteratedFourierIntegrand{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-ExperimentalDOSIntegrand(h::AbstractFourierSeries{N}, args...) where N = ExperimentalDOSIntegrand{N}(h, args...)
-function ExperimentalDOSIntegrand{N}(h::AbstractFourierSeries{N}, args...) where N
-    fs = ntuple(n -> n==1 ? safedos_integrand : (n==2 ? imag : identity), N)
-    IteratedFourierIntegrand{N}(fs, h, eval_self_energy(args...))
-end
-
-# For type stability in the 1D case where imag must be taken outside
-const ExperimentalDOSIntegrand1D =
-    IteratedFourierIntegrand{Tuple{typeof(safedos_integrand)}}
-AutoBZ.iterated_integrand(::ExperimentalDOSIntegrand1D, int, ::Type{Val{0}}) = imag(int)
-
-"""
-    ExperimentalDOSIntegrator(bz, h, Σ)
-
-Integrates `ExperimentalDOSIntegrand` over `bz` as a function of `ω`.
-See [`AutoBZ.FourierIntegrator`](@ref) for more details.
-"""
-const ExperimentalDOSIntegrator{N} =
-    FourierIntegrator{Tuple{typeof(safedos_integrand),typeof(imag),Vararg{typeof(identity),N}}}
-
-ExperimentalDOSIntegrator(lims::AbstractLimits{d}, args...; kwargs...) where d = ExperimentalDOSIntegrator{d}(lims, args...; kwargs...)
 
 # transport and conductivity integrands
 
@@ -168,9 +133,6 @@ Computes the following integral
 """
 const TransportFunctionIntegrand =
     FourierIntegrand{typeof(transport_function_integrand)}
-TransportFunctionIntegrand(; kwargs...) =
-    transport_function_integrand(args...; kwargs...)
-
 
 const TransportFunctionIntegrator =
     FourierIntegrator{typeof(transport_function_integrand)}
@@ -178,17 +140,15 @@ const TransportFunctionIntegrator =
 
 spectral_function(h, M) = imag(inv(M-h))/(-pi)
 
-transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω) =
-    transport_distribution_integrand(hv, ω*I-Σ(ω))
 transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂) =
     transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
 transport_distribution_integrand(hv, Σ::AbstractMatrix, ω₁, ω₂) =
     transport_distribution_integrand(hv, ω₁*I-Σ, ω₂*I-Σ)
 transport_distribution_integrand(hv::AbstractVelocity, Mω₁, Mω₂) =
-    FourierIntegrand{3}(transport_distribution_integrand, hv, Mω₁, Mω₂)
-transport_distribution_integrand(hv::Tuple, Mω₁, Mω₂=Mω₁) =
-    transport_distribution_integrand(hv[1], hv[2], hv[3], hv[4], Mω₁, Mω₂)
-    # transport_distribution_integrand(hv..., Mω₁, Mω₂) # Splatting bad for inference
+    FourierIntegrand(transport_distribution_integrand, hv, Mω₁, Mω₂)
+transport_distribution_integrand(hv::Tuple, Mω₁, Mω₂) =
+transport_distribution_integrand(hv..., Mω₁, Mω₂) # Splatting bad for inference
+# transport_distribution_integrand(hv[1], hv[2], hv[3], hv[4], Mω₁, Mω₂)
 function transport_distribution_integrand(h, ν₁, ν₂, ν₃, Mω₁, Mω₂)
     # Aω₁ = spectral_function(h, Mω₁)
     # Aω₂ = spectral_function(h, Mω₂)
@@ -220,22 +180,21 @@ A function whose integral over the BZ gives the transport distribution
 \\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See [`AutoBZ.FourierIntegrand`](@ref) for more details.
+See `FourierIntegrand` for more details.
 """
 const TransportDistributionIntegrand =
-    FourierIntegrand{typeof(transport_distribution_integrand)}
-
-TransportDistributionIntegrand(args...) =
-    transport_distribution_integrand(args...)
+FourierIntegrand{typeof(transport_distribution_integrand)}
+TransportDistributionIntegrand(hv::AbstractVelocity, args...) =
+    transport_distribution_integrand(hv, args...)
 
 """
-    TransportDistributionIntegrator(bz, hv, Σ, ω₁)
+    TransportDistributionIntegrator(bz, hv, Σ, [ω₁, ω₂])
 
-Integrates `TransportDistributionIntegrand` over `bz` as a function of `ω₂`.
-See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+Integrates `TransportDistributionIntegrand` over `bz` as a function of `ω₁,ω₂`.
+See `FourierIntegrator` for more details.
 """
 const TransportDistributionIntegrator =
-    FourierIntegrand{typeof(transport_distribution_integrand)}
+    FourierIntegrator{typeof(transport_distribution_integrand)}
 
 function AutoSymPTR.npt_update(Γ::TransportDistributionIntegrand, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
@@ -275,27 +234,14 @@ kinetic_coefficient_integrand(hv, Σ, ω, Ω, β, n) =
 kinetic_coefficient_integrand(Γ, ω, Ω, β, n) =
     (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-function kinetic_coefficient_frequency_integral(hv::AbstractVelocity, Σ, n, β, Ω; quad=quadgk, quad_kw=(;), kwargs...)
-    lims = get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
-    test = let hv_k=hv(zero(SVector{3,Float64})), Σ=Σ, Ω=Ω, β=β, n=n
-        ω -> kinetic_coefficient_integrand(hv_k, Σ, ω, Ω, β, n)
-    end
-    FourierIntegrand{ndims(hv)}(kinetic_coefficient_frequency_integral, hv,
-    quad, quad_args(quad, test, lims),
-    quad_kwargs(quad, test, lims; quad_kw...),
-    Σ, n, β, Ω; kwargs...)
-end
-kinetic_coefficient_frequency_integral(hv::AbstractVelocity, quad, args, kwargs, Σ, n, β, Ω) =
-    FourierIntegrand{ndims(hv)}(kinetic_coefficient_frequency_integral, hv, quad, args, kwargs, Σ, n, β, Ω)
-
-function kinetic_coefficient_frequency_integral(hv_k::Tuple, quad, args, kwargs, Σ, n, β, Ω)
+function kinetic_coefficient_frequency_integral(hv_k::Tuple, Σ, n, β, Ω; quad=quadgk, quad_kw=(;), l=get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ)))
     # deal with distributional integral case
-    Ω == 0 && β == Inf && return 0^n * transport_distribution_integrand(hv_k, Σ, Ω)
+    Ω == 0 && β == Inf && return 0^n * transport_distribution_integrand(hv_k, Σ, Ω, Ω)
     # normal case
     f = let hv_k=hv_k, Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_coefficient_integrand(hv_k, Σ, ω, Ω, β, n)
     end
-    first(quad(f, args...; kwargs...))
+    first(quad(quad_args(quad, l, f)...; quad_kw...))
 end
 
 """
@@ -308,61 +254,32 @@ A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\ome
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+See `FourierIntegrator` for more details.
 """
 const KineticCoefficientIntegrand =
     FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}
-KineticCoefficientIntegrand(hv::AbstractVelocity, args...; kwargs...) =
-    kinetic_coefficient_frequency_integral(hv, args...; kwargs...)
-
-
-function kinetic_coefficient_integrator(bz, hv::AbstractVelocity, Σ, p...; ps=(), quad=quadgk, quad_kw=(;), kwargs...)
-    n, β, Ω =(p..., ps...)
-    lims = get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
-    test = let hv_k=hv(zero(SVector{3,Float64})), Σ=Σ, n=n, β=β, Ω=Ω
-        ω -> kinetic_coefficient_integrand(hv_k, Σ, ω, Ω, β, n)
-    end
-    FourierIntegrator(kinetic_coefficient_frequency_integral, bz, hv,
-    quad, quad_args(quad, test, lims), quad_kwargs(quad, test, lims; quad_kw...),
-    Σ, p...; ps=ps, kwargs...)
-end
 
 """
     KineticCoefficientIntegrator(bz, hv, Σ, [n, β, Ω])
 
 Integrates `KineticCoefficientIntegrand` over `bz` as a function of `n, β, Ω`.
-See [`AutoBZ.FourierIntegrator`](@ref) for more details. The exact choice of
+See `FourierIntegrator` for more details. The exact choice of
 parameters is up to the caller.
 """
 const KineticCoefficientIntegrator =
     FourierIntegrator{typeof(kinetic_coefficient_frequency_integral)}
-KineticCoefficientIntegrator(args...; kwargs...) =
-    kinetic_coefficient_integrator(args...; kwargs...)
 
 """
     OpticalConductivityIntegrator(bz, hv, Σ, [β, Ω]; kwargs...)
 
 Identical to [`KineticCoefficientIntegrator`](@ref) with `n=0`.
 """
-OpticalConductivityIntegrator(bz, hv, Σ, p...; kwargs...) =
-    KineticCoefficientIntegrator(bz, hv, Σ, 0, p...; kwargs...)
+OpticalConductivityIntegrator(routine, bz, hv, Σ, p...; kwargs...) =
+    KineticCoefficientIntegrator(routine, bz, hv, Σ, 0, p...; kwargs...)
 
 
 electron_density_integrand(h_k, Σ, ω, β, μ) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
-
-function electron_density_frequency_integral(h::AbstractFourierSeries{N}, Σ, β, μ; quad=quadgk, quad_kw=(;), kwargs...) where N
-    # choose limits as wide as self energy allows
-    lims = (lb(Σ), ub(Σ))
-    test = let h_k=h(zero(SVector{N,eltype(lims)})), Σ=Σ, β=β, μ=μ
-        ω -> electron_density_integrand(h_k, Σ, ω, β, μ)
-    end
-    FourierIntegrand{N}(electron_density_frequency_integral, h,
-    quad, quad_args(quad, test, lims), quad_kwargs(quad, test, lims; quad_kw...),
-    Σ, β, μ; kwargs...)
-end
-electron_density_frequency_integral(h::AbstractFourierSeries{N}, quad, args, kwargs, Σ, β, μ) where N =
-    FourierIntegrand{N}(electron_density_frequency_integral, h, quad, args, kwargs, Σ, β, μ)
 
 function electron_density_frequency_integral(h_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
     f = let h_k=h_k, Σ=Σ, β=β, μ=μ
@@ -380,34 +297,19 @@ Mathematically, this computes
 n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\omega+\\mu)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
-See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+See `FourierIntegrator` for more details.
 """
 const ElectronDensityIntegrand =
     FourierIntegrand{typeof(electron_density_frequency_integral)}
-ElectronDensityIntegrand(h::AbstractFourierSeries, args...; kwargs...) =
-    electron_density_frequency_integral(h, args...; kwargs...)
-
-function electron_density_integrator(bz, h::AbstractFourierSeries{N}, Σ, p...; ps=(), quad=quadgk, quad_kw=(;), kwargs...) where N
-    lims = (lb(Σ), ub(Σ))
-    β, μ = (p..., ps...)
-    f = let h_k=h(zero(SVector{N,eltype(bz)})), Σ=Σ, β=β, μ=μ
-        ω -> electron_density_integrand(h_k, Σ, ω, β, μ)
-    end
-    FourierIntegrator(electron_density_frequency_integral, bz, h,
-    quad, quad_args(quad, f, lims), quad_kwargs(quad, f, lims; quad_kw...),
-    Σ, p...; ps=ps, kwargs...)
-end
 
 """
     ElectronDensityIntegrator(bz, h, Σ, β)
 
 Integrates `ElectronDensityIntegrand` over `bz` as a function of `μ`.
-See [`AutoBZ.FourierIntegrator`](@ref) for more details.
+See `FourierIntegrator` for more details.
 """
 const ElectronDensityIntegrator =
     FourierIntegrator{typeof(electron_density_frequency_integral)}
-ElectronDensityIntegrator(args...; kwargs...) =
-    electron_density_integrator(args...; kwargs...)
 
 # define how to symmetrize matrix-valued integrands with coordinate indices
 
