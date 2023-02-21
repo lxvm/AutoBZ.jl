@@ -234,14 +234,14 @@ kinetic_coefficient_integrand(hv, Σ, ω, Ω, β, n) =
 kinetic_coefficient_integrand(Γ, ω, Ω, β, n) =
     (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-function kinetic_coefficient_frequency_integral(hv_k::Tuple, Σ, n, β, Ω; quad=quadgk, quad_kw=(;), l=get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ)))
+function kinetic_coefficient_frequency_integral(hv_k::Tuple, Σ, n, β, Ω; quad=quadgk, l=get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ)), kwargs...)
     # deal with distributional integral case
     Ω == 0 && β == Inf && return 0^n * transport_distribution_integrand(hv_k, Σ, Ω, Ω)
     # normal case
     f = let hv_k=hv_k, Σ=Σ, Ω=Ω, β=β, n=n
         ω -> kinetic_coefficient_integrand(hv_k, Σ, ω, Ω, β, n)
     end
-    first(quad(quad_args(quad, l, f)...; quad_kw...))
+    first(quad(quad_args(quad, f, l)...; kwargs...))
 end
 
 """
@@ -281,11 +281,11 @@ OpticalConductivityIntegrator(routine, bz, hv, Σ, p...; kwargs...) =
 electron_density_integrand(h_k, Σ, ω, β, μ) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
 
-function electron_density_frequency_integral(h_k::AbstractMatrix, quad, args, kwargs, Σ, β, μ)
+function electron_density_frequency_integral(h_k::AbstractMatrix, Σ, β, μ; quad=quadgk, l=(lb(Σ), ub(Σ)), kwargs...)
     f = let h_k=h_k, Σ=Σ, β=β, μ=μ
         ω -> electron_density_integrand(h_k, Σ, ω, β, μ)
     end
-    first(quad(f, args...; kwargs...))
+    first(quad(quad_args(quad, f, l)...; kwargs...))
 end
 
 """
