@@ -301,7 +301,7 @@ function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcom
         throw(ArgumentError("velocity kind $vkind not recognized"))
     end
 
-    fbz = FullBZ(A, B, CubicLimits((0,0,0), (1,1,1)); atol=atol)
+    fbz = FullBZ(A, B, AutoBZCore.lattice_bz_limits(B); atol=atol)
 
     w, fbz
 end

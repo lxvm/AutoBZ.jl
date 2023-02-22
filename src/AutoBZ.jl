@@ -10,20 +10,16 @@ define custom BZ integrands.
 module AutoBZ
 
 using LinearAlgebra
-using Printf
 
 using StaticArrays
-using QuadGK: quadgk, alloc_segbuf
+using Reexport
+@reexport using Integrals
+@reexport using AutoBZCore
+@reexport using FourierSeriesEvaluators
 
-
-using AutoSymPTR
-using IteratedIntegration
-using FourierSeriesEvaluators
-using AutoBZCore
-
-import AutoBZCore: symmetrize
-import AutoSymPTR: evalptr, ptr_integrand
+import AutoBZCore: symmetrize, FourierIntegrand
 import FourierSeriesEvaluators: period, contract!, evaluate, coefficients, show_details
+import AutoSymPTR: npt_update
 
 
 export AbstractSelfEnergy, lb, ub
@@ -52,13 +48,10 @@ include("self_energies_io.jl")
 export load_wannier90_data
 include("wannier90io.jl")
 
-export GlocIntegrator, DiagGlocIntegrator, DOSIntegrator, SafeDOSIntegrator
-export TransportFunctionIntegrator, TransportDistributionIntegrator
-export KineticCoefficientIntegrator, OpticalConductivityIntegrator
-export ElectronDensityIntegrator
+export Gloc, DiagGloc, DOS, SafeDOS
+export TransportFunction, TransportDistribution
+export KineticCoefficient, OpticalConductivity
+export ElectronDensity
 include("apps.jl")
-
-export parallel_integration
-include("jobs.jl")
 
 end
