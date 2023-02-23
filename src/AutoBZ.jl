@@ -17,7 +17,7 @@ using Reexport
 @reexport using AutoBZCore
 @reexport using FourierSeriesEvaluators
 
-import AutoBZCore: symmetrize, FourierIntegrand
+import AutoBZCore: symmetrize, SymRep, FourierIntegrand
 import FourierSeriesEvaluators: period, contract!, evaluate, coefficients, show_details
 import AutoSymPTR: npt_update
 
@@ -48,10 +48,10 @@ include("self_energies_io.jl")
 export load_wannier90_data
 include("wannier90io.jl")
 
-export Gloc, DiagGloc, DOS, SafeDOS
-export TransportFunction, TransportDistribution
-export KineticCoefficient, OpticalConductivity
-export ElectronDensity
+export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
+export TransportFunctionIntegrand, TransportDistributionIntegrand
+export KineticCoefficientIntegrand, OpticalConductivityIntegrand
+export ElectronDensityIntegrand
 include("apps.jl")
 
 end
