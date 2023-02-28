@@ -9,18 +9,17 @@ define custom BZ integrands.
 """
 module AutoBZ
 
+using Printf: @sprintf
 using LinearAlgebra
 
 using StaticArrays
 using HDF5
 using Reexport
-@reexport using Integrals
 @reexport using AutoBZCore
-@reexport using FourierSeriesEvaluators
 
-import AutoBZCore: SymRep, batchsolve
-import FourierSeriesEvaluators: period, contract!, evaluate, coefficients, show_details
-import AutoSymPTR: npt_update
+import AutoBZCore: SymRep, batchsolve,
+    FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract!, FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients, FourierSeriesEvaluators.show_details,
+    AutoSymPTR.npt_update
 
 
 export AbstractSelfEnergy, lb, ub
@@ -28,7 +27,7 @@ export AbstractWannierInterp, gauge, hamiltonian, shift!
 export AbstractVelocity, vcomp
 include("definitions.jl")
 
-export diag_inv, tr_inv, tr_mul, gherm, commutator
+export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
 
 export fermi, fermi′, fermi_window, fermi_window_limits

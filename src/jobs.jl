@@ -42,9 +42,17 @@ vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype
 
 # parallelization
 
-batchsolve(s::String, f, p; kwargs...) = batchsolve(h5open(s), f, p; kwargs...)
-function batchsolve(io::HDF5.File, f, p; kwargs...)
-    function callback(f, p, sol, t)
+batchsolve(s::String, f, ps; kwargs...) = h5open(s, "w") do h5
+    batchsolve(h5, f, ps; kwargs...)
+end
+function batchsolve(h5::HDF5.File, f, ps; kwargs...)
+    
+
+    function h5callback(f, i, p, sol, t)
+        @info @sprintf "parameter %i finished in %e (s) wall clock time" i t
     end
-    batchsolve(f, p; callback=callback, kwargs...)
+
+    @info
+    batchsolve(f, ps; callback=h5callback, kwargs...)
+    @info @sprintf "Finished parameter sweep in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
 end
