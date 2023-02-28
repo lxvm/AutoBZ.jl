@@ -116,7 +116,7 @@ Computes the following integral
 TransportFunctionIntegrand(hv::AbstractVelocity, p...) =
     FourierIntegrand(transport_function_integrand, hv, p)
 
-SymRep(::FourierIntegrand{typeof(transport_function_integrand)}) = FaithfulRep()
+SymRep(::FourierIntegrand{typeof(transport_function_integrand)}) = LatticeRep()
 
 
 spectral_function(h, M) = imag(inv(M-h))/(-pi)
@@ -164,7 +164,7 @@ See `FourierIntegrand` for more details.
 TransportDistributionIntegrand(hv::AbstractVelocity, p...) =
     FourierIntegrand(transport_distribution_integrand, hv, p)
 
-SymRep(::FourierIntegrand{typeof(transport_distribution_integrand)}) = FaithfulRep()
+SymRep(::FourierIntegrand{typeof(transport_distribution_integrand)}) = LatticeRep()
 
 function npt_update(Γ::FourierIntegrand{typeof(transport_distribution_integrand)}, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
@@ -226,7 +226,7 @@ See `FourierIntegrand` for more details.
 KineticCoefficientIntegrand(hv::AbstractVelocity, p...) =
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, p...)
 
-SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = FaithfulRep()
+SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = LatticeRep()
 
 OpticalConductivityIntegrand(hv::AbstractVelocity, p...) =
     KineticCoefficientIntegrand(hv, 0, p...)

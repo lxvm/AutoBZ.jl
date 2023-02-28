@@ -12,12 +12,13 @@ module AutoBZ
 using LinearAlgebra
 
 using StaticArrays
+using HDF5
 using Reexport
 @reexport using Integrals
 @reexport using AutoBZCore
 @reexport using FourierSeriesEvaluators
 
-import AutoBZCore: symmetrize, SymRep, FourierIntegrand
+import AutoBZCore: SymRep, batchsolve
 import FourierSeriesEvaluators: period, contract!, evaluate, coefficients, show_details
 import AutoSymPTR: npt_update
 
@@ -53,5 +54,7 @@ export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
 include("apps.jl")
+
+include("jobs.jl")
 
 end
