@@ -1,16 +1,46 @@
 #=
+using AutoBZ
+
+hv, bz = load_wannier90_data("svo"; gauge=:Hamiltonian, vkind=:covariant, vcomp=:inter)
+Σ = ConstScalarSelfEnergy(-0.01im)
+
+kc_integrand = KineticCoefficientIntegrand(hv, 1, -Inf, Inf, QuadGKJL(), Σ, 11.0)
+kc = IntegralSolver(kc_integrand, bz, IAI(); abstol=1e-3)
+
+using AutoBZ, LinearAlgebra
+
+h, bz = load_wannier90_data("svo")
+Σ = ConstScalarSelfEnergy(-0.01im)
+
+gloc_kernel(h_k, Σ, ω) = inv(ω*I-h_k-Σ(ω))
+gloc_integrand = FourierIntegrand(gloc_kernel, h, Σ)
+gloc = IntegralSolver(gloc_integrand, bz, IAI(); abstol=1e-3)
+
+
+
+using AutoBZ, AdaptChebInterp, Plots
+
+h, bz = load_wannier90_data("svo")
+Σ = ConstScalarSelfEnergy(-0.01im)
+
+dos_solver = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=1e-3)
+dos = adaptchebinterp(dos_solver, 10, 15; atol=1e-2)
+
+plot(10:0.001:15, dos)
+
 In this script we interpolate DOS over a frequency interval using the interface in AutoBZ.jl
 =#
 
+
 using Plots
 
-using AutoBZ.Jobs
-using AutoBZ.Jobs.AdaptChebInterp
+using AutoBZ
+using AdaptChebInterp
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-H, FBZ = load_wannier90_data("svo")
+h, bz = load_wannier90_data("svo/svo")
 
-IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
+bz = AutoBZ.cubic_sym_ibz(bz; atol=1e-5) # for lattices with cubic symmetry only
 
 
 # Define problem parameters
@@ -19,7 +49,7 @@ IBZ = Jobs.cubic_sym_ibz(FBZ; atol=1e-5) # for lattices with cubic symmetry only
 η = 0.1 # eV
 μ = 12.3958 # eV
 
-shift!(H, μ) # shift the Fermi energy to zero
+shift!(h, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # set error tolerances
@@ -31,9 +61,7 @@ interp_atol=1e-3
 order = 4
 fast_order = 15
 
-# D = first ∘ DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol) # adaptive default
-# D = first ∘ DOSIntegrator(IBZ, H, Σ; routine=Jobs.AutoBZ.equispace_integration)
-D = first ∘ DOSIntegrator(IBZ, H, Σ; atol=atol, rtol=rtol, routine=Jobs.AutoBZ.automatic_equispace_integration)
+D = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
 
 adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
 t_ = time()
