@@ -60,33 +60,31 @@ to_vcomp_gauge(vcomp::C, gauge::G, H, vs::AbstractMatrix...) where {C,G} =
 
 to_vcomp_gauge(::Val{:whole}, ::Val{:Wannier}, H, vs::NTuple) = (H, vs...)
 function to_vcomp_gauge(vcomp::C, w::Val{:Wannier}, H, vs::NTuple) where C
-    E, vhs... = to_vcomp_gauge(vcomp, Val{:Hamiltonian}(), H, vs)
-    to_gauge(w, E, vhs)
+    E, vhs... = to_vcomp_gauge(vcomp, Val(:Hamiltonian), H, vs)
+    e, vws = to_gauge(w, E, vhs)
+    (e, vws...)
 end
 
-to_vcomp_gauge(::Val{:Hamiltonian}, ::Val{:whole}, H, vws::NTuple) =
-    to_hamiltonian_gauge(H, vws)
-
-function to_vcomp_gauge(::Val{:Hamiltonian}, ::Val{:inter}, H, vws::NTuple{N,T}) where {N,T}
-    ϵ, vhs... = to_hamiltonian_gauge(H, vws)
-    (ϵ, ntuple(n -> vhs[n] - Diagonal(vhs[n]), Val{N}())...)
-end
-
-function to_vcomp_gauge(::Val{:Hamiltonian}, ::Val{:intra}, H, vws::NTuple{N}) where N
-    ϵ, vhs... = to_hamiltonian_gauge(H, vws)
-    return (ϵ, ntuple(n -> Diagonal(vhs[n]), Val{N}())...)
-end
-
-function to_vcomp_gauge_type(::G, ::V, T) where {G,V}
-    Base.promote_op(to_vcomp_gauge, G, V, T)
+function to_vcomp_gauge(vcomp::C, ::Val{:Hamiltonian}, H::AbstractMatrix, vws::NTuple{N}) where {C,N}
+    E, vhs = to_gauge(Val(:Hamiltonian), H, vws)
+    (E, to_vcomp(vcomp, vhs)...)
 end
 
 function to_gauge(::Val{:Wannier}, H::Eigen, vhs::NTuple{N}) where N
+    U = H.vectors
+    to_gauge(Val(:Wannier), H), ntuple(n -> U * vhs[n] * U', Val(N))
 end
 function to_gauge(::Val{:Hamiltonian}, H::AbstractMatrix, vws::NTuple{N}) where N
-    ishermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
-    eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
+    E = to_gauge(Val(:Hamiltonian), H)
+    U = E.vectors
+    E, ntuple(n -> U' * vws[n] * U, Val(N))
 end
+
+to_vcomp(::Val{:whole}, vhs::NTuple{N,T}) where {N,T} = vhs
+to_vcomp(::Val{:inter}, vhs::NTuple{N,T}) where {N,T} =
+    ntuple(n -> vhs[n] - Diagonal(vhs[n]), Val(N))
+to_vcomp(::Val{:intra}, vhs::NTuple{N,T}) where {N,T} =
+    ntuple(n -> Diagonal(vhs[n]), Val(N))
 
 
 """

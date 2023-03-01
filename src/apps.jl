@@ -1,23 +1,29 @@
+propagator_denominator(h::AbstractMatrix, M) = M-h
+propagator_denominator(h::Eigen, M::UniformScaling) =
+    propagator_denominator(Diagonal(h.values), M)
+propagator_denominator((h, U)::Eigen, M::AbstractMatrix) =
+    propagator_denominator(Diagonal(h), U' * M * U) # rotate to Hamiltonian gauge
+
 """
     gloc_integrand(h, M)
 
 Returns `inv(M-h)` where `M = ω*I-Σ(ω)`
 """
-gloc_integrand(h::AbstractMatrix, M) = inv(M-h)
+gloc_integrand(h, M) = inv(propagator_denominator(h, M))
 
 """
     diaggloc_integrand(h, M)
 
 Returns `diag(inv(M-h))` where `M = ω*I-Σ(ω)`
 """
-diaggloc_integrand(h::AbstractMatrix, M) = diag_inv(M-h)
+diaggloc_integrand(h, M) = diag_inv(propagator_denominator(h, M))
 
 """
     trgloc_integrand(h, M)
 
 Returns `tr(inv(M-h))` where `M = ω*I-Σ(ω)`
 """
-trgloc_integrand(h::AbstractMatrix, M) = tr_inv(M-h)
+trgloc_integrand(h, M) = tr_inv(propagator_denominator(h, M))
 
 """
     dos_integrand(h, M)
@@ -28,9 +34,7 @@ integrand. The default, safe version also integrates the real part which is less
 localized, at the expense of a slight slow-down due to complex arithmetic.
 See [`AutoBZ.Jobs.safedos_integrand`](@ref).
 """
-dos_integrand(h::AbstractMatrix, M) = imag(tr_inv(M-h))/(-pi)
-dos_integrand(h::Eigen, M::UniformScaling) = dos_integrand(Diagonal(h.values), M)
-dos_integrand(h::Eigen, M::AbstractMatrix) = error("not implemented")#imag(tr_inv(M-h))/(-pi)
+dos_integrand(h, M) = imag(tr_inv(propagator_denominator(h, M)))/(-pi)
 
 
 # Generic behavior for single Green's function integrands (methods and types)
@@ -102,7 +106,7 @@ TransportFunctionIntegrand(hv::AbstractVelocity, p...) =
 SymRep(::FourierIntegrand{typeof(transport_function_integrand)}) = LatticeRep()
 
 
-spectral_function(h, M) = imag(inv(M-h))/(-pi)
+spectral_function(h, M) = imag(gloc_integrand(h, M))/(-pi)
 
 transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂) =
     transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
