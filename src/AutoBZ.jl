@@ -17,7 +17,7 @@ using HDF5
 using Reexport
 @reexport using AutoBZCore
 
-import AutoBZCore: SymRep, batchsolve,
+import AutoBZCore: SymRep, batchsolve, FourierIntegrand,
     FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract!, FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients, FourierSeriesEvaluators.show_details,
     AutoSymPTR.npt_update
 

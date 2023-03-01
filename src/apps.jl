@@ -1,45 +1,25 @@
 """
-    eval_self_energy(M)
-    eval_self_energy(Σ, ω)
-
-Defines the default behavior for handling single Green's function self energy
-arguments
-"""
-eval_self_energy(M) = M
-eval_self_energy(Σ::AbstractSelfEnergy, ω) = ω*I-Σ(ω)
-eval_self_energy(Σ::AbstractMatrix, ω) = ω*I-Σ
-
-
-"""
-    gloc_integrand(h, Σ, ω)
     gloc_integrand(h, M)
 
 Returns `inv(M-h)` where `M = ω*I-Σ(ω)`
 """
 gloc_integrand(h::AbstractMatrix, M) = inv(M-h)
-gloc_integrand(h::AbstractMatrix, Σ, ω) = gloc_integrand(h, eval_self_energy(Σ, ω))
 
 """
-    diaggloc_integrand(h, Σ, ω)
     diaggloc_integrand(h, M)
 
 Returns `diag(inv(M-h))` where `M = ω*I-Σ(ω)`
 """
 diaggloc_integrand(h::AbstractMatrix, M) = diag_inv(M-h)
-diaggloc_integrand(h::AbstractMatrix, Σ, ω) = diaggloc_integrand(h, eval_self_energy(Σ, ω))
 
 """
-    trgloc_integrand(h, Σ, ω)
     trgloc_integrand(h, M)
 
 Returns `tr(inv(M-h))` where `M = ω*I-Σ(ω)`
 """
 trgloc_integrand(h::AbstractMatrix, M) = tr_inv(M-h)
-trgloc_integrand(h::AbstractMatrix, Σ, ω) = trgloc_integrand(h, eval_self_energy(Σ, ω))
-
 
 """
-    dos_integrand(h, Σ, ω)
     dos_integrand(h, M)
 
 Returns `imag(tr(inv(M-h)))/(-pi)` where `M = ω*I-Σ(ω)`. It is unsafe to use
@@ -51,7 +31,6 @@ See [`AutoBZ.Jobs.safedos_integrand`](@ref).
 dos_integrand(h::AbstractMatrix, M) = imag(tr_inv(M-h))/(-pi)
 dos_integrand(h::Eigen, M::UniformScaling) = dos_integrand(Diagonal(h.values), M)
 dos_integrand(h::Eigen, M::AbstractMatrix) = error("not implemented")#imag(tr_inv(M-h))/(-pi)
-dos_integrand(h::AbstractMatrix, Σ, ω) = dos_integrand(h, eval_self_energy(Σ, ω))
 
 
 # Generic behavior for single Green's function integrands (methods and types)
@@ -67,6 +46,10 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     See `FourierIntegrand` for more details.
     """
     @eval $T(h::Hamiltonian, p...) = FourierIntegrand($f, h, p)
+    
+    # pre-evaluate the self energy when constructing the integrand
+    @eval FourierIntegrand(f::typeof($f), h::Hamiltonian, (Σ, ω)::Tuple{AbstractSelfEnergy,Real}) =
+        FourierIntegrand(f, h, (ω*I-Σ(ω),))
 
     # Define default equispace grid stepping based 
     @eval function npt_update(f::FourierIntegrand{typeof($f)}, npt::Integer)
@@ -163,10 +146,16 @@ See `FourierIntegrand` for more details.
 """
 TransportDistributionIntegrand(hv::AbstractVelocity, p...) =
     FourierIntegrand(transport_distribution_integrand, hv, p)
+    
+# pre-evaluate self energies when constructing integrand
+FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocity, (Σ, ω₁, ω₂)::Tuple{AbstractSelfEnergy,Real,Real}) = 
+    FourierIntegrand(f, hv, (ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂)))
 
-SymRep(::FourierIntegrand{typeof(transport_distribution_integrand)}) = LatticeRep()
+const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
 
-function npt_update(Γ::FourierIntegrand{typeof(transport_distribution_integrand)}, npt::Integer)
+SymRep(::TransportDistributionIntegrandType) = LatticeRep()
+
+function npt_update(Γ::TransportDistributionIntegrandType, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
     ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
     eta_npt_update(npt, min(ηω₁, ηω₂), period(Γ.s)[1])
@@ -203,16 +192,23 @@ kinetic_coefficient_integrand(ω, (hv_k, Σ, Ω, β, n)) =
 kinetic_coefficient_integrand(Γ, ω, Ω, β, n) =
     (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
 
-function kinetic_coefficient_frequency_integral(hv_k::Tuple, n, lb, ub, alg, Σ, β, Ω)
+function kinetic_coefficient_frequency_integral(hv_k::Tuple, solver, n, Σ, β, Ω)
     # deal with distributional integral case
     Ω == 0 && β == Inf && return 0^n * transport_distribution_integrand(hv_k, Σ, Ω, Ω)
-    # normal case
-    prob = IntegralProblem(kinetic_coefficient_integrand, lb, ub, (hv_k, Σ, Ω, β, n))
-    solve(prob, alg).u
+    kinetic_coefficient_frequency_integral_(hv_k, solver, n, Σ, β, Ω)
 end
+function kinetic_coefficient_frequency_integral_(hv_k::Tuple, solver_::IntegralSolver{iip,F,Nothing,Nothing}, n, Σ, β, Ω) where {iip,F}
+    # provide default integration limits, if they are nothing
+    a, b = AutoBZ.get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
+    solver = IntegralSolver{iip}(solver_.f, a, b, solver_.alg;
+        abstol=solver_.abstol, reltol=solver_.reltol, maxiters=solver_.maxiters)
+    kinetic_coefficient_frequency_integral_(hv_k, solver, n, Σ, β, Ω)
+end
+kinetic_coefficient_frequency_integral_(hv_k::Tuple, solver, n, Σ, β, Ω) =
+    solver((hv_k, Σ, Ω, β, n))
 
 """
-    KineticCoefficientIntegrand
+    KineticCoefficientIntegrand([solver=IntegralSolver(, QuadGKJL())], )
 
 A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
@@ -223,14 +219,20 @@ where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See `FourierIntegrand` for more details.
 """
-KineticCoefficientIntegrand(hv::AbstractVelocity, p...) =
-    FourierIntegrand(kinetic_coefficient_frequency_integral, hv, p...)
+function KineticCoefficientIntegrand(hv::AbstractVelocity, p...; alg=QuadGKJL(), kwargs...)
+    solver = IntegralSolver(kinetic_coefficient_integrand, nothing, nothing, alg; kwargs...)
+    KineticCoefficientIntegrand(solver, hv, p...)
+end
+KineticCoefficientIntegrand(solver, hv::AbstractVelocity, p...) =
+    FourierIntegrand(kinetic_coefficient_frequency_integral, hv, solver, p...)
 
 SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = LatticeRep()
 
-OpticalConductivityIntegrand(hv::AbstractVelocity, p...) =
-    KineticCoefficientIntegrand(hv, 0, p...)
+OpticalConductivityIntegrand(hv::AbstractVelocity, p...; kwargs...) =
+    KineticCoefficientIntegrand(hv, 0, p...; kwargs...)
 
+OpticalConductivityIntegrand(solver, hv::AbstractVelocity, p...) =
+    KineticCoefficientIntegrand(solver, hv, 0, p...)
 
 electron_density_integrand(ω, (h_k, Σ, β, μ)) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
