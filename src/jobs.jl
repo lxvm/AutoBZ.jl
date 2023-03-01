@@ -1,6 +1,5 @@
 # hdf5
 
-
 """
     read_h5_to_nt(filename)
 
@@ -9,12 +8,13 @@ and its groups into `NamedTuple`s recursively.
 """
 read_h5_to_nt(filename) = h5open(read_h5_to_nt_, filename, "r")
 read_h5_to_nt_(h5) = NamedTuple([Pair(Symbol(key), ((val = h5[key]) isa HDF5.Group) ? read_h5_to_nt_(val) : h5_dset_to_vec(read(h5, key))) for key in keys(h5)])
-h5_dset_to_vec(x::Vector) = identity(x)
+h5_dset_to_vec(x::Array) = x
+#=
 function h5_dset_to_vec(A::Array{T,N}) where {T,N}
     S = size(A)[1:N-1]
     reinterpret(SArray{Tuple{S...},T,N-1,prod(S)}, vec(A))
 end
-
+=#
 """
     write_nt_to_h5(nt::NamedTuple, filename)
 
@@ -42,17 +42,34 @@ vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype
 
 # parallelization
 
-batchsolve(s::String, f, ps; kwargs...) = h5open(s, "w") do h5
-    batchsolve(h5, f, ps; kwargs...)
-end
-function batchsolve(h5::HDF5.File, f, ps; kwargs...)
-    
+batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
+    dims = dataspace(tuple(length(ps)))
+    F, fdims = if T <: Number
+        datatype(T), dims
+    elseif T <: SArray
+        datatype(eltype(T)), dataspace((size(ps)..., size(T)...))
+    else
+        throw(ArgumentError("Couldn't map result type to HDF5 type"))
+    end
+    gI = create_dataset(h5, "I", F, fdims)
+    gE = create_dataset(h5, "E", datatype(Float64), dims)
+    gt = create_dataset(h5, "t", datatype(Float64), dims)
+    gp = create_dataset(h5, "p", datatype(eltype(ps)), dims)
+    ax = ntuple(_-> :, Val(ndims(T)))
 
     function h5callback(f, i, p, sol, t)
-        @info @sprintf "parameter %i finished in %e (s) wall clock time" i t
+        @info @sprintf "parameter %i finished in %e (s)" i t
+        gI[i,ax...] = sol.u
+        gE[i] = isnothing(sol.resid) ? NaN : convert(Float64, sol.resid)
+        gt[i] = t
+        gp[i] = p
+        # TODO: record algorithm details such as npts
     end
 
-    @info
-    batchsolve(f, ps; callback=h5callback, kwargs...)
-    @info @sprintf "Finished parameter sweep in %e (s) CPU time and %e (s) wall clock time" sum(ts) (time()-t)
+    @info "Started parameter sweep"
+    t = time()
+    sol = batchsolve(f, ps, T; callback=h5callback, kwargs...)
+    t = time()-t
+    @info @sprintf "Finished parameter sweep in %e (s) CPU time and %e (s) wall clock time" sum(read(gt)) t
+    sol
 end
