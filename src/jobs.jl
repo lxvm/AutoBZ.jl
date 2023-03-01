@@ -44,14 +44,9 @@ vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype
 
 batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
     dims = dataspace(tuple(length(ps)))
-    F, fdims = if T <: Number
-        datatype(T), dims
-    elseif T <: SArray
-        datatype(eltype(T)), dataspace((size(ps)..., size(T)...))
-    else
-        throw(ArgumentError("Couldn't map result type to HDF5 type"))
-    end
-    gI = create_dataset(h5, "I", F, fdims)
+    Idims = dataspace(((ndims(T) == 0 ? () : size(T))..., length(ps)))
+    
+    gI = create_dataset(h5, "I", datatype(eltype(T)), Idims)
     gE = create_dataset(h5, "E", datatype(Float64), dims)
     gt = create_dataset(h5, "t", datatype(Float64), dims)
     gp = create_dataset(h5, "p", datatype(eltype(ps)), dims)
@@ -59,7 +54,7 @@ batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs.
 
     function h5callback(f, i, p, sol, t)
         @info @sprintf "parameter %i finished in %e (s)" i t
-        gI[i,ax...] = sol.u
+        gI[ax...,i] = sol
         gE[i] = isnothing(sol.resid) ? NaN : convert(Float64, sol.resid)
         gt[i] = t
         gp[i] = p
