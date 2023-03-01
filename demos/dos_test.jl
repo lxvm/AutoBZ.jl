@@ -24,7 +24,7 @@ atol = 1e-3
 rtol = 0.0
 npt = 100
 
-dos = DOSIntegrand(h, Σ(ω))
+dos = DOSIntegrand(h, Σ, ω)
 # dos_integrand(h_k, Σ, ω) = SVector{1,Float64}(tr(imag(inv(ω*I-h_k - Σ(ω))))/(-pi))
 # dos = FourierIntegrand(dos_integrand, h, Σ, ω)
 prob = IntegralProblem(dos, bz)
