@@ -35,8 +35,8 @@ function write_nt_to_h5_(nt::NamedTuple, h5)
     end
 end
 vec_to_h5_dset(x::Number) = vec(collect(x))
-vec_to_h5_dset(x::AbstractVector) = collect(x)
-vec_to_h5_dset(x::Vector) = identity(x)
+vec_to_h5_dset(x::AbstractArray) = collect(x)
+vec_to_h5_dset(x::Array) = x
 vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype(T), x), size(T)..., :)
 
 
