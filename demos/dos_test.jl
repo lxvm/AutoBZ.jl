@@ -2,13 +2,11 @@
 In this script we compute DOS at single point using the interface in AutoBZ.jl
 =#
 
+# using SymmetryReduceBZ # add package to use bzkind=:ibz
 using AutoBZ
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-h, bz = load_wannier90_data("svo/svo")
-
-bz = AutoBZ.cubic_sym_ibz(bz; atol=1e-5) # for lattices with cubic symmetry only
-
+h, bz = load_wannier90_data("svo"; bzkind=:cubicsymibz)
 
 # Define problem parameters
 ω = 0.0 # eV
@@ -24,18 +22,11 @@ atol = 1e-3
 rtol = 0.0
 npt = 100
 
-dos = DOSIntegrand(h, Σ, ω)
-# dos_integrand(h_k, Σ, ω) = SVector{1,Float64}(tr(imag(inv(ω*I-h_k - Σ(ω))))/(-pi))
-# dos = FourierIntegrand(dos_integrand, h, Σ, ω)
-prob = IntegralProblem(dos, bz)
+integrand = DOSIntegrand(h, Σ)
 
 for alg in (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
     @show typeof(alg)
-    @time sol = solve(prob, alg; abstol=atol, reltol=rtol)
-    @show sol
+    solver = IntegralSolver(integrand, bz, alg; abstol=atol, reltol=rtol)
+    @time @show solver(ω)
     println()
 end
-
-dos_solver = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
-# dos_solver = IntegralSolver(FourierIntegrand(dos_integrand, h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
-@time dos_solver(ω)

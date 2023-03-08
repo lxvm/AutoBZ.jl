@@ -1,47 +1,15 @@
 #=
-using AutoBZ
-
-hv, bz = load_wannier90_data("svo"; gauge=:Hamiltonian, vkind=:covariant, vcomp=:inter)
-Σ = ConstScalarSelfEnergy(-0.01im)
-
-kc_integrand = KineticCoefficientIntegrand(hv, 1, -Inf, Inf, QuadGKJL(), Σ, 11.0)
-kc = IntegralSolver(kc_integrand, bz, IAI(); abstol=1e-3)
-
-using AutoBZ, LinearAlgebra
-
-h, bz = load_wannier90_data("svo")
-Σ = ConstScalarSelfEnergy(-0.01im)
-
-gloc_kernel(h_k, Σ, ω) = inv(ω*I-h_k-Σ(ω))
-gloc_integrand = FourierIntegrand(gloc_kernel, h, Σ)
-gloc = IntegralSolver(gloc_integrand, bz, IAI(); abstol=1e-3)
-
-
-
-using AutoBZ, AdaptChebInterp, Plots
-
-h, bz = load_wannier90_data("svo")
-Σ = ConstScalarSelfEnergy(-0.01im)
-
-dos_solver = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=1e-3)
-dos = adaptchebinterp(dos_solver, 10, 15; atol=1e-2)
-
-plot(10:0.001:15, dos)
-
 In this script we interpolate DOS over a frequency interval using the interface in AutoBZ.jl
 =#
 
-
 using Plots
 
+# using SymmetryReduceBZ # add package to use bzkind=:ibz
 using AutoBZ
-using AdaptChebInterp
+using HChebInterp
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-h, bz = load_wannier90_data("svo/svo")
-
-bz = AutoBZ.cubic_sym_ibz(bz; atol=1e-5) # for lattices with cubic symmetry only
-
+h, bz = load_wannier90_data("svo"; bzkind=:cubicsymibz)
 
 # Define problem parameters
 ω_lo = -2.0 # eV
@@ -63,28 +31,28 @@ fast_order = 15
 
 D = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
 
-adaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=order)
+hchebinterp(D, ω_lo, ω_hi, HAdaptError(); atol=1.0, order=order)
 t_ = time()
-p1 = adaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=order)
+p1 = hchebinterp(D, ω_lo, ω_hi, HAdaptError(); atol=interp_atol, order=order)
 @info "rigorous interpolation took $(time()-t_) s"
 
 
-fastadaptchebinterp(D, ω_lo, ω_hi; atol=1.0, order=fast_order)
+hchebinterp(D, ω_lo, ω_hi, SpectralError(); atol=1.0, order=fast_order)
 t_ = time()
-p2 = fastadaptchebinterp(D, ω_lo, ω_hi; atol=interp_atol, order=fast_order)
+p2 = hchebinterp(D, ω_lo, ω_hi, SpectralError(); atol=interp_atol, order=fast_order)
 @info "fast interpolation took $(time()-t_) s"
 
 nodes = Float64[]
 for panel in p1.searchtree
     iszero(panel.val) && continue
-    push!(nodes, AdaptChebInterp.chebpoints(order, panel.a, panel.b)...)
+    push!(nodes, HChebInterp.chebpoints(order, panel.a, panel.b)...)
 end
 # unique!(nodes)
 
 fast_nodes = Float64[]
 for panel in p2.searchtree
     iszero(panel.val) && continue
-    push!(fast_nodes, AdaptChebInterp.chebpoints(fast_order, panel.a, panel.b)...)
+    push!(fast_nodes, HChebInterp.chebpoints(fast_order, panel.a, panel.b)...)
 end
 # unique!(fast_nodes)
 

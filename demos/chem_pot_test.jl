@@ -3,15 +3,13 @@ In this script we compute the electron count at single chemical potential using 
 =#
 using LinearAlgebra
 
+# using SymmetryReduceBZ # add package to use bzkind=:ibz
 using AutoBZ
 using EquiBaryInterp
 import IteratedIntegration: alloc_segbufs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-h, bz = load_wannier90_data("svo/svo")
-
-bz = AutoBZ.cubic_sym_ibz(bz; atol=1e-5) # for lattices with cubic symmetry only
-
+h, bz = load_wannier90_data("svo/svo"; bzkind=:cubicsymibz)
 
 # Define problem parameters
 μ = 12.3958 # eV
