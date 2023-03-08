@@ -25,7 +25,7 @@ using StaticArrays
 using Reexport
 @reexport using AutoBZCore
 
-import AutoBZCore: SymRep, batchsolve, FourierIntegrand, construct_problem,
+import AutoBZCore: SymRep, FourierIntegrand, construct_problem,
     FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract!, FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients, FourierSeriesEvaluators.show_details,
     AutoSymPTR.npt_update
 
@@ -65,7 +65,8 @@ include("self_energies_io.jl")
 export load_wannier90_data
 include("wannier90io.jl")
 
-include("jobs.jl")
+export read_h5_to_nt, write_nt_to_h5, h5batchsolve
+include("hdf5io.jl")
 
 
 end

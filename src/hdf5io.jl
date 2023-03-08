@@ -1,5 +1,3 @@
-# hdf5
-
 """
     read_h5_to_nt(filename)
 
@@ -42,7 +40,7 @@ vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype
 
 # parallelization
 
-batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
+h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
     dims = dataspace(tuple(length(ps)))
     Idims = dataspace(((ndims(T) == 0 ? () : size(T))..., length(ps)))
     
