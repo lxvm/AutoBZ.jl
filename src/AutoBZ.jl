@@ -47,6 +47,9 @@ include("hamiltonian.jl")
 export HamiltonianVelocity, CovariantHamiltonianVelocity
 include("velocities.jl")
 
+export load_bz
+include("bzkinds.jl")
+
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
 

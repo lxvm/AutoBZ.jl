@@ -236,16 +236,18 @@ parse_wout(filename; iprint=1) = open(filename) do file
     # lattice
     species = String[]
     site = Int[]
-    frac_lat = SVector{3,Float64}[]
-    cart_lat = SVector{3,Float64}[]
+    frac_lat_ = SVector{3,Float64}[]
+    cart_lat_ = SVector{3,Float64}[]
     while true
         col = split(readline(file))
         length(col) == 11 || break
         push!(species, col[2])
         push!(site, parse(Int, col[3]))
-        push!(frac_lat, parse.(Float64, col[4:6]))
-        push!(cart_lat, parse.(Float64, col[8:10]))
+        push!(frac_lat_, parse.(Float64, col[4:6]))
+        push!(cart_lat_, parse.(Float64, col[8:10]))
     end
+    frac_lat = Matrix(reshape(reinterpret(Float64, frac_lat_), 3, :))
+    cart_lat = Matrix(reshape(reinterpret(Float64, cart_lat_), 3, :))
     # projections
     # k-point grid
     # main
@@ -277,7 +279,7 @@ parse_sym(filename) = open(filename) do file
 end
 
 """
-    load_wannier90_data(seedname; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N)
+    load_wannier90_data(seedname; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N, bzkind=:full)
 
 Reads Wannier90 output files with the given `seedname` to return the Hamiltonian
 (optionally with band velocities if `vkind` is specified as either `:covariant`
@@ -286,9 +288,7 @@ available if to compress the Fourier series if its Fourier coefficients are
 known to be Hermitian. Returns `(w, fbz)` containing the Wannier interpolant and
 the full BZ limits.
 """
-function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N, atol=1e-5)
-    A, B, = parse_wout(seedname * ".wout")
-
+function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N, bzkind=:fbz)
     # use fractional lattice coordinates for the Fourier series
     w = if vkind == :none
         load_hamiltonian(seedname * "_hr.dat"; compact=compact, gauge=gauge)
@@ -301,7 +301,7 @@ function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcom
         throw(ArgumentError("velocity kind $vkind not recognized"))
     end
 
-    fbz = FullBZ(A, B, AutoBZCore.lattice_bz_limits(B); atol=atol)
+    bz = load_bz(Val(bzkind), seedname)
 
-    w, fbz
+    w, bz
 end

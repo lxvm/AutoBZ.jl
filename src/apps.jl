@@ -259,34 +259,3 @@ See `FourierIntegrand` for more details.
 """
 ElectronDensityIntegrand(h::Hamiltonian, p...) =
     FourierIntegrand(electron_density_frequency_integral, h, p)
-
-# replacement for TetrahedralLimits
-
-cubic_sym_ibz(A; kwargs...) = cubic_sym_ibz(A, AutoBZCore.canonical_reciprocal_basis(A); kwargs...)
-cubic_sym_ibz(bz::SymmetricBZ; kwargs...) = cubic_sym_ibz(bz.A, bz.B; kwargs...)
-function cubic_sym_ibz(A::M, B::M; kwargs...) where {N,T,M<:SMatrix{N,N,T}}
-    lims = AutoBZCore.TetrahedralLimits(ntuple(n -> 1/2, Val{N}()))
-    syms = vec(collect(cube_automorphisms(Val{N}())))
-    SymmetricBZ(A, B, lims, syms; kwargs...)
-end
-
-"""
-    cube_automorphisms(::Val{d}) where d
-
-return a generator of the symmetries of the cube in `d` dimensions including the
-identity.
-"""
-cube_automorphisms(n::Val{d}) where {d} = (S*P for S in sign_flip_matrices(n), P in permutation_matrices(n))
-n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
-
-sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)...)
-sign_flip_matrices(n::Val{d}) where {d} = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(n))
-n_sign_flips(d::Integer) = 2^d
-
-function permutation_matrices(t::Val{n}) where {n}
-    permutations = permutation_tuples(ntuple(identity, t))
-    (StaticArrays.sacollect(SMatrix{n,n,Int,n^2}, ifelse(j == p[i], 1, 0) for i in 1:n, j in 1:n) for p in permutations)
-end
-permutation_tuples(C::NTuple{N,T}) where {N,T} = @inbounds((C[i], p...)::NTuple{N,T} for i in eachindex(C) for p in permutation_tuples(C[[j for j in eachindex(C) if j != i]]))
-permutation_tuples(C::NTuple{1}) = C
-n_permutations(n::Integer) = factorial(n)
