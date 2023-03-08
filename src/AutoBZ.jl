@@ -20,12 +20,12 @@ using LinearAlgebra
 using LinearAlgebra: checksquare
 using Printf: @sprintf
 
-using StaticArrays
 using HDF5
+using StaticArrays
 using Reexport
 @reexport using AutoBZCore
 
-import AutoBZCore: SymRep, batchsolve, FourierIntegrand,
+import AutoBZCore: SymRep, batchsolve, FourierIntegrand, construct_problem,
     FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract!, FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients, FourierSeriesEvaluators.show_details,
     AutoSymPTR.npt_update
 
@@ -47,17 +47,8 @@ include("hamiltonian.jl")
 export HamiltonianVelocity, CovariantHamiltonianVelocity
 include("velocities.jl")
 
-export load_bz
-include("bzkinds.jl")
-
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
-
-export load_self_energy
-include("self_energies_io.jl")
-
-export load_wannier90_data
-include("wannier90io.jl")
 
 export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
 export TransportFunctionIntegrand, TransportDistributionIntegrand
@@ -65,6 +56,16 @@ export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
 include("apps.jl")
 
+export load_bz
+include("bzkinds.jl")
+
+export load_self_energy
+include("self_energies_io.jl")
+
+export load_wannier90_data
+include("wannier90io.jl")
+
 include("jobs.jl")
+
 
 end

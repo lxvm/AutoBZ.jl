@@ -166,6 +166,53 @@ function npt_update(Γ::TransportDistributionIntegrandType, npt::Integer)
 end
 
 
+
+transport_fermi_integrand(ω, Γ, n, β, Ω=0.0) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω))
+
+kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω)
+
+function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0)
+    frequency_solver((hv_k, n, β, Ω))
+end
+
+"""
+    KineticCoefficientIntegrand([bz=FullBZ,] alg::AbstractAutoBZAlgorithm, hv::AbstracVelocity, Σ, n, β, [Ω=0])
+    KineticCoefficientIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, hv::AbstracVelocity, Σ, n, β, [Ω=0])
+
+A function whose integral over the BZ gives the kinetic
+coefficient. Mathematically, this computes
+```math
+A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
+```
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
+Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
+The argument `alg` determines what the order of integration is. Given a BZ
+algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
+integral.
+"""
+function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, Σ, n, p...; kwargs...)
+    # put the frequency integral outside if the provided algorithm is for the BZ
+    transport_integrand = TransportDistributionIntegrand(hv, Σ)
+    transport_solver = IntegralSolver(transport_integrand, bz, alg; kwargs...)
+    Integrand(transport_fermi_integrand, transport_solver, n, p...)
+end
+KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, p...; kwargs...) =
+    KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, p...; kwargs...)
+
+function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, n, p...; kwargs...)
+    # put the frequency integral inside otherwise
+    frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; kwargs...)
+    FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, n, p...)
+end
+KineticCoefficientIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+    KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, p...; kwargs...)
+
+SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = LatticeRep()
+
+
 """
     get_safe_fermi_window_limits(Ω, β, lb, ub)
 
@@ -184,59 +231,44 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub)
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
         l = lb
     end
-    if u > ub
+    if u+Ω > ub
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
-        u = ub
+        u = ub-Ω
     end
     l, u
 end
 
-kinetic_coefficient_integrand(ω, (hv_k, Σ, Ω, β, n)) =
-    kinetic_coefficient_integrand(transport_distribution_integrand(hv_k, Σ, ω, ω+Ω), ω, Ω, β, n)
-kinetic_coefficient_integrand(Γ, ω, Ω, β, n) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ
-
-function kinetic_coefficient_frequency_integral(hv_k::Tuple, solver, n, Σ, β, Ω)
-    # deal with distributional integral case
-    Ω == 0 && β == Inf && return 0^n * transport_distribution_integrand(hv_k, Σ, Ω, Ω)
-    kinetic_coefficient_frequency_integral_(hv_k, solver, n, Σ, β, Ω)
+# provide safe limits of integration for frequency integrals
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p) where iip
+    Ω, β = if (lp = length(p)) == 1
+        if (lsp = length(s.f.p)) == 2
+            zero(only(p)), only(p) # p is β
+        elseif lsp == 3
+            only(p), s.f.p[3] # p is Ω
+        end
+    elseif lp == 2
+        p[2], ps[1]
+    end
+    a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
+    IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
-function kinetic_coefficient_frequency_integral_(hv_k::Tuple, solver_::IntegralSolver{iip,F,Nothing,Nothing}, n, Σ, β, Ω) where {iip,F}
-    # provide default integration limits, if they are nothing
-    a, b = AutoBZ.get_safe_fermi_window_limits(Ω, β, lb(Σ), ub(Σ))
-    solver = IntegralSolver{iip}(solver_.f, a, b, solver_.alg;
-        abstol=solver_.abstol, reltol=solver_.reltol, maxiters=solver_.maxiters)
-    kinetic_coefficient_frequency_integral_(hv_k, solver, n, Σ, β, Ω)
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, p::Tuple) where iip
+    Ω, β = if length(p) == 3
+        zero(p[3]), p[3]
+    elseif length(p) == 4
+        p[4], p[3]
+    end
+    a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
+    IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
-kinetic_coefficient_frequency_integral_(hv_k::Tuple, solver, n, Σ, β, Ω) =
-    solver((hv_k, Σ, Ω, β, n))
 
-"""
-    KineticCoefficientIntegrand([solver=IntegralSolver(, QuadGKJL())], )
+OpticalConductivityIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+    KineticCoefficientIntegrand(alg, hv, Σ, 0, p...; kwargs...)
+OpticalConductivityIntegrand(bz, alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+    KineticCoefficientIntegrand(bz, alg, hv, Σ, 0, p...; kwargs...)
+OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+    KineticCoefficientIntegrand(lb, ub, alg, hv, Σ, 0, p...; kwargs...)
 
-A function whose integral over the BZ gives the kinetic
-coefficient. Mathematically, this computes
-```math
-A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
-```
-where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
-Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See `FourierIntegrand` for more details.
-"""
-function KineticCoefficientIntegrand(hv::AbstractVelocity, p...; alg=QuadGKJL(), kwargs...)
-    solver = IntegralSolver(kinetic_coefficient_integrand, nothing, nothing, alg; kwargs...)
-    KineticCoefficientIntegrand(solver, hv, p...)
-end
-KineticCoefficientIntegrand(solver, hv::AbstractVelocity, p...) =
-    FourierIntegrand(kinetic_coefficient_frequency_integral, hv, solver, p...)
-
-SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = LatticeRep()
-
-OpticalConductivityIntegrand(hv::AbstractVelocity, p...; kwargs...) =
-    KineticCoefficientIntegrand(hv, 0, p...; kwargs...)
-
-OpticalConductivityIntegrand(solver, hv::AbstractVelocity, p...) =
-    KineticCoefficientIntegrand(solver, hv, 0, p...)
 
 electron_density_integrand(ω, (h_k, Σ, β, μ)) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
@@ -259,3 +291,4 @@ See `FourierIntegrand` for more details.
 """
 ElectronDensityIntegrand(h::Hamiltonian, p...) =
     FourierIntegrand(electron_density_frequency_integral, h, p)
+
