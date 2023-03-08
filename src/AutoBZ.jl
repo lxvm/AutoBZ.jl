@@ -9,8 +9,16 @@ define custom BZ integrands.
 """
 module AutoBZ
 
-using Printf: @sprintf
+!isdefined(Base, :get_extension) && using Requires
+@static if !isdefined(Base, :get_extension)
+    function __init__()
+        @require SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046" include("../ext/SymmetryReduceBZExt.jl")
+    end
+end
+
 using LinearAlgebra
+using LinearAlgebra: checksquare
+using Printf: @sprintf
 
 using StaticArrays
 using HDF5
