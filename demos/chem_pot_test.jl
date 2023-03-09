@@ -6,16 +6,17 @@ using LinearAlgebra
 # using SymmetryReduceBZ # add package to use bzkind=:ibz
 using AutoBZ
 using EquiBaryInterp
-import IteratedIntegration: alloc_segbufs
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
 h, bz = load_wannier90_data("svo/svo"; bzkind=:cubicsymibz)
 
 # Define problem parameters
-μ = 12.3958 # eV
-η = 0.1 # eV
-β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
-Σ = EtaSelfEnergy(η)
+μs = range(11, 20, length=4) # eV
+
+# Fermi liquid scaling
+# η = 0.1 # eV
+# β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
+# Σ = EtaSelfEnergy(η)
 
 omegas, values = load_self_energy("svo_self_energy_scalar.txt")
 Σ = ScalarSelfEnergy(LocalEquiBaryInterp(omegas, values), extrema(omegas)...)
@@ -26,34 +27,47 @@ T = 50 # K
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
-tols = (atol=atol, rtol=rtol)
-quad_kw = (atol=atol/nsyms(bz), rtol=rtol) # error tolerance for innermost frequency integral
-# k-points/dim for equispace integration
 npt = 100
 
-# fully adaptive integration with innermost frequency integral
-density = ElectronDensityIntegrand(h,  Σ, β, μ, lb(Σ), ub(Σ))
-prob = IntegralProblem(density, bz)
+# setup oc_solver
+# IMPORTANT: pre-allocating rules/memory for algorithms helps with performance
+# compute types to pre-allocate resources for algorithms
+DT = eltype(bz) # domain type of Brillouin zone
+RT = real(eltype(fourier_type(hamiltonian(h), DT))) # range type of oc integrand
+NT = Base.promote_op(AutoBZ.norm, RT) # norm type for RT
 
-# vary routines for the BZ integral
-for alg in (IAI(), PTR(; npt=npt))
-    @show typeof(alg)
-    @time sol = solve(prob, alg; abstol=atol, reltol=rtol)
-    @show sol.u
-end
+# setup algorithm for Brillouin zone integral
+# npt = 50; kalg = PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt))
+# kalg = AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms))
+## alert: IAI does not compile quickly (trying to fix this bug)
+kalg = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(h)))
+#= alternative algorithms that save work for IAI when requesting a reltol
+npt = 50
+ptr = PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt))
+iai = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
+kalg = AutoPTR_IAI(; ptr=ptr, iai=iai)
+=#
+#=
+ptr = AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms))
+iai = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
+kalg = AutoPTR_IAI(; ptr=ptr, iai=iai)
+=#
 
-# put the frequency integral outside
+# setup algorithm for frequency integral
+## alert: cannot allocate a segbuf yet. See https://github.com/SciML/Integrals.jl/pull/151
+falg = QuadGKJL()#; segbuf=alloc_segbuf(DT, RT, NT))
 
-function fermi_dos(ω, (β, h, bz, Σ, alg, abstol, reltol))
-    dos = DOSIntegrand(h, (ω+μ)*I-Σ(ω))
-    prob = IntegralProblem(dos, bz)
-    AutoBZ.fermi(β*ω)*solve(prob, alg; abstol=atol, reltol=rtol).u
-end
-alg2 = IAI(; segbufs=alloc_segbufs(Float64, ntuple(n->Float64,3), ntuple(n->Float64,3), 3))
-prob2 = IntegralProblem(fermi_dos, lb(Σ), ub(Σ), (β, h, bz, Σ, alg2, atol, rtol))
-@time sol2 = solve(prob2, QuadGKJL(); abstol=atol, reltol=rtol)
+# construct solver with frequency integral inside
+n_integrand = ElectronDensityIntegrand(falg, h, Σ, β; abstol=atol/nsyms(bz), reltol=rtol)
+n_solver = IntegralSolver(n_integrand, bz, kalg; abstol=atol, reltol=rtol)
 
-dos_solver = IntegralSolver(DOSIntegrand(h, Σ), bz, alg2; abstol=atol, reltol=rtol)
-fermi_dos_solver(ω, (β, dos)) = fermi(β*ω)*dos(ω)
-prob3 = IntegralProblem(fermi_dos_solver, lb(Σ), ub(Σ), (β, dos_solver))
-@time sol3 = solve(prob3, QuadGKJL(); abstol=atol, reltol=rtol)
+# construct solver with BZ integral inside
+# n_integrand = ElectronDensityIntegrand(bz, kalg, h, Σ, β; abstol=atol, reltol=rtol)
+# n_solver = IntegralSolver(n_integrand, lb(Σ), ub(Σ), falg; abstol=atol, reltol=rtol)
+
+# run calculation
+nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
+@show h5batchsolve("n_ftps.h5", n_solver, μs, RT; nthreads=nthreads)
+
+# show kpts/dim of converged ptr grid
+kalg isa AutoPTR && @show kalg.buffer.npt1[] kalg.buffer.npt2[]

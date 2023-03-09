@@ -54,6 +54,8 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     # pre-evaluate the self energy when constructing the integrand
     @eval FourierIntegrand(f::typeof($f), h::Hamiltonian, (Σ, ω)::Tuple{AbstractSelfEnergy,Real}) =
         FourierIntegrand(f, h, (ω*I-Σ(ω),))
+    @eval FourierIntegrand(f::typeof($f), h::Hamiltonian, (Σ, ω, μ)::Tuple{AbstractSelfEnergy,Real,Real}) =
+        FourierIntegrand(f, h, ((ω+μ)*I-Σ(ω),))
 
     # Define default equispace grid stepping based 
     @eval function npt_update(f::FourierIntegrand{typeof($f)}, npt::Integer)
@@ -270,16 +272,18 @@ OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, p...; kwargs
     KineticCoefficientIntegrand(lb, ub, alg, hv, Σ, 0, p...; kwargs...)
 
 
-electron_density_integrand(ω, (h_k, Σ, β, μ)) =
+dos_fermi_integrand(ω, dos, β, μ=0.0) =
+    fermi(β*ω)*dos((ω, μ))
+
+electron_density_integrand(ω, Σ, h_k, β, μ) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
 
-function electron_density_frequency_integral(h_k::AbstractMatrix, Σ, β, μ, lb, ub, alg=QuadGKJL())
-    prob = IntegralProblem(electron_density_integrand, lb, ub, (h_k, Σ, β, μ))
-    only(solve(prob, alg))
-end
+electron_density_frequency_integral(h_k::AbstractMatrix, frequency_solver, β, μ=0.0) =
+    frequency_solver((h_k, β, μ))
 
 """
-    ElectronDensityIntegrand
+    ElectronDensityIntegrand([bz=FullBZ], alg::AbstractAutoBZAlgorithm, h::Hamiltonian, Σ, β, [μ=0])
+    ElectronDensityIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, h::Hamiltonian, Σ, β, [μ=0])
 
 A function whose integral over the BZ gives the electron density.
 Mathematically, this computes
@@ -287,8 +291,23 @@ Mathematically, this computes
 n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\omega+\\mu)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
-See `FourierIntegrand` for more details.
+The argument `alg` determines what the order of integration is. Given a BZ
+algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
+integral.
 """
-ElectronDensityIntegrand(h::Hamiltonian, p...) =
-    FourierIntegrand(electron_density_frequency_integral, h, p)
+function ElectronDensityIntegrand(bz, alg::AbstractAutoBZAlgorithm, h::Hamiltonian, Σ, p...; kwargs...)
+    dos_int = DOSIntegrand(h, Σ)
+    dos_solver = IntegralSolver(dos_int, bz, alg; kwargs...)
+    Integrand(dos_fermi_integrand, dos_solver, p...)
+end
+ElectronDensityIntegrand(alg::AbstractAutoBZAlgorithm, h::Hamiltonian, p...; kwargs...) =
+    ElectronDensityIntegrand(FullBZ(2pi*I(ndims(h))), alg, h, p...; kwargs...)
+
+function ElectronDensityIntegrand(lb, ub, alg, h::Hamiltonian, Σ, p...; kwargs...)
+    frequency_integrand = Integrand(electron_density_integrand, Σ)
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; kwargs...)
+    FourierIntegrand(electron_density_frequency_integral, h, frequency_solver, p...)
+end
+ElectronDensityIntegrand(alg, h::Hamiltonian, Σ, p...; kwargs...) =
+    ElectronDensityIntegrand(lb(Σ), ub(Σ), alg, h, Σ, p...; kwargs...)
 
