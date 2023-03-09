@@ -32,7 +32,7 @@ Fourier series evaluators for Wannier-interpolated quantities with a choice of
 basis, or gauge, `G`, which is typically `Val(:Hamiltonian)` or `Val(:Wannier)`.
 For details, see [`to_gauge`](@ref).
 """
-abstract type AbstractWannierInterp{G,N,T} <: AbstractInplaceFourierSeries{N,T} end
+abstract type AbstractWannierInterp{G,N,T} <: AbstractFourierSeries{N,T} end
 
 gauge(::AbstractWannierInterp{G}) where G = G
 

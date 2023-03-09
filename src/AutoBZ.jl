@@ -26,7 +26,10 @@ using Reexport
 @reexport using AutoBZCore
 
 import AutoBZCore: SymRep, FourierIntegrand, construct_problem,
-    FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract!, FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients, FourierSeriesEvaluators.show_details,
+    FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract,
+    FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients,
+    FourierSeriesEvaluators.show_details, FourierSeriesEvaluators.deriv,
+    FourierSeriesEvaluators.offset, FourierSeriesEvaluators.shift,
     AutoSymPTR.npt_update
 
 

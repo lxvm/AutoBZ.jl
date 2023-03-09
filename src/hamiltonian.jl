@@ -4,18 +4,16 @@
 A wrapper for `InplaceFourierSeries` with an additional gauge that allows for
 convenient diagonalization of the result. For details see [`to_gauge`](@ref).
 """
-struct Hamiltonian{G,N,T,H,F} <: AbstractWannierInterp{G,N,T}
-    h::H
+struct Hamiltonian{G,N,T,F} <: AbstractWannierInterp{G,N,T}
     f::F
-    Hamiltonian{G}(h::H, f::F) where {G,H,F<:InplaceFourierSeries} =
-        new{G,ndims(f),eltype(f),H,F}(h,f)
+    Hamiltonian{G}(f::F) where {G,F<:InplaceFourierSeries} =
+        new{G,ndims(f),eltype(f),F}(f)
 end
 
 # recursively wrap inner Fourier series with Hamiltonian
 Hamiltonian(f::InplaceFourierSeries; gauge=:Wannier) =
-    Hamiltonian{Val(gauge)}(Hamiltonian(f.f; gauge=gauge), f)
-Hamiltonian(f::InplaceFourierSeries{0}; gauge=:Wannier) =
-    Hamiltonian{Val(gauge)}((), f)
+    Hamiltonian{Val(gauge)}(f)
+
 
 hamiltonian(h::Hamiltonian) = h
 
@@ -36,10 +34,8 @@ end
 
 period(h::Hamiltonian) = period(h.f)
 
-function contract!(h::Hamiltonian, x::Number, ::Val{d}) where d
-    contract!(h.f, x, Val(d))
-    return h.h
-end
+contract(h::Hamiltonian{G}, x::Number, ::Val{d}) where {G,d} =
+    Hamiltonian{G}(contract(h.f, x, Val(d)))
 
 evaluate(h::Hamiltonian{G,1}, x::NTuple{1}) where G =
     to_gauge(G, evaluate(h.f, x))
