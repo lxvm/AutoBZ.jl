@@ -54,7 +54,6 @@ NT = Float64 # norm type for RT
 # setup algorithm for Brillouin zone integral
 npt = 50; kalg = PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt))
 # kalg = AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms))
-## alert: IAI does not compile quickly (trying to fix this bug)
 # kalg = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
 #= alternative algorithms that save work for IAI when requesting a reltol
 npt = 50

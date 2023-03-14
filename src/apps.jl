@@ -198,6 +198,7 @@ function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::Abstr
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; kwargs...)
+    transport_solver((0.0, 10.0)) # precompile the solver
     Integrand(transport_fermi_integrand, transport_solver, n, p...)
 end
 KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, p...; kwargs...) =
@@ -206,7 +207,8 @@ KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, 
 function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, n, p...; kwargs...)
     # put the frequency integral inside otherwise
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; kwargs...)
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; do_inf_transformation=Val(false), kwargs...)
+    frequency_solver((hv(fill(0.0, ndims(hv))), 0, 1.0, 10.0)) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, n, p...)
 end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
