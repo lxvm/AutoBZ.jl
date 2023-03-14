@@ -2,8 +2,6 @@
 In this script we compute OC at single point using the interface in AutoBZ.jl
 =#
 
-using LinearAlgebra
-
 # using SymmetryReduceBZ # add package to use bzkind=:ibz
 using AutoBZ
 
@@ -34,20 +32,35 @@ atol = 1e-2
 rtol = 1e-3
 npt = 25
 
-falg = QuadGKJL()
+
+# IMPORTANT: pre-allocating rules/memory for algorithms helps with performance
+# compute types to pre-allocate resources for algorithms
+DT = eltype(bz) # domain type of Brillouin zone
+RT = AutoBZ.SMatrix{3,3,ComplexF64,9} # range type of oc integrand
+NT = Float64 # norm type for RT
+
+## alert: cannot allocate a segbuf yet. See https://github.com/SciML/Integrals.jl/pull/151
+falg = QuadGKJL()#; segbuf=alloc_segbuf(DT, RT, NT))
+
+kalgs = (
+    IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv))),
+    TAI(),
+    AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms)),
+    PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt)),
+)
 
 # loop to test various routines with the frequency integral on the inside
 integrand = OpticalConductivityIntegrand(falg, hv, Σ, β; abstol=atol/nsyms(bz), reltol=rtol)
-for kalg in (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
-    @show typeof(kalg)
+for kalg in kalgs
+    @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
     @time @show solver(Ω)
 end
 
 # loop to test various routines with the frequency integral on the outside
-for kalg in (IAI(), TAI(), AutoPTR(),  PTR(; npt=npt))
+for kalg in kalgs
     local integrand = OpticalConductivityIntegrand(bz, kalg, hv, Σ, β; abstol=atol, reltol=rtol)
-    @show typeof(kalg)
+    @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, lb(Σ), ub(Σ), falg; abstol=atol, reltol=rtol)
     @time @show solver(Ω)
 end
