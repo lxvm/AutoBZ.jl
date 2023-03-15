@@ -13,6 +13,9 @@ module AutoBZ
 @static if !isdefined(Base, :get_extension)
     function __init__()
         @require SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046" include("../ext/SymmetryReduceBZExt.jl")
+        @require Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0" begin
+            @require PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a" include("../ext/BrillouinPlotlyJSExt.jl")
+        end
     end
 end
 
