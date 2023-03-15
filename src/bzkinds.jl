@@ -8,6 +8,8 @@ function load_bz(::Val{:fbz}, seedname::String; atol=1e-5)
     FullBZ(A, B; atol=atol)
 end
 
+checkorthog(A::AbstractMatrix) = isdiag(transpose(A)*A)
+
 sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)...)
 sign_flip_matrices(n::Val{d}) where {d} = (Diagonal(SVector{d,Int}(A)) for A in sign_flip_tuples(n))
 n_sign_flips(d::Integer) = 2^d
@@ -22,6 +24,7 @@ Load the half BZ, downfolded by inversion symmetries, using the utilities in
 function load_bz(::Val{:hbz}, seedname)
     A, B, = parse_wout(seedname * ".wout")
     d = checksquare(A)
+    checkorthog(A) || @warn "Non-orthogonal lattice vectors detected with bzkind=:hbz. Unexpected behavior may occur"
     lims = CubicLimits(zeros(d), fill(0.5, d))
     syms = collect(sign_flip_matrices(Val(d)))
     SymmetricBZ(A, B, lims, syms)
@@ -54,6 +57,7 @@ Load the BZ, downfolded by cubic symmetries, using the utilities in
 function load_bz(::Val{:cubicsymibz}, seedname::String)
     A, B, = parse_wout(seedname * ".wout")
     d = checksquare(A)
+    checkorthog(A) || @warn "Non-orthogonal lattice vectors detected with bzkind=:cubicsymibz. Unexpected behavior may occur"
     lims = TetrahedralLimits(fill(0.5, d))
     syms = vec(collect(cube_automorphisms(Val{d}())))
     SymmetricBZ(A, B, lims, syms)
