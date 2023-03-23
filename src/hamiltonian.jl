@@ -20,15 +20,14 @@ hamiltonian(h::Hamiltonian) = h
 """
     shift!(h::Hamiltonian, λ::Number)
 
-Modifies and returns `h` such that it returns `h - λ*I`.
+Modifies and returns `h` such that it returns `h - λ*I`. Will throw a
+`BoundsError` if this operation cannot be done on the existing data.
 """
 function shift!(h::Hamiltonian, λ_::Number)
     λ = convert(eltype(eltype(h)), λ_)
-    for i in CartesianIndices(h.f.c)
-        all(iszero, i.I .+ h.f.o) || continue
-        h.f.c[i] -= λ*I
-        break
-    end
+    c = coefficients(h)
+    idx = first(CartesianIndices(c)).I .- FourierSeriesEvaluators.offset(h.f) .- 1
+    h.f.c[idx...] -= λ*I
     return h
 end
 
