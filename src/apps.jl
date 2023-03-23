@@ -82,16 +82,15 @@ eta_npt_update_(η, c) = max(50, round(Int, c/η))
 
 # transport and conductivity integrands
 
-transport_function_integrand(hv, β) =
-    transport_function_integrand(hv[1], hv[2], hv[3], hv[4], β)
-function transport_function_integrand(h::Diagonal, v1, v2, v3, β)
-    f′ = Diagonal(β .* fermi′.(β .* diag(h)))
-    # TODO: reuse some of the matrix products and choose an efficient order
-    SMatrix{3,3,T,9}((
-        tr(v1*f′*v1), tr(v2*f′*v1), tr(v3*f′*v1),
-        tr(v1*f′*v2), tr(v2*f′*v2), tr(v3*f′*v2),
-        tr(v1*f′*v3), tr(v2*f′*v3), tr(v3*f′*v3),
-    ))
+function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, A=I) where {N,T}
+    f′ = Diagonal(β .* fermi′.(β .* diag(h.values)))
+    vs_cart = A * vs
+    f′vs = map(v -> f′*v, vs_cart)
+    data = ntuple(Val(N^2)) do n
+        d, r = divrem(n-1, N)
+        tr_mul(vs_cart[d+1], f′vs[r+1])
+    end
+    SMatrix{N,N,T,N^2}(data)
 end
 
 """
@@ -110,34 +109,22 @@ SymRep(::FourierIntegrand{typeof(transport_function_integrand)}) = LatticeRep()
 
 spectral_function(h, M) = imag(gloc_integrand(h, M))/(-pi)
 
-transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂) =
-    transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
-transport_distribution_integrand(hv, Σ::AbstractMatrix, ω₁, ω₂) =
-    transport_distribution_integrand(hv, ω₁*I-Σ, ω₂*I-Σ)
-transport_distribution_integrand(hv::Tuple, Mω₁, Mω₂) =
-transport_distribution_integrand(hv..., Mω₁, Mω₂) # Splatting bad for inference
-# transport_distribution_integrand(hv[1], hv[2], hv[3], hv[4], Mω₁, Mω₂)
-function transport_distribution_integrand(h, ν₁, ν₂, ν₃, Mω₁, Mω₂)
-    # Aω₁ = spectral_function(h, Mω₁)
-    # Aω₂ = spectral_function(h, Mω₂)
-    # Probably missing a factor of (2*pi)^-3 to convert reciprocal space volume
-    # to real space 1/V, V the volume of the unit cell
-    # transport_distribution_integrand_(ν₁, ν₂, ν₃, Aω₁, Aω₂)
-    transport_distribution_integrand_(ν₁, ν₂, ν₃, spectral_function(h, Mω₁), spectral_function(h, Mω₂))
+transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂, A=I) =
+    transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂), A)
+transport_distribution_integrand(hv, Σ::AbstractMatrix, ω₁, ω₂, A=I) =
+    transport_distribution_integrand(hv, ω₁*I-Σ, ω₂*I-Σ, A)
+function transport_distribution_integrand((h, vs), Mω₁, Mω₂, A=I)
+    transport_distribution_integrand_(A * vs, spectral_function(h, Mω₁), spectral_function(h, Mω₂))
 end
-function transport_distribution_integrand_(ν₁::V, ν₂::V, ν₃::V, Aω₁::A, Aω₂::A) where {V,A}
+function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::A) where {N,V,A}
     T = Base.promote_op((v, a) -> tr_mul(v*a,v*a), V, A)
-    ν₁Aω₁ = ν₁*Aω₁
-    ν₂Aω₁ = ν₂*Aω₁
-    ν₃Aω₁ = ν₃*Aω₁
-    ν₁Aω₂ = ν₁*Aω₂
-    ν₂Aω₂ = ν₂*Aω₂
-    ν₃Aω₂ = ν₃*Aω₂
-    SMatrix{3,3,T,9}((
-        tr_mul(ν₁Aω₁, ν₁Aω₂), tr_mul(ν₂Aω₁, ν₁Aω₂), tr_mul(ν₃Aω₁, ν₁Aω₂),
-        tr_mul(ν₁Aω₁, ν₂Aω₂), tr_mul(ν₂Aω₁, ν₂Aω₂), tr_mul(ν₃Aω₁, ν₂Aω₂),
-        tr_mul(ν₁Aω₁, ν₃Aω₂), tr_mul(ν₂Aω₁, ν₃Aω₂), tr_mul(ν₃Aω₁, ν₃Aω₂),
-    ))
+    vsAω₁ = map(v -> v * Aω₁, vs)
+    vsAω₂ = map(v -> v * Aω₂, vs)
+    data = ntuple(Val(N^2)) do n
+        d, r = divrem(n-1, N)
+        tr_mul(vsAω₁[d+1], vsAω₂[r+1])
+    end
+    SMatrix{N,N,T,N^2}(data)
 end
 
 """
@@ -169,14 +156,14 @@ end
 
 
 
-transport_fermi_integrand(ω, Γ, n, β, Ω=0.0) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω))
+transport_fermi_integrand(ω, Γ, n, β, Ω=0.0, A=I) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω, A))
 
-kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω)
+kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω, A=I) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω, A)
 
-function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0)
-    frequency_solver((hv_k, n, β, Ω))
+function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0, A=I)
+    frequency_solver((hv_k, n, β, Ω, A))
 end
 
 """
@@ -244,14 +231,17 @@ end
 
 # provide safe limits of integration for frequency integrals
 function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p) where iip
-    Ω, β = if (lp = length(p)) == 1
-        if (lsp = length(s.f.p)) == 2
-            zero(only(p)), only(p) # p is β
-        elseif lsp == 3
-            only(p), s.f.p[3] # p is Ω
-        end
-    elseif lp == 2
-        p[2], ps[1]
+    # inverse temperature is the third parameter
+    β = if (lsp = length(s.f.p)) >= 3
+        s.f.p[3]
+    else
+        p[3-lsp]
+    end
+    # excitation frequency is the fourth parameter
+    Ω = if lsp >= 4
+        s.f.p[4]
+    else
+        p[4-lsp]
     end
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
@@ -259,7 +249,7 @@ end
 function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, p::Tuple) where iip
     Ω, β = if length(p) == 3
         zero(p[3]), p[3]
-    elseif length(p) == 4
+    elseif length(p) >= 4
         p[4], p[3]
     end
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)

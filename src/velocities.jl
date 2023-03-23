@@ -85,8 +85,10 @@ function contract(hv::HamiltonianVelocity{C,G}, x::Number, ::Val{d}) where {C,G,
     HamiltonianVelocity{C,G}(h, u, (vd, v...))
 end
 
-evaluate(hv::HamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G} =
-    to_vcomp_gauge(C, G, evaluate(hv.h, x),  map(v -> evaluate(v, x), hv.v)...)
+function evaluate(hv::HamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G}
+    h, vs... = to_vcomp_gauge(C, G, evaluate(hv.h, x),  map(v -> evaluate(v, x), hv.v)...)
+    return (h, SVector(vs))
+end
 
 
 """
@@ -129,8 +131,9 @@ contract(chv::CovariantHamiltonianVelocity{C,G}, x::Number, ::Val{d}) where {C,G
     CovariantHamiltonianVelocity{C,G}(contract(chv.hv, x, Val(d)), contract(chv.a, x, Val(d)))
 
 function evaluate(chv::CovariantHamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G}
-    h, vws... = evaluate(chv.hv, x)
+    hw, vws = evaluate(chv.hv, x)
     as = evaluate(chv.a, x)
-    to_vcomp_gauge(C, G, h, map((v, a) -> covariant_velocity(h, v, a), vws, as))
+    h, vs... = to_vcomp_gauge(C, G, hw, map((v, a) -> covariant_velocity(hw, v, a), vws.data, as))
+    return (h, SVector(vs))
 end
 
