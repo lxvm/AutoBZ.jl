@@ -39,7 +39,7 @@ parse_hamiltonian(filename) = open(filename) do file
 end
 
 """
-    load_hamiltonian(filename; period=1.0, compact=:N)
+    load_hamiltonian(seed; period=1.0, compact=:N)
 
 Load an ab-initio Hamiltonian output from Wannier90 into `filename` as an
 evaluatable `FourierSeries` whose periodicity can be set by the keyword argument
@@ -52,8 +52,8 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_hamiltonian(filename; gauge=:Wannier, period=1.0, compact=:N)
-    date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
+function load_hamiltonian(seed; gauge=:Wannier, period=1.0, compact=:N)
+    date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
     C = load_coefficients(Val{compact}(), num_wann, irvec, C_)[1]
     f = InplaceFourierSeries(C; period=period, offset=map(s -> -div(s,2)-1, size(C)))
     Hamiltonian(f; gauge=gauge)
@@ -138,7 +138,7 @@ end
 
 
 """
-    load_position_operator(filename; period=1.0, compact=nothing)
+    load_position_operator(seed; period=1.0, compact=nothing)
 
 Load a position operator Hamiltonian output from Wannier90 into `filename` as an
 evaluatable `ManyFourierSeries` with separate x, y, and z components whose
@@ -153,8 +153,8 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_position_operator(filename; period=1.0, compact=:N)
-    date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(filename)
+function load_position_operator(seed; period=1.0, compact=:N)
+    date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(seed * "_r.dat")
     X, Y, Z = load_coefficients(Val{compact}(), num_wann, irvec, X_, Y_, Z_)
     FX = InplaceFourierSeries(X; period=period, offset=map(s -> -div(s,2)-1, size(X)))
     FY = InplaceFourierSeries(Y; period=period, offset=map(s -> -div(s,2)-1, size(Y)))
@@ -163,7 +163,7 @@ function load_position_operator(filename; period=1.0, compact=:N)
 end
 
 """
-    load_hamiltonian_velocities(f_hamiltonian, [f_pos_op]; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
+    load_gradient_hamiltonian_velocities(seed; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
 
 Load the Hamiltonian and band velocities, which may later be passed to one of
 the integrand constructors. When called with one filename, that file is parsed
@@ -180,14 +180,18 @@ and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
 [`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
 details.
 """
-function load_hamiltonian_velocities(f_hamiltonian; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
-    h = load_hamiltonian(f_hamiltonian; period=period, compact=compact)
-    HamiltonianVelocity(h; vcomp=vcomp, gauge=gauge)
+function load_gradient_hamiltonian_velocities(seed; period=1.0, compact=:N, gauge=:Wannier, vcord=:lattice, vcomp=:whole)
+    h = load_hamiltonian(seed; period=period, compact=compact)
+    HamiltonianVelocity(h, parse_wout(seed * ".wout")[1]; vcord=vcord, vcomp=vcomp, gauge=gauge)
 end
-function load_hamiltonian_velocities(f_hamiltonian, f_pos_op; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
-    hv = load_hamiltonian_velocities(f_hamiltonian; period=period, compact=compact)
-    a = load_position_operator(f_pos_op; period=period, compact=compact)
-    CovariantHamiltonianVelocity(hv, a; vcomp=vcomp, gauge=gauge)
+
+"""
+    load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N, gauge=:Wannier, vcomp=:whole)
+"""
+function load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N, gauge=:Wannier, vcord=:lattice, vcomp=:whole)
+    hv = load_gradient_hamiltonian_velocities(seed; period=period, compact=compact)
+    a = load_position_operator(seed; period=period, compact=compact)
+    CovariantHamiltonianVelocity(hv, a; vcord=vcord, vcomp=vcomp, gauge=gauge)
 end
 
 """
@@ -279,7 +283,7 @@ parse_sym(filename) = open(filename) do file
 end
 
 """
-    load_wannier90_data(seedname; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N, bzkind=:full)
+    load_wannier90_data(seedname; gauge=:Wannier, vkind=:none, vcord=:lattice, vcomp=:whole, compact=:N, bzkind=:full)
 
 Reads Wannier90 output files with the given `seedname` to return the Hamiltonian
 (optionally with band velocities if `vkind` is specified as either `:covariant`
@@ -288,20 +292,20 @@ available if to compress the Fourier series if its Fourier coefficients are
 known to be Hermitian. Returns `(w, fbz)` containing the Wannier interpolant and
 the full BZ limits.
 """
-function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcomp=:whole, compact=:N, bzkind=:fbz)
+function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcord=:lattice, vcomp=:whole, compact=:N, bzkind=:fbz)
     # use fractional lattice coordinates for the Fourier series
+    bz = load_bz(Val(bzkind), seedname)
+
     w = if vkind == :none
         load_hamiltonian(seedname * "_hr.dat"; compact=compact, gauge=gauge)
     elseif vkind == :covariant
-        load_hamiltonian_velocities(seedname * "_hr.dat", seedname * "_r.dat"; compact=compact, gauge=gauge, vcomp=vcomp)
+        load_covariant_hamiltonian_velocities(seedname; compact=compact, gauge=gauge, vcord=vcord, vcomp=vcomp)
     elseif vkind == :gradient
         @warn "Using non-gauge-covariant velocities"
-        load_hamiltonian_velocities(seedname * "_hr.dat"; compact=compact, gauge=gauge, vcomp=vcomp)
+        load_gradient_hamiltonian_velocities(seedname; compact=compact, gauge=gauge, vcord=vcord, vcomp=vcomp)
     else
         throw(ArgumentError("velocity kind $vkind not recognized"))
     end
-
-    bz = load_bz(Val(bzkind), seedname)
 
     w, bz
 end

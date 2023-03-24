@@ -62,15 +62,18 @@ show_details(w::AbstractWannierInterp) =
     " & $(gauge(w)) gauge"
 
 """
-    AbstractVelocity{C,G,N,T} <:AbstractWannierInterp{G,N,T}
+    AbstractVelocity{B,C,G,N,T} <:AbstractWannierInterp{G,N,T}
 
 An abstract substype of `AbstractWannierInterp` also containing information
-about the velocity component, `C`, which is typically `Val(:whole)`,
-`Val(:inter)`, or `Val(:intra)`. For details see [`to_vcomp_gauge`](@ref).
+about the velocity coordinate basis `B`, which is either `Val(:lattice)` or
+`Val(:cartesian)` and the velocity component, `C`, which is typically
+`Val(:whole)`, `Val(:inter)`, or `Val(:intra)`. For details see
+[`to_vcomp_gauge`](@ref).
 """
-abstract type AbstractVelocity{C,G,N,T} <:AbstractWannierInterp{G,N,T} end
+abstract type AbstractVelocity{B,C,G,N,T} <:AbstractWannierInterp{G,N,T} end
 
-vcomp(::AbstractVelocity{C}) where C = C
+vcord(::AbstractVelocity{B}) where B = B
+vcomp(::AbstractVelocity{B,C}) where {B,C} = C
 
 show_details(v::AbstractVelocity) =
-    " & $(vcomp(v)) velocity component  & $(gauge(v)) gauge"
+    " & $(vcord(v)) coordinates & $(vcomp(v)) velocity component  & $(gauge(v)) gauge"

@@ -46,48 +46,63 @@ to_vcomp(::Val{:intra}, vhs::NTuple{N,T}) where {N,T} =
     ntuple(n -> Diagonal(vhs[n]), Val(N))
 
 """
-    HamiltonianVelocity(H::Hamiltonian{Val(:Wannier)}; vcomp=:whole)
+    HamiltonianVelocity(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
 
 Evaluates the band velocities by directly computing the Hamiltonian gradient,
 which is not gauge-covariant. Returns a tuple of the Hamiltonian and the three
 velocity matrices. See [`to_vcomp_gauge`](@ref) for the `vcomp` keyword.
+`A` should be the matrix of lattice vectors, which is used only if `vcord` is
+`:cartesian`.
 """
-struct HamiltonianVelocity{C,G,N,T,H,U,V} <: AbstractVelocity{C,G,N,T}
+struct HamiltonianVelocity{B,C,G,N,T,H,U,V,TA} <: AbstractVelocity{B,C,G,N,T}
     h::H
     u::U
     v::V
-    HamiltonianVelocity{C,G}(h::H, u::U, v::V) where {C,G,H<:Hamiltonian,U,V} =
-        new{C,G,ndims(h),eltype(h),H,U,V}(h, u, v)
+    A::TA
+    HamiltonianVelocity{B,C,G}(h::H, u::U, v::V, A::TA) where {B,C,G,H<:Hamiltonian{Val{:Wannier}()},U,V,TA} =
+        new{B,C,G,ndims(h),eltype(h),H,U,V,TA}(h, u, v, A)
 end
 
-function HamiltonianVelocity(h::Hamiltonian{Val(:Wannier)}; gauge=:Wannier, vcomp=:whole)
+function HamiltonianVelocity(h::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
     T = h.f isa InplaceFourierSeries ? InplaceFourierSeries : FourierSeries
     u = (); cd = coefficients(h); d = ndims(h)
     while d > 0
         v = view(cd, ntuple(n -> n>d ? first(axes(cd,n)) : axes(cd,n), Val(ndims(h)))...)
         c = similar(v, fourier_type(eltype(h),eltype(period(h.f))))
-        ud = T(c; period=period(h.f)[1:d], deriv=(deriv(h.f)[1:d-1]..., raise_multiplier(deriv(h.f)[d])), offset=offset(h.f)[1:d], shift=shift(h.f)[1:d])
+        ud = T(c; period=2pi .* period(h.f)[1:d], deriv=(deriv(h.f)[1:d-1]..., raise_multiplier(deriv(h.f)[d])), offset=offset(h.f)[1:d], shift=shift(h.f)[1:d])
         u = (ud, u...)
         d -= 1
     end
     u[ndims(h)].c .= h.f.c
-    HamiltonianVelocity{Val(vcomp),Val(gauge)}(h, u[1:ndims(h)-1], (u[ndims(h)],))
+    HamiltonianVelocity{Val(vcord),Val(vcomp),Val(gauge)}(h, u[1:ndims(h)-1], (u[ndims(h)],), A)
 end
 
 hamiltonian(hv::HamiltonianVelocity) = hamiltonian(hv.h)
 
-function contract(hv::HamiltonianVelocity{C,G}, x::Number, ::Val{d}) where {C,G,d}
+function contract(hv::HamiltonianVelocity{B,C,G}, x::Number, ::Val{d}) where {B,C,G,d}
     h = contract(hv.h, x, Val(d))
-    v = map(vi -> contract(vi, x, Val(d)), hv.v)
+    tpx = 2pi*x
+    v = map(vi -> contract(vi, tpx, Val(d)), hv.v)
     u = hv.u[1:d-2]
     vd = hv.u[d-1]
     vd.c .= h.f.c # copy contracted coefficients to velocity
-    HamiltonianVelocity{C,G}(h, u, (vd, v...))
+    HamiltonianVelocity{B,C,G}(h, u, (vd, v...), hv.A)
 end
 
-function evaluate(hv::HamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G}
-    h, vs... = to_vcomp_gauge(C, G, evaluate(hv.h, x),  map(v -> evaluate(v, x), hv.v)...)
-    return (h, SVector(vs))
+"""
+    to_vcord(B, A, vs)
+
+If `B::Val{:lattice}` return `vs` and if `B::Val{:cartesian}` return `A*vs`
+"""
+to_vcord(::Val{:lattice}, A, vs) = vs
+to_vcord(::Val{:cartesian}, A, vs) = A * vs
+to_vcord(::Val, A, vs) = throw(ArgumentError("vcord $(vcord(hv)) unrecognized. use `:lattice` or `:cartesian`"))
+
+
+function evaluate(hv::HamiltonianVelocity{B,C,G,1}, x::NTuple{1}) where {B,C,G}
+    tpx = (2pi*x[1],)   # period adjusted to correct for angular coordinates in derivative
+    h, vs... = to_vcomp_gauge(C, G, evaluate(hv.h, x),  map(v -> evaluate(v, tpx), hv.v)...)
+    return (h, to_vcord(B, hv.A, SVector(vs)))
 end
 
 
@@ -113,27 +128,27 @@ covariant_velocity(H, ∂H_∂α, ∂A_∂α) = ∂H_∂α + (im*I)*commutator(H
 Uses the Berry connection to return fully gauge-covariant velocities. Returns a
 tuple of the Hamiltonian and the three velocity matrices.
 """
-struct CovariantHamiltonianVelocity{C,G,N,T,HV,A} <: AbstractVelocity{C,G,N,T}
+struct CovariantHamiltonianVelocity{B,C,G,N,T,HV,A} <: AbstractVelocity{B,C,G,N,T}
     hv::HV
     a::A
-    CovariantHamiltonianVelocity{C,G}(hv::HV, a::A) where {C,G,HV<:HamiltonianVelocity,A} =
-        new{C,G,ndims(hv),eltype(hv),HV,A}(hv, a)
+    CovariantHamiltonianVelocity{B,C,G}(hv::HV, a::A) where {B,C,G,HV<:HamiltonianVelocity{Val{:lattice}(),Val{:whole}(),Val{:Wannier}()},A} =
+        new{B,C,G,ndims(hv),eltype(hv),HV,A}(hv, a)
 end
-function CovariantHamiltonianVelocity(hv::HV, a::A; gauge=:Wannier, vcomp=:whole) where {HV<:HamiltonianVelocity,A<:ManyFourierSeries}
+function CovariantHamiltonianVelocity(hv::HV, a::A; gauge=:Wannier, vcord=:lattice, vcomp=:whole) where {HV<:HamiltonianVelocity,A<:ManyFourierSeries}
     @assert period(hv) == period(a)
     @assert ndims(hv) == length(a.fs)
-    CovariantHamiltonianVelocity{Val(vcomp),Val(gauge)}(hv, a)
+    CovariantHamiltonianVelocity{Val(vcord),Val(vcomp),Val(gauge)}(hv, a)
 end
 
 hamiltonian(chv::CovariantHamiltonianVelocity) = hamiltonian(chv.hv)
 
-contract(chv::CovariantHamiltonianVelocity{C,G}, x::Number, ::Val{d}) where {C,G,d} =
-    CovariantHamiltonianVelocity{C,G}(contract(chv.hv, x, Val(d)), contract(chv.a, x, Val(d)))
+contract(chv::CovariantHamiltonianVelocity{B,C,G}, x::Number, ::Val{d}) where {B,C,G,d} =
+    CovariantHamiltonianVelocity{B,C,G}(contract(chv.hv, x, Val(d)), contract(chv.a, x, Val(d)))
 
-function evaluate(chv::CovariantHamiltonianVelocity{C,G,1}, x::NTuple{1}) where {C,G}
+function evaluate(chv::CovariantHamiltonianVelocity{B,C,G,1}, x::NTuple{1}) where {B,C,G}
     hw, vws = evaluate(chv.hv, x)
     as = evaluate(chv.a, x)
     h, vs... = to_vcomp_gauge(C, G, hw, map((v, a) -> covariant_velocity(hw, v, a), vws.data, as))
-    return (h, SVector(vs))
+    return (h, to_vcord(B, chv.hv.A, SVector(vs)))
 end
 
