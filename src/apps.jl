@@ -104,17 +104,19 @@ Computes the following integral
 TransportFunctionIntegrand(hv::AbstractVelocity, p...) =
     FourierIntegrand(transport_function_integrand, hv, p)
 
-SymRep(::FourierIntegrand{typeof(transport_function_integrand)}) = LatticeRep()
+const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
+
+SymRep(::TransportFunctionIntegrandType) = LatticeRep()
 
 
 spectral_function(h, M) = imag(gloc_integrand(h, M))/(-pi)
 
-transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂, A=I) =
-    transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂), A)
-transport_distribution_integrand(hv, Σ::AbstractMatrix, ω₁, ω₂, A=I) =
-    transport_distribution_integrand(hv, ω₁*I-Σ, ω₂*I-Σ, A)
-function transport_distribution_integrand((h, vs), Mω₁, Mω₂, A=I)
-    transport_distribution_integrand_(A * vs, spectral_function(h, Mω₁), spectral_function(h, Mω₂))
+transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂) =
+    transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
+transport_distribution_integrand(hv, Σ::AbstractMatrix, ω₁, ω₂) =
+    transport_distribution_integrand(hv, ω₁*I-Σ, ω₂*I-Σ)
+function transport_distribution_integrand((h, vs), Mω₁, Mω₂)
+    transport_distribution_integrand_(vs, spectral_function(h, Mω₁), spectral_function(h, Mω₂))
 end
 function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::A) where {N,V,A}
     T = Base.promote_op((v, a) -> tr_mul(v*a,v*a), V, A)
@@ -156,14 +158,14 @@ end
 
 
 
-transport_fermi_integrand(ω, Γ, n, β, Ω=0.0, A=I) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω, A))
+transport_fermi_integrand(ω, Γ, n, β, Ω=0.0) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω))
 
-kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω, A=I) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω, A)
+kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω) =
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω)
 
-function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0, A=I)
-    frequency_solver((hv_k, n, β, Ω, A))
+function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0)
+    frequency_solver((hv_k, n, β, Ω))
 end
 
 """
@@ -201,7 +203,9 @@ end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
     KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, p...; kwargs...)
 
-SymRep(::FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}) = LatticeRep()
+const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}
+
+SymRep(::KineticCoefficientIntegrandType) = LatticeRep()
 
 
 """
