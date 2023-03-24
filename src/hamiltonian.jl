@@ -26,7 +26,7 @@ Modifies and returns `h` such that it returns `h - λ*I`. Will throw a
 function shift!(h::Hamiltonian, λ_::Number)
     λ = convert(eltype(eltype(h)), λ_)
     c = coefficients(h)
-    idx = first(CartesianIndices(c)).I .- FourierSeriesEvaluators.offset(h.f) .- 1
+    idx = first(CartesianIndices(c)).I .- offset(h.f) .- 1
     h.f.c[idx...] -= λ*I
     return h
 end
