@@ -297,7 +297,7 @@ function load_wannier90_data(seedname::String; gauge=:Wannier, vkind=:none, vcor
     bz = load_bz(Val(bzkind), seedname)
 
     w = if vkind == :none
-        load_hamiltonian(seedname * "_hr.dat"; compact=compact, gauge=gauge)
+        load_hamiltonian(seedname; compact=compact, gauge=gauge)
     elseif vkind == :covariant
         load_covariant_hamiltonian_velocities(seedname; compact=compact, gauge=gauge, vcord=vcord, vcomp=vcomp)
     elseif vkind == :gradient
