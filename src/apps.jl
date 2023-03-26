@@ -49,13 +49,17 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
 
     See `FourierIntegrand` for more details.
     """
-    @eval $T(h::Hamiltonian, p...) = FourierIntegrand($f, h, p)
+    @eval $T(h::Hamiltonian, args...; kwargs...) = FourierIntegrand($f, h, args...; kwargs...)
     
     # pre-evaluate the self energy when constructing the integrand
-    @eval FourierIntegrand(f::typeof($f), h::Hamiltonian, (Σ, ω)::Tuple{AbstractSelfEnergy,Real}) =
-        FourierIntegrand(f, h, (ω*I-Σ(ω),))
-    @eval FourierIntegrand(f::typeof($f), h::Hamiltonian, (Σ, ω, μ)::Tuple{AbstractSelfEnergy,Real,Real}) =
-        FourierIntegrand(f, h, ((ω+μ)*I-Σ(ω),))
+    @eval function FourierIntegrand(f::typeof($f), h::Hamiltonian, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real}})
+        Σ, ω = p.args
+        FourierIntegrand(f, h, MixedParameters((ω*I-Σ(ω),), p.kwargs))
+    end
+    @eval function FourierIntegrand(f::typeof($f), h::Hamiltonian, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
+        Σ, ω, μ = p.args
+        FourierIntegrand(f, h, MixedParameters(((ω+μ)*I-Σ(ω),), p.kwargs))
+    end
 
     # Define default equispace grid stepping based 
     @eval function npt_update(f::FourierIntegrand{typeof($f)}, npt::Integer)
@@ -82,13 +86,12 @@ eta_npt_update_(η, c) = max(50, round(Int, c/η))
 
 # transport and conductivity integrands
 
-function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, A=I) where {N,T}
+function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β) where {N,T}
     f′ = Diagonal(β .* fermi′.(β .* diag(h.values)))
-    vs_cart = A * vs
-    f′vs = map(v -> f′*v, vs_cart)
+    f′vs = map(v -> f′*v, vs)
     data = ntuple(Val(N^2)) do n
         d, r = divrem(n-1, N)
-        tr_mul(vs_cart[d+1], f′vs[r+1])
+        tr_mul(vs[d+1], f′vs[r+1])
     end
     SMatrix{N,N,T,N^2}(data)
 end
@@ -101,8 +104,8 @@ Computes the following integral
 \\D_{\\alpha\\beta} = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 """
-TransportFunctionIntegrand(hv::AbstractVelocity, p...) =
-    FourierIntegrand(transport_function_integrand, hv, p)
+TransportFunctionIntegrand(hv::AbstractVelocity, p...; kwargs...) =
+    FourierIntegrand(transport_function_integrand, hv, p, kwargs)
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
 
@@ -140,11 +143,13 @@ Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See `FourierIntegrand` for more details.
 """
 TransportDistributionIntegrand(hv::AbstractVelocity, p...) =
-    FourierIntegrand(transport_distribution_integrand, hv, p)
+    FourierIntegrand(transport_distribution_integrand, hv, p...)
     
 # pre-evaluate self energies when constructing integrand
-FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocity, (Σ, ω₁, ω₂)::Tuple{AbstractSelfEnergy,Real,Real}) = 
-    FourierIntegrand(f, hv, (ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂)))
+function FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocity, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
+    Σ, ω₁, ω₂ = p.args
+    FourierIntegrand(f, hv, MixedParameters((ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂)), p.kwargs))
+end
 
 const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
 
@@ -236,7 +241,7 @@ end
 # provide safe limits of integration for frequency integrals
 function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p) where iip
     # inverse temperature is the third parameter
-    β = if (lsp = length(s.f.p)) >= 3
+    β = if (lsp = length(s.f.p.args)) >= 3
         s.f.p[3]
     else
         p[3-lsp]
