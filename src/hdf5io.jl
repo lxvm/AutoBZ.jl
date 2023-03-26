@@ -58,7 +58,7 @@ function param_group(parent, ::Type{T}, dims) where {T<:Tuple}
     end
     return g
 end
-function param_group(parent, ps, ::Type{MixedParameters{T,NamedTuple{K,V}}}, dims) where {T,K,V}
+function param_group(parent, ::Type{MixedParameters{T,NamedTuple{K,V}}}, dims) where {T,K,V}
     g = create_group(parent, "args")
     for (i, S) in enumerate(T.parameters)
         create_dataset(g, string(i), S, dims)
@@ -94,7 +94,7 @@ h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwarg
     gE = create_dataset(h5, "E", Float64, dims)
     gt = create_dataset(h5, "t", Float64, dims)
     gr = create_dataset(h5, "retcode", Int32, dims)
-    gp = param_group(h5, ps, eltype(ps), dims)
+    gp = param_group(h5, eltype(ps), dims)
 
     function h5callback(f, i, p, sol, t)
         @info @sprintf "parameter %i finished in %e (s)" i t
