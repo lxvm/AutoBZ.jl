@@ -40,23 +40,69 @@ vec_to_h5_dset(x::Vector{T}) where {T<:StaticArray} = reshape(reinterpret(eltype
 
 # parallelization
 
-h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
-    dims = dataspace(tuple(length(ps)))
-    Idims = dataspace(((ndims(T) == 0 ? () : size(T))..., length(ps)))
-    
-    gI = create_dataset(h5, "I", datatype(eltype(T)), Idims)
-    gE = create_dataset(h5, "E", datatype(Float64), dims)
-    gt = create_dataset(h5, "t", datatype(Float64), dims)
-    gp = create_dataset(h5, "p", datatype(eltype(ps)), dims)
+# returns (dset, ax) to allow for array-valued data types
+function autobz_create_dataset(parent, path, T::Type, dims_::Tuple{Vararg{Int}})
+    dims = ((ndims(T) == 0 ? () : size(T))..., dims_...)
     ax = ntuple(_-> :, Val(ndims(T)))
+    return create_dataset(parent, path, eltype(T), dims), ax
+end
+
+
+function param_group(parent, T, dims)
+    return create_dataset(parent, "p", T, dims)
+end
+function param_group(parent, ::Type{T}, dims) where {T<:Tuple}
+    g = create_group(parent, "params")
+    for (i, S) in enumerate(T.parameters)
+        create_dataset(g, string(i), S, dims)
+    end
+    return g
+end
+function param_group(parent, ps, ::Type{MixedParameters{T,NamedTuple{K,V}}}, dims) where {T,K,V}
+    g = create_group(parent, "args")
+    for (i, S) in enumerate(T.parameters)
+        create_dataset(g, string(i), S, dims)
+    end
+    q = create_group(parent, "kwargs")
+    for (key, val) in zip(K,V.parameters)
+        create_dataset(q, string(key), val, dims)
+    end
+    return (g,q)
+end
+function param_record(group, p, i)
+    group[i] = p
+end
+function param_record(group, p::Tuple, i)
+    for (j,e) in enumerate(p)
+        group[string(j)][i] = e
+    end
+end
+function param_record((g, q), p::MixedParameters, i)
+    for (j,e) in p.args
+        g[string(j)][i] = e
+    end
+    for (k,v) in pairs(p.kwargs)
+        q[string(k)][i] = v
+    end
+end
+
+
+h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
+    dims = tuple(length(ps))
+
+    gI, ax = autobz_create_dataset(h5, "I", T, dims)
+    gE = create_dataset(h5, "E", Float64, dims)
+    gt = create_dataset(h5, "t", Float64, dims)
+    gr = create_dataset(h5, "retcode", Int32, dims)
+    gp = param_group(h5, ps, eltype(ps), dims)
 
     function h5callback(f, i, p, sol, t)
         @info @sprintf "parameter %i finished in %e (s)" i t
         gI[ax...,i] = sol
         gE[i] = isnothing(sol.resid) ? NaN : convert(Float64, sol.resid)
         gt[i] = t
-        gp[i] = p
-        # TODO: record algorithm details such as npts
+        gr[i] = Integer(sol.retcode)
+        param_record(gp, p, i)
     end
 
     @info "Started parameter sweep"
