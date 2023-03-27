@@ -49,14 +49,14 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
 
     See `FourierIntegrand` for more details.
     """
-    @eval $T(h::Hamiltonian, args...; kwargs...) = FourierIntegrand($f, h, args...; kwargs...)
+    @eval $T(h::HamiltonianInterp, args...; kwargs...) = FourierIntegrand($f, h, args...; kwargs...)
     
     # pre-evaluate the self energy when constructing the integrand
-    @eval function FourierIntegrand(f::typeof($f), h::Hamiltonian, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real}})
+    @eval function FourierIntegrand(f::typeof($f), h::HamiltonianInterp, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real}})
         Σ, ω = p.args
         FourierIntegrand(f, h, MixedParameters((ω*I-Σ(ω),), p.kwargs))
     end
-    @eval function FourierIntegrand(f::typeof($f), h::Hamiltonian, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
+    @eval function FourierIntegrand(f::typeof($f), h::HamiltonianInterp, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
         Σ, ω, μ = p.args
         FourierIntegrand(f, h, MixedParameters(((ω+μ)*I-Σ(ω),), p.kwargs))
     end
@@ -104,7 +104,7 @@ Computes the following integral
 \\D_{\\alpha\\beta} = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 """
-TransportFunctionIntegrand(hv::AbstractVelocity, p...; kwargs...) =
+TransportFunctionIntegrand(hv::AbstractVelocityInterp, p...; kwargs...) =
     FourierIntegrand(transport_function_integrand, hv, p, kwargs)
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
@@ -142,11 +142,11 @@ A function whose integral over the BZ gives the transport distribution
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See `FourierIntegrand` for more details.
 """
-TransportDistributionIntegrand(hv::AbstractVelocity, p...) =
+TransportDistributionIntegrand(hv::AbstractVelocityInterp, p...) =
     FourierIntegrand(transport_distribution_integrand, hv, p...)
     
 # pre-evaluate self energies when constructing integrand
-function FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocity, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
+function FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocityInterp, p::MixedParameters{<:Tuple{AbstractSelfEnergy,Real,Real}})
     Σ, ω₁, ω₂ = p.args
     FourierIntegrand(f, hv, MixedParameters((ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂)), p.kwargs))
 end
@@ -188,24 +188,24 @@ The argument `alg` determines what the order of integration is. Given a BZ
 algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
 integral.
 """
-function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, Σ, n, p...; kwargs...)
+function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, n, p...; kwargs...)
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; kwargs...)
     transport_solver((0.0, 10.0)) # precompile the solver
     Integrand(transport_fermi_integrand, transport_solver, n, p...)
 end
-KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocity, p...; kwargs...) =
+KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, p...; kwargs...) =
     KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, p...; kwargs...)
 
-function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, n, p...; kwargs...)
+function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, n, p...; kwargs...)
     # put the frequency integral inside otherwise
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; do_inf_transformation=Val(false), kwargs...)
     frequency_solver((hv(fill(0.0, ndims(hv))), 0, 1.0, 10.0)) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, n, p...)
 end
-KineticCoefficientIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, p...; kwargs...) =
     KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, p...; kwargs...)
 
 const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}
@@ -265,11 +265,11 @@ function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(kinetic_coef
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
 
-OpticalConductivityIntegrand(alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+OpticalConductivityIntegrand(alg, hv::AbstractVelocityInterp, Σ, p...; kwargs...) =
     KineticCoefficientIntegrand(alg, hv, Σ, 0, p...; kwargs...)
-OpticalConductivityIntegrand(bz, alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+OpticalConductivityIntegrand(bz, alg, hv::AbstractVelocityInterp, Σ, p...; kwargs...) =
     KineticCoefficientIntegrand(bz, alg, hv, Σ, 0, p...; kwargs...)
-OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocity, Σ, p...; kwargs...) =
+OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, p...; kwargs...) =
     KineticCoefficientIntegrand(lb, ub, alg, hv, Σ, 0, p...; kwargs...)
 
 

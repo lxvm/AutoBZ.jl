@@ -2,51 +2,9 @@ raise_multiplier(::Val{0}) = Val(1)
 raise_multiplier(::Val{1}) = 2
 raise_multiplier(a) = a + 1
 
-"""
-    to_vcomp_gauge(::Val{C}, ::Val{G}, h, vs...) where {C,G}
-
-Take the velocity components of `vs` in any gauge according to the value of `C`
-- `:whole`: return the whole velocity (sum of interband and intraband components)
-- `:intra`: return the intraband velocity (diagonal in Hamiltonian gauge)
-- `:inter`: return the interband velocity (off-diagonal terms in Hamiltonian gauge)
-    
-Transform the velocities into a gauge according to the following values of `G`
-- `:Wannier`: keeps `H, vs` in the original, orbital basis
-- `:Hamiltonian`: diagonalizes `H` and rotates `H, vs` into the energy, band basis
-"""
-to_vcomp_gauge(vcomp::C, gauge::G, H, vs::AbstractMatrix...) where {C,G} =
-    to_vcomp_gauge(vcomp, gauge, H, vs)
-
-to_vcomp_gauge(::Val{:whole}, ::Val{:Wannier}, H, vs::NTuple) = (H, vs...)
-function to_vcomp_gauge(vcomp::C, w::Val{:Wannier}, H, vs::NTuple) where C
-    E, vhs... = to_vcomp_gauge(vcomp, Val(:Hamiltonian), H, vs)
-    e, vws = to_gauge(w, E, vhs)
-    (e, vws...)
-end
-
-function to_vcomp_gauge(vcomp::C, ::Val{:Hamiltonian}, H::AbstractMatrix, vws::NTuple{N}) where {C,N}
-    E, vhs = to_gauge(Val(:Hamiltonian), H, vws)
-    (E, to_vcomp(vcomp, vhs)...)
-end
-
-function to_gauge(::Val{:Wannier}, H::Eigen, vhs::NTuple{N}) where N
-    U = H.vectors
-    to_gauge(Val(:Wannier), H), ntuple(n -> U * vhs[n] * U', Val(N))
-end
-function to_gauge(::Val{:Hamiltonian}, H::AbstractMatrix, vws::NTuple{N}) where N
-    E = to_gauge(Val(:Hamiltonian), H)
-    U = E.vectors
-    E, ntuple(n -> U' * vws[n] * U, Val(N))
-end
-
-to_vcomp(::Val{:whole}, vhs::NTuple{N,T}) where {N,T} = vhs
-to_vcomp(::Val{:inter}, vhs::NTuple{N,T}) where {N,T} =
-    ntuple(n -> vhs[n] - Diagonal(vhs[n]), Val(N))
-to_vcomp(::Val{:intra}, vhs::NTuple{N,T}) where {N,T} =
-    ntuple(n -> Diagonal(vhs[n]), Val(N))
 
 """
-    HamiltonianVelocity(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
+    GradientVelocityInterp(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
 
 Evaluates the band velocities by directly computing the Hamiltonian gradient,
 which is not gauge-covariant. Returns a tuple of the Hamiltonian and the three
@@ -54,16 +12,19 @@ velocity matrices. See [`to_vcomp_gauge`](@ref) for the `vcomp` keyword.
 `A` should be the matrix of lattice vectors, which is used only if `vcord` is
 `:cartesian`.
 """
-struct HamiltonianVelocity{B,C,G,N,T,H,U,V,TA} <: AbstractVelocity{B,C,G,N,T}
+struct GradientVelocityInterp{C,B,G,N,T,H,U,V,TA} <: AbstractVelocityInterp{C,B,G,N,T}
     h::H
     u::U
     v::V
     A::TA
-    HamiltonianVelocity{B,C,G}(h::H, u::U, v::V, A::TA) where {B,C,G,H<:Hamiltonian{Val{:Wannier}()},U,V,TA} =
-        new{B,C,G,ndims(h),eltype(h),H,U,V,TA}(h, u, v, A)
+    GradientVelocityInterp{C,B,G}(h::H, u::U, v::V, A::TA) where {C,B,G,H<:HamiltonianInterp{GaugeDefault(HamiltonianInterp)},U,V,TA} =
+        new{C,B,G,ndims(h),eltype(h),H,U,V,TA}(h, u, v, A)
 end
 
-function HamiltonianVelocity(h::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
+function GradientVelocityInterp(h::HamiltonianInterp{GaugeDefault(HamiltonianInterp)}, A;
+    gauge=GaugeDefault(GradientVelocityInterp),
+    coord=CoordDefault(GradientVelocityInterp),
+    vcomp=VcompDefault(GradientVelocityInterp))
     T = h.f isa InplaceFourierSeries ? InplaceFourierSeries : FourierSeries
     u = (); cd = coefficients(h); d = ndims(h)
     while d > 0
@@ -74,35 +35,28 @@ function HamiltonianVelocity(h::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, v
         d -= 1
     end
     u[ndims(h)].c .= h.f.c
-    HamiltonianVelocity{Val(vcord),Val(vcomp),Val(gauge)}(h, u[1:ndims(h)-1], (u[ndims(h)],), A)
+    GradientVelocityInterp{vcomp,coord,gauge}(h, u[1:ndims(h)-1], (u[ndims(h)],), A)
 end
 
-hamiltonian(hv::HamiltonianVelocity) = hamiltonian(hv.h)
+hamiltonian(hv::GradientVelocityInterp) = hv.h
+CoordDefault(::Type{<:GradientVelocityInterp}) = Lattice()
+GaugeDefault(::Type{<:GradientVelocityInterp}) = Wannier()
+VcompDefault(::Type{<:GradientVelocityInterp}) = Whole()
 
-function contract(hv::HamiltonianVelocity{B,C,G}, x::Number, ::Val{d}) where {B,C,G,d}
+function contract(hv::GradientVelocityInterp{C,B,G}, x::Number, ::Val{d}) where {C,B,G,d}
     h = contract(hv.h, x, Val(d))
     tpx = 2pi*x
     v = map(vi -> contract(vi, tpx, Val(d)), hv.v)
     u = hv.u[1:d-2]
     vd = hv.u[d-1]
     vd.c .= h.f.c # copy contracted coefficients to velocity
-    HamiltonianVelocity{B,C,G}(h, u, (vd, v...), hv.A)
+    GradientVelocityInterp{C,B,G}(h, u, (vd, v...), hv.A)
 end
 
-"""
-    to_vcord(B, A, vs)
-
-If `B::Val{:lattice}` return `vs` and if `B::Val{:cartesian}` return `A*vs`
-"""
-to_vcord(::Val{:lattice}, A, vs) = vs
-to_vcord(::Val{:cartesian}, A, vs) = A * vs
-to_vcord(::Val, A, vs) = throw(ArgumentError("vcord $(vcord(hv)) unrecognized. use `:lattice` or `:cartesian`"))
-
-
-function evaluate(hv::HamiltonianVelocity{B,C,G,1}, x::NTuple{1}) where {B,C,G}
+function evaluate(hv::GradientVelocityInterp, x::NTuple{1})
     tpx = (2pi*x[1],)   # period adjusted to correct for angular coordinates in derivative
-    h, vs... = to_vcomp_gauge(C, G, evaluate(hv.h, x),  map(v -> evaluate(v, tpx), hv.v)...)
-    return (h, to_vcord(B, hv.A, SVector(vs)))
+    h, vs = to_vcomp_gauge(hv, evaluate(hv.h, x),  map(v -> evaluate(v, tpx), hv.v))
+    return (h, to_coord(hv, hv.A, SVector(vs)))
 end
 
 
@@ -123,32 +77,40 @@ covariant_velocity(H, ∂H_∂α, ∂A_∂α) = ∂H_∂α + (im*I)*commutator(H
 
 
 """
-    CovariantHamiltonianVelocity(hv::HamiltonianVelocity{Val(:Wannier)}, a::ManyFourierSeries)
+    CovariantVelocityInterp(hv::GradientVelocityInterp{Val(:Wannier)}, a::ManyFourierSeries)
 
 Uses the Berry connection to return fully gauge-covariant velocities. Returns a
 tuple of the Hamiltonian and the three velocity matrices.
 """
-struct CovariantHamiltonianVelocity{B,C,G,N,T,HV,A} <: AbstractVelocity{B,C,G,N,T}
+struct CovariantVelocityInterp{C,B,G,N,T,HV,A} <: AbstractVelocityInterp{C,B,G,N,T}
     hv::HV
     a::A
-    CovariantHamiltonianVelocity{B,C,G}(hv::HV, a::A) where {B,C,G,HV<:HamiltonianVelocity{Val{:lattice}(),Val{:whole}(),Val{:Wannier}()},A} =
-        new{B,C,G,ndims(hv),eltype(hv),HV,A}(hv, a)
+    CovariantVelocityInterp{C,B,G}(hv::HV, a::A) where {C,B,G,HV<:GradientVelocityInterp{VcompDefault(GradientVelocityInterp),B,GaugeDefault(GradientVelocityInterp)},A<:BerryConnectionInterp{B}} =
+        new{C,B,G,ndims(hv),eltype(hv),HV,A}(hv, a)
 end
-function CovariantHamiltonianVelocity(hv::HV, a::A; gauge=:Wannier, vcord=:lattice, vcomp=:whole) where {HV<:HamiltonianVelocity,A<:ManyFourierSeries}
+function CovariantVelocityInterp(hv, a;
+    gauge=GaugeDefault(CovariantVelocityInterp),
+    coord=CoordDefault(CovariantVelocityInterp),
+    vcomp=VcompDefault(CovariantVelocityInterp))
     @assert period(hv) == period(a)
-    @assert ndims(hv) == length(a.fs)
-    CovariantHamiltonianVelocity{Val(vcord),Val(vcomp),Val(gauge)}(hv, a)
+    @assert ndims(hv) == length(a.a.fs)
+    # TODO convert hv and A to the requested coordinate instead of throwing
+    # method error in inner constructor
+    CovariantVelocityInterp{vcomp,coord,gauge}(hv, a)
 end
 
-hamiltonian(chv::CovariantHamiltonianVelocity) = hamiltonian(chv.hv)
+hamiltonian(chv::CovariantVelocityInterp) = hamiltonian(chv.hv)
+CoordDefault(::Type{<:CovariantVelocityInterp}) = Cartesian()
+GaugeDefault(::Type{<:CovariantVelocityInterp}) = Wannier()
+VcompDefault(::Type{<:CovariantVelocityInterp}) = Whole()
 
-contract(chv::CovariantHamiltonianVelocity{B,C,G}, x::Number, ::Val{d}) where {B,C,G,d} =
-    CovariantHamiltonianVelocity{B,C,G}(contract(chv.hv, x, Val(d)), contract(chv.a, x, Val(d)))
+contract(chv::CovariantVelocityInterp{C,B,G}, x::Number, ::Val{d}) where {C,B,G,d} =
+    CovariantVelocityInterp{C,B,G}(contract(chv.hv, x, Val(d)), contract(chv.a, x, Val(d)))
 
-function evaluate(chv::CovariantHamiltonianVelocity{B,C,G,1}, x::NTuple{1}) where {B,C,G}
+function evaluate(chv::CovariantVelocityInterp, x::NTuple{1})
     hw, vws = evaluate(chv.hv, x)
     as = evaluate(chv.a, x)
-    h, vs... = to_vcomp_gauge(C, G, hw, map((v, a) -> covariant_velocity(hw, v, a), vws.data, as))
-    return (h, to_vcord(B, chv.hv.A, SVector(vs)))
+    to_vcomp_gauge(chv, hw, map((v, a) -> covariant_velocity(hw, v, a), vws, as))
+    # Note that we already enforced the final coordinate in the inner constructor
 end
 

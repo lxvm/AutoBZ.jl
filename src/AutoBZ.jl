@@ -37,8 +37,12 @@ import AutoBZCore: SymRep, FourierIntegrand, construct_problem,
 
 
 export AbstractSelfEnergy, lb, ub
-export AbstractWannierInterp, gauge, hamiltonian, shift!
-export AbstractVelocity, vcomp
+export AbstractGauge, Wannier, Hamiltonian
+export AbstractWannierInterp, gauge
+export AbstractCoordinate, Lattice, Cartesian
+export AbstractCoordinateInterp, coord
+export AbstractVelocityComponent, Whole, Inter, Intra
+export AbstractVelocityInterp, vcomp, hamiltonian, shift!
 include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
@@ -47,10 +51,8 @@ include("linalg.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
-export Hamiltonian
 include("hamiltonian.jl")
-
-export HamiltonianVelocity, CovariantHamiltonianVelocity
+include("berry.jl")
 include("velocities.jl")
 
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
