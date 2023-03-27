@@ -87,7 +87,7 @@ function param_record((g, q), p::MixedParameters, i)
 end
 
 
-h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwargs...) = h5open(s, mode) do h5
+h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", nthreads=Threads.nthreads()) = h5open(s, mode) do h5
     dims = tuple(length(ps))
 
     gI, ax = autobz_create_dataset(h5, "I", T, dims)
@@ -107,8 +107,14 @@ h5batchsolve(s::String, f, ps, T=Base.promote_op(f, eltype(ps)); mode="w", kwarg
 
     @info "Started parameter sweep"
     t = time()
-    sol = batchsolve(f, ps, T; callback=h5callback, kwargs...)
+    sol = batchsolve(f, ps, T; callback=h5callback, nthreads=nthreads)
     t = time()-t
     @info @sprintf "Finished parameter sweep in %e (s) CPU time and %e (s) wall clock time" sum(read(gt)) t
     sol
+end
+
+function h5batchsolve(s::String, T::Type, f::AutoBZCore.AutoBZIntegralSolver, args...;
+    mode="w", nthreads=Threads.nthreads(), itr=AutoBZCore.paramzip, kwargs...)
+    ps = itr(args, NamedTuple(kwargs))
+    h5batchsolve(s, f, ps, T; mode=mode, nthreads=nthreads)
 end
