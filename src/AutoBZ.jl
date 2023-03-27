@@ -38,10 +38,11 @@ import AutoBZCore: SymRep, FourierIntegrand, construct_problem,
 
 export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
 export AbstractSelfEnergy, lb, ub
+export AbstractWannierInterp
 export AbstractGauge, Wannier, Hamiltonian
-export AbstractWannierInterp, gauge
+export AbstractGaugeInterp, gauge
 export AbstractCoordinate, Lattice, Cartesian
-export AbstractCoordinateInterp, coord
+export AbstractCoordInterp, coord
 export AbstractVelocityComponent, Whole, Inter, Intra
 export AbstractVelocityInterp, vcomp, hamiltonian, shift!
 include("definitions.jl")
@@ -76,7 +77,7 @@ include("bzkinds.jl")
 export load_self_energy
 include("self_energies_io.jl")
 
-export load_interp
+export load_interp, load_wannier90_data
 include("wannier90io.jl")
 
 export read_h5_to_nt, write_nt_to_h5, h5batchsolve

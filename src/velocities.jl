@@ -94,6 +94,7 @@ function CovariantVelocityInterp(hv, a;
     vcomp=VcompDefault(CovariantVelocityInterp))
     @assert period(hv) == period(a)
     @assert ndims(hv) == length(a.a.fs)
+    # @assert coord(hv) == coord(a) # function and keyword name conflict
     # TODO convert hv and A to the requested coordinate instead of throwing
     # method error in inner constructor
     CovariantVelocityInterp{vcomp,coord,gauge}(hv, a)

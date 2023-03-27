@@ -15,7 +15,11 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 julia = "1.6"
-AutoBZCore = "0.1.3"
+AutoBZCore = "0.1.4"
+HDF5 = "0.16"
+Reexport = "1"
+Requires = "1"
+StaticArrays = "1"
 SymmetryReduceBZ = "0.1"
 Polyhedra = "0.6,0.7"
 

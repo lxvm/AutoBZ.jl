@@ -296,3 +296,20 @@ end
 
 load_interp(seedname::String; kwargs...) =
     load_interp(HamiltonianInterp, seedname; kwargs...)
+
+
+"""
+    load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp(), kwargs...)
+    
+Return a tuple `(interp, bz)` containing the requested Wannier interpolant,
+`interp` and the Brillouin zone `bz` to integrate over. The `seedname` should
+point to Wannier90 data to read in. Additional keywords are passed to the
+interpolant constructor, [`load_interp`](@ref), while [`load_bz`](@ref) can be
+referenced for Brillouin zone details. For a list of possible keywords, see
+`subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
+"""
+function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp(), kwargs...)
+    wi = load_interp(interp, seedname; kwargs...)
+    bz = load_bz(bz, seedname)
+    return (wi, bz)
+end

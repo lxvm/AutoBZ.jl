@@ -86,26 +86,29 @@ eta_npt_update_(η, c) = max(50, round(Int, c/η))
 
 # transport and conductivity integrands
 
-function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β) where {N,T}
-    f′ = Diagonal(β .* fermi′.(β .* diag(h.values)))
+function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}; β) where {N,T}
+    f′ = Diagonal(β .* fermi′.(β .* h.values))
     f′vs = map(v -> f′*v, vs)
     data = ntuple(Val(N^2)) do n
         d, r = divrem(n-1, N)
         tr_mul(vs[d+1], f′vs[r+1])
     end
-    SMatrix{N,N,T,N^2}(data)
+    SMatrix{N,N,eltype(T),N^2}(data)
 end
 
 """
-    TransportFunctionIntegrand(hv, β)
+    TransportFunctionIntegrand(hv; β)
 
 Computes the following integral
 ```math
 \\D_{\\alpha\\beta} = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 """
-TransportFunctionIntegrand(hv::AbstractVelocityInterp, p...; kwargs...) =
-    FourierIntegrand(transport_function_integrand, hv, p, kwargs)
+function TransportFunctionIntegrand(hv::AbstractVelocityInterp; kwargs...)
+    @assert gauge(hv) isa Hamiltonian
+    # TODO change to the Hamiltonian gauge automatically
+    FourierIntegrand(transport_function_integrand, hv; kwargs...)
+end
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
 
@@ -164,13 +167,13 @@ end
 
 
 transport_fermi_integrand(ω, Γ, n, β, Ω=0.0) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ((ω, ω+Ω))
+    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ(ω, ω+Ω)
 
 kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω) =
     (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, Σ, ω, ω+Ω)
 
 function kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n, β, Ω=0.0)
-    frequency_solver((hv_k, n, β, Ω))
+    frequency_solver(hv_k, n, β, Ω)
 end
 
 """
@@ -192,7 +195,7 @@ function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::Abstr
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; kwargs...)
-    transport_solver((0.0, 10.0)) # precompile the solver
+    transport_solver(0.0, 10.0) # precompile the solver
     Integrand(transport_fermi_integrand, transport_solver, n, p...)
 end
 KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, p...; kwargs...) =
@@ -202,7 +205,7 @@ function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ
     # put the frequency integral inside otherwise
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; do_inf_transformation=Val(false), kwargs...)
-    frequency_solver((hv(fill(0.0, ndims(hv))), 0, 1.0, 10.0)) # precompile the solver
+    frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1.0, 10.0) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, n, p...)
 end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, p...; kwargs...) =
@@ -239,7 +242,7 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub)
 end
 
 # provide safe limits of integration for frequency integrals
-function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p) where iip
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p::MixedParameters) where iip
     # inverse temperature is the third parameter
     β = if (lsp = length(s.f.p.args)) >= 3
         s.f.p[3]
@@ -255,10 +258,10 @@ function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fe
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
-function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, p::Tuple) where iip
-    Ω, β = if length(p) == 3
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, p::MixedParameters) where iip
+    Ω, β = if length(p.args) == 3
         zero(p[3]), p[3]
-    elseif length(p) >= 4
+    elseif length(p.args) >= 4
         p[4], p[3]
     end
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
@@ -274,17 +277,17 @@ OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, p...; 
 
 
 dos_fermi_integrand(ω, dos, β, μ=0.0) =
-    fermi(β*ω)*dos((ω, μ))
+    fermi(β*ω)*dos(ω, μ)
 
 electron_density_integrand(ω, Σ, h_k, β, μ) =
     fermi(β*ω)*dos_integrand(h_k, (ω+μ)*I-Σ(ω)) # shift only energy, not self energy
 
 electron_density_frequency_integral(h_k::AbstractMatrix, frequency_solver, β, μ=0.0) =
-    frequency_solver((h_k, β, μ))
+    frequency_solver(h_k, β, μ)
 
 """
-    ElectronDensityIntegrand([bz=FullBZ], alg::AbstractAutoBZAlgorithm, h::Hamiltonian, Σ, β, [μ=0])
-    ElectronDensityIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, h::Hamiltonian, Σ, β, [μ=0])
+    ElectronDensityIntegrand([bz=FullBZ], alg::AbstractAutoBZAlgorithm, h::HamiltonianInterp, Σ, β, [μ=0])
+    ElectronDensityIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, h::HamiltonianInterp, Σ, β, [μ=0])
 
 A function whose integral over the BZ gives the electron density.
 Mathematically, this computes
@@ -296,19 +299,21 @@ The argument `alg` determines what the order of integration is. Given a BZ
 algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
 integral.
 """
-function ElectronDensityIntegrand(bz, alg::AbstractAutoBZAlgorithm, h::Hamiltonian, Σ, p...; kwargs...)
+function ElectronDensityIntegrand(bz, alg::AbstractAutoBZAlgorithm, h::HamiltonianInterp, Σ, p...; kwargs...)
     dos_int = DOSIntegrand(h, Σ)
     dos_solver = IntegralSolver(dos_int, bz, alg; kwargs...)
+    dos_solver(0.0, 0.0) # precompile the solver
     Integrand(dos_fermi_integrand, dos_solver, p...)
 end
-ElectronDensityIntegrand(alg::AbstractAutoBZAlgorithm, h::Hamiltonian, p...; kwargs...) =
+ElectronDensityIntegrand(alg::AbstractAutoBZAlgorithm, h::HamiltonianInterp, p...; kwargs...) =
     ElectronDensityIntegrand(FullBZ(2pi*I(ndims(h))), alg, h, p...; kwargs...)
 
-function ElectronDensityIntegrand(lb, ub, alg, h::Hamiltonian, Σ, p...; kwargs...)
+function ElectronDensityIntegrand(lb, ub, alg, h::HamiltonianInterp, Σ, p...; kwargs...)
     frequency_integrand = Integrand(electron_density_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; kwargs...)
+    frequency_solver(h(fill(0.0, ndims(h))), 1.0, 0.0) # precompile the solver
     FourierIntegrand(electron_density_frequency_integral, h, frequency_solver, p...)
 end
-ElectronDensityIntegrand(alg, h::Hamiltonian, Σ, p...; kwargs...) =
+ElectronDensityIntegrand(alg, h::HamiltonianInterp, Σ, p...; kwargs...) =
     ElectronDensityIntegrand(lb(Σ), ub(Σ), alg, h, Σ, p...; kwargs...)
 

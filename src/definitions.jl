@@ -72,6 +72,16 @@ Return the least upper bound of the domain of the self energy evaluator
 """
 function ub end
 
+#=
+    DEFINITONS FOR WANNIER INTERPOLANTS
+=#
+
+"""
+    AbstractWannierInterp{N,T} <: AbstractFourierSeries{N,T}
+
+Abstract supertype for all Wannier-interpolated quantities in `AutoBZ`
+"""
+abstract type AbstractWannierInterp{N,T} <: AbstractFourierSeries{N,T} end
 
 #=
     DEFINITIONS FOR INTERPOLATED TENSOR OPERATORS WITH BAND/ORBITAL INDICES
@@ -122,7 +132,7 @@ Fourier series evaluators for Wannier-interpolated quantities with a choice of
 basis, or gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
 For details, see [`to_gauge`](@ref).
 """
-abstract type AbstractGaugeInterp{G,N,T} <: AbstractFourierSeries{N,T} end
+abstract type AbstractGaugeInterp{G,N,T} <: AbstractWannierInterp{N,T} end
 
 gauge(::AbstractGaugeInterp{G}) where G = G
 
