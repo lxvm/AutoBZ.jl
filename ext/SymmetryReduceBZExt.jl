@@ -6,22 +6,22 @@ using StaticArrays
 
 if isdefined(Base, :get_extension)
     using SymmetryReduceBZ
-    using AutoBZ: parse_wout, SymmetricBZ, PolyhedralLimits
+    using AutoBZ: parse_wout, IBZ, SymmetricBZ, PolyhedralLimits
     import AutoBZ: load_bz
 else
     using ..SymmetryReduceBZ
-    using ..AutoBZ: parse_wout, SymmetricBZ, PolyhedralLimits
+    using ..AutoBZ: parse_wout, IBZ, SymmetricBZ, PolyhedralLimits
     import ..AutoBZ: load_bz
 end
 
 """
-    load_bz(::Val{:ibz}, seedname)
+    load_bz(::IBZ, seedname)
 
 Use `SymmetryReduceBZ` to automatically load the IBZ. Since this method lives in
 an extension module, make sure you write `using SymmetryReduceBZ` before `using
 AutoBZ`.
 """
-function load_bz(::Val{:ibz}, seedname::String; coordinates="lattice", ibzformat="half-space", makeprim=false, convention="ordinary", rtol=nothing, atol=1e-9)
+function load_bz(::IBZ, seedname::String; coordinates="lattice", ibzformat="half-space", makeprim=false, convention="ordinary", rtol=nothing, atol=1e-9)
     a, b, species, site, frac_lat, cart_lat = parse_wout(seedname * ".wout")
     real_latvecs = a    # we pick a, though we avoid using b because we would only get 6 digits of agreement from Wannier 90
     atom_species = unique(species)

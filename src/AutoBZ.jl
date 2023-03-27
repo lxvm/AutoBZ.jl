@@ -36,6 +36,7 @@ import AutoBZCore: SymRep, FourierIntegrand, construct_problem,
     AutoSymPTR.npt_update
 
 
+export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
 export AbstractSelfEnergy, lb, ub
 export AbstractGauge, Wannier, Hamiltonian
 export AbstractWannierInterp, gauge
@@ -51,8 +52,13 @@ include("linalg.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
+export HamiltonianInterp
 include("hamiltonian.jl")
+
+export BerryConnectionInterp
 include("berry.jl")
+
+export GradientVelocityInterp, CovariantVelocityInterp
 include("velocities.jl")
 
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
@@ -70,7 +76,7 @@ include("bzkinds.jl")
 export load_self_energy
 include("self_energies_io.jl")
 
-export load_wannier90_data
+export load_interp
 include("wannier90io.jl")
 
 export read_h5_to_nt, write_nt_to_h5, h5batchsolve

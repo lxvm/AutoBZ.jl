@@ -1,11 +1,17 @@
 """
-    load_bz(::Val{:fbz}, seedname)
+    load_bz(::FBZ, seedname)
 
 Load the full BZ using the utilities in `AutoBZCore`.
 """
-function load_bz(::Val{:fbz}, seedname::String; atol=1e-5)
+function load_bz(::FBZ, seedname::String; atol=1e-5)
     A, B, = parse_wout(seedname * ".wout")
     FullBZ(A, B; atol=atol)
+end
+
+function load_bz(::IBZ, ::String)
+    throw(ArgumentError("""
+    IBZ integration relies on SymmetryReduceBZ. Make sure to have `using SymmetryReduceBZ` before `using AutoBZ` in your file to use this feature.
+    """))
 end
 
 checkorthog(A::AbstractMatrix) = isdiag(transpose(A)*A)
@@ -16,12 +22,12 @@ n_sign_flips(d::Integer) = 2^d
 
 
 """
-    load_bz(::Val{:hbz}, seedname)
+    load_bz(::HBZ, seedname)
 
 Load the half BZ, downfolded by inversion symmetries, using the utilities in
 `AutoBZCore`. **Assumes orthogonal lattice vectors**
 """
-function load_bz(::Val{:hbz}, seedname)
+function load_bz(::HBZ, seedname)
     A, B, = parse_wout(seedname * ".wout")
     d = checksquare(A)
     checkorthog(A) || @warn "Non-orthogonal lattice vectors detected with bzkind=:hbz. Unexpected behavior may occur"
@@ -49,12 +55,12 @@ cube_automorphisms(n::Val{d}) where {d} = (S*P for S in sign_flip_matrices(n), P
 n_cube_automorphisms(d) = n_sign_flips(d) * n_permutations(d)
 
 """
-    load_bz(::Val{:cubic_sym_ibz}, seedname)
+    load_bz(::CubicSymIBZ, seedname)
 
 Load the BZ, downfolded by cubic symmetries, using the utilities in
 `AutoBZCore`. **Assumes orthogonal lattice vectors**
 """
-function load_bz(::Val{:cubicsymibz}, seedname::String)
+function load_bz(::CubicSymIBZ, seedname::String)
     A, B, = parse_wout(seedname * ".wout")
     d = checksquare(A)
     checkorthog(A) || @warn "Non-orthogonal lattice vectors detected with bzkind=:cubicsymibz. Unexpected behavior may occur"
@@ -62,3 +68,7 @@ function load_bz(::Val{:cubicsymibz}, seedname::String)
     syms = vec(collect(cube_automorphisms(Val{d}())))
     SymmetricBZ(A, B, lims, syms)
 end
+
+load_bz(seedname::String; kwargs...) = load_bz(FBZ(), seedname; kwargs...)
+load_bz(::Type{T}, seedname::String; kwargs...) where {T<:AbstractBZ} =
+    load_bz(T(), seedname; kwargs...)

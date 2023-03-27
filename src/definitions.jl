@@ -1,4 +1,49 @@
 #=
+    DEFINITIONS FOR BRILLOUIN ZONE SYMMETRIES
+=#
+
+"""
+    AbstractBZ
+
+Abstract supertype for all Brillouin zone data types
+"""
+abstract type AbstractBZ end
+
+"""
+    FBZ <: AbstractBZ
+
+Singleton type representing first/full Brillouin zones
+"""
+struct FBZ <: AbstractBZ end
+
+"""
+    IBZ <: AbstractBZ
+
+Singleton type representing irreducible Brillouin zones
+"""
+struct IBZ <: AbstractBZ end
+
+"""
+    HBZ <: AbstractBZ
+
+Singleton type representing Brillouin zones with full inversion symmetry
+
+!!! warning "Assumptions"
+    Only expect this to work for systems with orthogonal lattice vectors
+"""
+struct HBZ <: AbstractBZ end
+
+"""
+    CubicSymIBZ <: AbstractBZ
+
+Singleton type representing Brillouin zones with full cubic symmetry
+
+!!! warning "Assumptions"
+    Only expect this to work for systems with orthogonal lattice vectors
+"""
+struct CubicSymIBZ <: AbstractBZ end
+
+#=
     DEFINITIONS FOR SELF ENERGY INTERPOLANTS
 =#
 
