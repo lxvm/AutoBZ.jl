@@ -115,7 +115,10 @@ const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_functio
 SymRep(::TransportFunctionIntegrandType) = LatticeRep()
 
 
-spectral_function(h, M) = imag(gloc_integrand(h, M))/(-pi)
+spectral_function(G::AbstractMatrix) = (G - G')/(-2pi*im)   # skew-Hermitian part
+spectral_function(G::Diagonal) = imag(G)/(-pi)              # optimization
+spectral_function(h, M) = spectral_function(gloc_integrand(h, M))
+
 
 transport_distribution_integrand(hv, Σ::AbstractSelfEnergy, ω₁, ω₂) =
     transport_distribution_integrand(hv, ω₁*I-Σ(ω₁), ω₂*I-Σ(ω₂))
