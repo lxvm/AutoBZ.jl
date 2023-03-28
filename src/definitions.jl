@@ -125,7 +125,7 @@ end
 
 
 """
-    AbstractGaugeInterp{G,N} <: AbstractFourierSeries{N}
+    AbstractGaugeInterp{G,N,T} <: AbstractWannierInterp{N,T}
 
 An abstract subtype of `AbstractFourierSeries` representing in-place
 Fourier series evaluators for Wannier-interpolated quantities with a choice of
