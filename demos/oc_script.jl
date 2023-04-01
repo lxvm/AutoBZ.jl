@@ -8,14 +8,15 @@ Users have the following choices:
 =#
 
 # using SymmetryReduceBZ # add package to use bzkind=:ibz
+using HDF5  # load before AutoBZ
 using AutoBZ
 
+seed = "svo"; μ = 12.3958 # eV
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-hv, bz = load_wannier90_data("svo"; gauge=:Wannier, vkind=:covariant, vcomp=:whole, bzkind=:cubicsymibz)
+hv, bz = load_wannier90_data(seed; gauge=Wannier(), interp=CovariantVelocityInterp, coord=Cartesian(), vcomp=Whole(), bz=CubicSymIBZ())
+shift!(hv, μ) # shift the Fermi energy to zero
 
 # define problem parameters
-μ = 12.3958 # eV
-shift!(hv, μ) # shift the Fermi energy to zero
 
 Ωs = range(0, 1, length=10) # eV
 
@@ -48,7 +49,7 @@ atol = 1e-2
 # IMPORTANT: pre-allocating rules/memory for algorithms helps with performance
 # compute types to pre-allocate resources for algorithms
 DT = eltype(bz) # domain type of Brillouin zone
-RT = AutoBZ.SMatrix{3,3,ComplexF64,9} # range type of oc integrand
+RT = typeof(complex(bz.A)) # range type of oc integrand
 NT = Float64 # norm type for RT
 
 # setup algorithm for Brillouin zone integral
@@ -83,7 +84,10 @@ oc_solver = IntegralSolver(oc_integrand, lb(Σ), ub(Σ), falg; abstol=atol, relt
 
 # run calculation
 nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
-h5batchsolve("oc.h5", oc_solver, Ωs, RT; nthreads=nthreads)
+
+results = h5open("oc.h5", "w") do h5
+    batchsolve(h5, oc_solver, Ωs, RT; nthreads=nthreads)
+end
 
 # show kpts/dim of converged ptr grid
 kalg isa AutoPTR && @show kalg.buffer.npt1[] kalg.buffer.npt2[]

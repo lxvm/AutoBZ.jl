@@ -8,8 +8,9 @@ using Plots
 using AutoBZ
 using HChebInterp
 
+seed = "svo"
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
-h, bz = load_wannier90_data("svo"; bzkind=:cubicsymibz)
+h, bz = load_wannier90_data(seed; interp=HamiltonianInterp, bz=CubicSymIBZ())
 
 # Define problem parameters
 ω_lo = -2.0 # eV
@@ -31,28 +32,30 @@ fast_order = 15
 
 D = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
 
-hchebinterp(D, ω_lo, ω_hi, HAdaptError(); atol=1.0, order=order)
+hchebinterp(D, ω_lo, ω_hi; criterion=HAdaptError(), atol=1.0, order=order)
 t_ = time()
-p1 = hchebinterp(D, ω_lo, ω_hi, HAdaptError(); atol=interp_atol, order=order)
+p1 = hchebinterp(D, ω_lo, ω_hi; criterion=HAdaptError(), atol=interp_atol, order=order)
 @info "rigorous interpolation took $(time()-t_) s"
 
-
-hchebinterp(D, ω_lo, ω_hi, SpectralError(); atol=1.0, order=fast_order)
+hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=1.0, order=fast_order)
 t_ = time()
-p2 = hchebinterp(D, ω_lo, ω_hi, SpectralError(); atol=interp_atol, order=fast_order)
+p2 = hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
+# p2 = hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
 @info "fast interpolation took $(time()-t_) s"
 
 nodes = Float64[]
-for panel in p1.searchtree
-    iszero(panel.val) && continue
-    push!(nodes, HChebInterp.chebpoints(order, panel.a, panel.b)...)
+for (i,children) in enumerate(p1.searchtree)
+    isempty(children) || continue
+    panel = p1.funtree[i]
+    push!(nodes, HChebInterp.chebpoints(order, panel.lb[1], panel.ub[1])...)
 end
 # unique!(nodes)
 
 fast_nodes = Float64[]
-for panel in p2.searchtree
-    iszero(panel.val) && continue
-    push!(fast_nodes, HChebInterp.chebpoints(fast_order, panel.a, panel.b)...)
+for (i,children) in enumerate(p2.searchtree)
+    isempty(children) || continue
+    panel = p2.funtree[i]
+    push!(fast_nodes, HChebInterp.chebpoints(fast_order, panel.lb[1], panel.ub[1])...)
 end
 # unique!(fast_nodes)
 

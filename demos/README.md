@@ -14,8 +14,11 @@ package manager to obtain the most recent release. To setup this Julia
 environment, `cd` into this repository and execute the line below on your shell.
 
 ```
-$ julia setup.jl
+$ julia --project=. -e 'import Pkg; Pkg.develop("..")'
 ```
+
+Running certain scripts may require additional dependencies, which can be added
+with a subsequent command, e.g. `julia --project=. -e 'import Pkg; Pkg.add("SymmetryReduceBZ")'
 
 ## Running scripts
 
