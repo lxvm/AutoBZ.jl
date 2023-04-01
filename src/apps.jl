@@ -209,8 +209,8 @@ kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real
     frequency_solver(hv_k, n, β, Ω, μ)
 
 """
-    KineticCoefficientIntegrand([bz=FullBZ,] alg::AbstractAutoBZAlgorithm, hv::AbstracVelocity, Σ; n, β, Ω=0, abstol, reltol, maxiters)
-    KineticCoefficientIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, hv::AbstracVelocity, Σ; n, β, Ω=0, abstol, reltol, maxiters)
+    KineticCoefficientIntegrand([bz=FullBZ,] alg::AbstractAutoBZAlgorithm, hv::AbstracVelocity, Σ; n, β, Ω, abstol, reltol, maxiters)
+    KineticCoefficientIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, hv::AbstracVelocity, Σ; n, β, Ω, abstol, reltol, maxiters)
 
 A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
@@ -247,18 +247,17 @@ KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs
 
 canonize_kc_params(solver::IntegralSolver, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) = (solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver, n, β, Ω; μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver, n, β; Ω=0, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver, n; β, Ω=0, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver; n, β, Ω=0, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
+canonize_kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
+canonize_kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
+canonize_kc_params(solver::IntegralSolver; n, β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 
 const CanonizeKCType = Union{
     MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
     MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real},NamedTuple{(),Tuple{}}},
     MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real},<:NamedTuple{(:μ,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real},NamedTuple{(),Tuple{}}},
     MixedParameters{<:Tuple{IntegralSolver,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver},<:NamedTuple{<:Any,<:Tuple{Real,Real,Vararg{Real}}}},
+    MixedParameters{<:Tuple{IntegralSolver,Real},<:NamedTuple{<:Any,<:Tuple{Real,Real,Vararg{Real}}}},
+    MixedParameters{<:Tuple{IntegralSolver},<:NamedTuple{<:Any,<:Tuple{Real,Real,Real,Vararg{Real}}}},
 }
 
 canonize_kc_params(p::CanonizeKCType) =
@@ -321,11 +320,11 @@ end
 Returns a `KineticCoefficientIntegrand` with `n=0`. See
 [`KineticCoefficientIntegrand`](@ref) for further details
 """
-OpticalConductivityIntegrand(alg, hv, Σ, args...; kwargs...) =
+OpticalConductivityIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(alg, hv, Σ, 0, args...; kwargs...)
-OpticalConductivityIntegrand(bz, alg, hv, Σ, args...; kwargs...) =
+OpticalConductivityIntegrand(bz, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(bz, alg, hv, Σ, 0, args...; kwargs...)
-OpticalConductivityIntegrand(lb, ub, alg, hv, Σ, args...; kwargs...) =
+OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(lb, ub, alg, hv, Σ, 0, args...; kwargs...)
 
 
