@@ -5,18 +5,15 @@ version = "0.1.0"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"
-HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 julia = "1.6"
-AutoBZCore = "0.1.4"
-HDF5 = "0.16"
+AutoBZCore = "0.1.5"
 Reexport = "1"
 Requires = "1"
 StaticArrays = "1"

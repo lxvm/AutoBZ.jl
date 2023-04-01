@@ -21,9 +21,7 @@ end
 
 using LinearAlgebra
 using LinearAlgebra: checksquare
-using Printf: @sprintf
 
-using HDF5
 using StaticArrays
 using Reexport
 @reexport using AutoBZCore
@@ -79,9 +77,6 @@ include("self_energies_io.jl")
 
 export load_interp, load_wannier90_data
 include("wannier90io.jl")
-
-export read_h5_to_nt, write_nt_to_h5, h5batchsolve
-include("hdf5io.jl")
 
 
 end
