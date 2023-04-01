@@ -74,7 +74,7 @@ parse_self_energy_matrix(filename) = open(filename) do file
 end
 
 """
-    load_self_energy(filename, [degree=8, sigdigits=8])
+    load_self_energy(filename; [sigdigits=8])
 
 Read the self energy data in `filename`, which should be in either `:scalar`,
 `:diagonal`, or `:matrix` format, and return a self-energy evaluator. Note that
