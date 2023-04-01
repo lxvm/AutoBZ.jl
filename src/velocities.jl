@@ -101,7 +101,7 @@ function CovariantVelocityInterp(hv, a;
 end
 
 hamiltonian(chv::CovariantVelocityInterp) = hamiltonian(chv.hv)
-CoordDefault(::Type{<:CovariantVelocityInterp}) = Cartesian()
+CoordDefault(::Type{<:CovariantVelocityInterp}) = Lattice()
 GaugeDefault(::Type{<:CovariantVelocityInterp}) = Wannier()
 VcompDefault(::Type{<:CovariantVelocityInterp}) = Whole()
 

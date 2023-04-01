@@ -94,25 +94,28 @@ end
 
 
 """
-    parse_position_operator(filename)
+    parse_position_operator(filename, rot=I)
 
 Parse a position operator output from Wannier90 into `filename`, extracting the
-fields `(date_time, num_wann, nrpts, irvec, X, Y, Z)`
+fields `(date_time, num_wann, nrpts, irvec, A1, A2, A3)`. By default, `A1, A2,
+A3` are in the Cartesian basis (i.e. `X, Y, Z` because the Wannier90
+`seedname_r.dat` file is), however a rotation matrix `rot` can be applied to
+change the basis of the input to other coordinates.
 """
-parse_position_operator(filename) = open(filename) do file
+parse_position_operator(filename, rot=I) = open(filename) do file
     date_time = readline(file)
 
     num_wann = parse(Int, readline(file))
     nrpts = parse(Int, readline(file))
 
     T = SMatrix{num_wann,num_wann,ComplexF64,num_wann^2}
-    X = Vector{T}(undef, nrpts)
-    Y = Vector{T}(undef, nrpts)
-    Z = Vector{T}(undef, nrpts)
+    A1 = Vector{T}(undef, nrpts)
+    A2 = Vector{T}(undef, nrpts)
+    A3 = Vector{T}(undef, nrpts)
     irvec = Vector{SVector{3,Int}}(undef, nrpts)
-    x = Matrix{ComplexF64}(undef, num_wann, num_wann)
-    y = Matrix{ComplexF64}(undef, num_wann, num_wann)
-    z = Matrix{ComplexF64}(undef, num_wann, num_wann)
+    a1 = Matrix{ComplexF64}(undef, num_wann, num_wann)
+    a2 = Matrix{ComplexF64}(undef, num_wann, num_wann)
+    a3 = Matrix{ComplexF64}(undef, num_wann, num_wann)
     for k in 1:nrpts
         for j in 1:num_wann^2
             col = split(readline(file))
@@ -121,21 +124,24 @@ parse_position_operator(filename) = open(filename) do file
             n = parse(Int, col[5])
             re_x = parse(Float64, col[6])
             im_x = parse(Float64, col[7])
-            x[m,n] = complex(re_x, im_x)
+            x = complex(re_x, im_x)
             re_y = parse(Float64, col[8])
             im_y = parse(Float64, col[9])
-            y[m,n] = complex(re_y, im_y)
+            y = complex(re_y, im_y)
             re_z = parse(Float64, col[10])
             im_z = parse(Float64, col[11])
-            z[m,n] = complex(re_z, im_z)
+            z = complex(re_z, im_z)
+            a1[m,n], a2[m,n], a3[m,n] = rot * SVector{3,ComplexF64}(x, y, z)
         end
-        X[k] = T(x)
-        Y[k] = T(y)
-        Z[k] = T(z)
+        A1[k] = T(a1)
+        A2[k] = T(a2)
+        A3[k] = T(a3)
     end
-    date_time, num_wann, nrpts, irvec, X, Y, Z
+    date_time, num_wann, nrpts, irvec, A1, A2, A3
 end
 
+pick_rot(::Cartesian, A, invA) = (I, invA)
+pick_rot(::Lattice, A, invA) = (invA, A)
 
 """
     load_position_operator(seed; period=1.0, compact=nothing)
@@ -153,14 +159,16 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_interp(::Type{BerryConnectionInterp}, seed; coord=CoordDefault(BerryConnectionInterp), period=1.0, compact=:N)
-    date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(seed * "_r.dat")
-    X, Y, Z = load_coefficients(Val{compact}(), num_wann, irvec, X_, Y_, Z_)
-    FX = InplaceFourierSeries(X; period=period, offset=map(s -> -div(s,2)-1, size(X)))
-    FY = InplaceFourierSeries(Y; period=period, offset=map(s -> -div(s,2)-1, size(Y)))
-    FZ = InplaceFourierSeries(Z; period=period, offset=map(s -> -div(s,2)-1, size(Z)))
-    invA = inv(parse_wout(seed * ".wout")[1]) # compute inv(A) for map from Cartesian to lattice coordinates
-    BerryConnectionInterp(ManyFourierSeries(FX, FY, FZ), invA; coord=coord)
+function load_interp(::Type{BerryConnectionInterp{P}}, seed; coord=P, period=1.0, compact=:N) where P
+    A = parse_wout(seed * ".wout")[1]
+    invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
+    rot, irot = pick_rot(P, A, invA)
+    date_time, num_wann, nrpts, irvec, A1_, A2_, A3_ = parse_position_operator(seed * "_r.dat", rot)
+    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, A1_, A2_, A3_)
+    F1 = InplaceFourierSeries(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
+    F2 = InplaceFourierSeries(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
+    F3 = InplaceFourierSeries(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
+    BerryConnectionInterp{P}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
 end
 
 """
@@ -194,7 +202,7 @@ end
 
 """
     load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N,
-    gauge=Wannier(), vcomp=whole(), coord=Cartesian())
+    gauge=Wannier(), vcomp=whole(), coord=Lattice())
 """
 function load_interp(::Type{CovariantVelocityInterp}, seed; period=1.0, compact=:N,
     gauge=GaugeDefault(CovariantVelocityInterp),
@@ -202,7 +210,7 @@ function load_interp(::Type{CovariantVelocityInterp}, seed; period=1.0, compact=
     vcomp=VcompDefault(CovariantVelocityInterp))
     # for hv require the default gauge and vcomp
     hv = load_interp(GradientVelocityInterp, seed; coord=coord, period=period, compact=compact)
-    a = load_interp(BerryConnectionInterp, seed; coord=coord, period=period, compact=compact)
+    a = load_interp(BerryConnectionInterp{coord}, seed; coord=coord, period=period, compact=compact)
     CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
@@ -299,7 +307,7 @@ load_interp(seedname::String; kwargs...) =
 
 
 """
-    load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp(), kwargs...)
+    load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp, kwargs...)
     
 Return a tuple `(interp, bz)` containing the requested Wannier interpolant,
 `interp` and the Brillouin zone `bz` to integrate over. The `seedname` should
@@ -308,7 +316,7 @@ interpolant constructor, [`load_interp`](@ref), while [`load_bz`](@ref) can be
 referenced for Brillouin zone details. For a list of possible keywords, see
 `subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
 """
-function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp(), kwargs...)
+function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     wi = load_interp(interp, seedname; kwargs...)
     bz = load_bz(bz, seedname)
     return (wi, bz)
