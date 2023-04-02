@@ -26,7 +26,8 @@ using StaticArrays
 using Reexport
 @reexport using AutoBZCore
 
-import AutoBZCore: SymRep, Integrand, FourierIntegrand, construct_problem,
+import AutoBZCore: SymRep, symmetrize_,
+    Integrand, FourierIntegrand, construct_problem,
     FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract,
     FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients,
     FourierSeriesEvaluators.show_details, FourierSeriesEvaluators.deriv,

@@ -176,6 +176,26 @@ Singleton type representing Cartesian coordinates.
 struct Cartesian <: AbstractCoordinate end
 
 """
+    CartesianRep()
+
+Symmetry representation of objects that transform under the group action in the
+same way as the lattice and in Cartesian coordinates.
+"""
+struct CartesianRep <: FaithfulRep end
+
+function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
+    B = bz.A'; invB = inv(B)
+    invB * symmetrize_(LatticeRep(), bz, B * x)
+end
+function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
+    B = bz.A'; invB = inv(B)
+    invB * symmetrize_(LatticeRep(), bz, B * x * transpose(B)) * transpose(invB)
+end
+
+coord_to_rep(::Lattice) = LatticeRep()
+coord_to_rep(::Cartesian) = CartesianRep()
+
+"""
     to_coord(B::AbstractCoordinate, D::AbstractCoordinate, A, vs)
 
 If `B` and `D` are the same type return `vs`, however and if they differ return `A*vs`.
@@ -209,6 +229,7 @@ Return the [`AbstractCoordinate`](@ref) basis in which an
 """
 coord(::AbstractCoordInterp{B}) where B = B
 
+coord_to_rep(ci::AbstractCoordInterp) = coord_to_rep(coord(ci))
 to_coord(ci::AbstractCoordInterp, A, x) =
     to_coord(coord(ci), CoordDefault(ci), A, x)
 

@@ -132,7 +132,7 @@ end
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
 
-SymRep(::TransportFunctionIntegrandType) = LatticeRep()
+SymRep(D::TransportFunctionIntegrandType) = coord_to_rep(D.s)
 
 
 function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::A) where {N,V,A}
@@ -189,7 +189,7 @@ end
 
 const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
 
-SymRep(::TransportDistributionIntegrandType) = LatticeRep()
+SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.s)
 
 function npt_update(Γ::TransportDistributionIntegrandType, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
@@ -270,7 +270,7 @@ FourierIntegrand(f::typeof(kinetic_coefficient_frequency_integral), hv::Abstract
 
 const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}
 
-SymRep(::KineticCoefficientIntegrandType) = LatticeRep()
+SymRep(kc::KineticCoefficientIntegrandType) = coord_to_rep(kc.s)
 
 
 """
