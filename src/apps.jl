@@ -107,11 +107,7 @@ eta_npt_update_(η, c) = max(50, round(Int, c/η))
 function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, μ) where {N,T}
     f′ = Diagonal(β .* fermi′.(β .* (h.values .- μ)))
     f′vs = map(v -> f′*v, vs)
-    data = ntuple(Val(N^2)) do n
-        d, r = divrem(n-1, N)
-        tr_mul(vs[d+1], f′vs[r+1])
-    end
-    SMatrix{N,N,eltype(T),N^2}(data)
+    tr_kron(f′, f′vs)
 end
 transport_function_integrand(hvs, β; μ=0) = transport_function_integrand(hvs, β, μ)
 transport_function_integrand(hvs; β, μ=0) = transport_function_integrand(hvs, β, μ)
@@ -136,14 +132,9 @@ SymRep(D::TransportFunctionIntegrandType) = coord_to_rep(D.s)
 
 
 function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::A) where {N,V,A}
-    T = Base.promote_op((v, a) -> tr_mul(v*a,v*a), V, A)
     vsAω₁ = map(v -> v * Aω₁, vs)
     vsAω₂ = map(v -> v * Aω₂, vs)
-    data = ntuple(Val(N^2)) do n
-        d, r = divrem(n-1, N)
-        tr_mul(vsAω₁[d+1], vsAω₂[r+1])
-    end
-    SMatrix{N,N,T,N^2}(data)
+    return tr_kron(vsAω₁, vsAω₂)
 end
 
 spectral_function(G::AbstractMatrix) = (G - G')/(-2pi*im)   # skew-Hermitian part

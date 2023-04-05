@@ -100,11 +100,21 @@ end
 
 Calculate `tr(A*B)` without storing the intermediate result.
 """
-# function tr_mul(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T,S}
-#     sum(x -> mapreduce(), zip(eachrow(A), eachcol(B)); init=zero(promote_type(S,T)))
-# end
-@inline tr_mul(A::StaticMatrix{N,N}, B::StaticMatrix{N,N}) where N = tr(A*B) # this gets optimized by the compiler
-@inline tr_mul(A::Diagonal, B::Diagonal) = tr(A*B) # this gets optimized by the compiler
+@inline tr_mul(A, B) = tr(A*B) # this gets optimized by the compiler
+
+"""
+    tr_kron(A::T, B::T) where {T<:SVector{AbstractMatrix}}
+
+Returns a matrix whose `[i,j]`th entry is `tr(A[i]*B[j])`.
+"""
+@inline function tr_kron(A::SVector{N,TA}, B::SVector{N,TB}) where {N,TA<:AbstractMatrix,TB<:AbstractMatrix}
+    T = Base.promote_op(tr_mul, TA, TB)
+    data = ntuple(Val(N^2)) do n
+        d, r = divrem(n-1, N)
+        tr_mul(A[r+1], B[d+1])
+    end
+    SMatrix{N,N,T,N^2}(data)
+end
 
 """
     herm(A::AbstractMatrix)
