@@ -199,6 +199,30 @@ kinetic_coefficient_integrand(ω, Σ, hv_k, n::Real, β::Real, Ω::Real, μ::Rea
 kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real, Ω::Real, μ::Real) =
     frequency_solver(hv_k, n, β, Ω, μ)
 
+#=
+infnorm(x::AbstractArray) = maximum(norm, x)
+function kinetic_coefficient_integrand(ω, Σ, (h, vs), n::Real, β::Real, Ω::Real, μ::Real)
+    s = -(ω*β)^n * β * fermi_window(β*ω, β*Ω)/(2pi)^2
+    Gω₁ = gloc_integrand(h, evalM(Σ, ω, μ))
+    Gω₂ = gloc_integrand(h, evalM(Σ, ω+Ω, μ))
+    vsGω₁ = map(v -> v*Gω₁, vs)
+    vsGω₂ = map(v -> v*Gω₂, vs)
+    vsGω₁′ = map(v -> v*(Gω₁'), vs)
+    vsGω₂′ = map(v -> v*(Gω₂'), vs)
+    
+    SVector{5}(
+        # 10000sqrt.(abs.(s * tr_kron(vsGω₁, vsGω₂))), # auxiliary integrand
+        s * tr_kron(vsGω₁, vsGω₂),
+        s * tr_kron(vsGω₁, -vsGω₂′),
+        s * tr_kron(-vsGω₁′, vsGω₂),
+        s * tr_kron(vsGω₁′, vsGω₂′),
+        )
+    end
+        
+kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real, Ω::Real, μ::Real) =
+    sum(frequency_solver(hv_k, n, β, Ω, μ)[2:5])
+=#
+
 """
     KineticCoefficientIntegrand([bz=FullBZ,] alg::AbstractAutoBZAlgorithm, hv::AbstracVelocity, Σ; n, β, Ω, abstol, reltol, maxiters)
     KineticCoefficientIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, hv::AbstracVelocity, Σ; n, β, Ω, abstol, reltol, maxiters)
