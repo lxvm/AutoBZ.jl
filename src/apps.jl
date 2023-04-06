@@ -73,13 +73,13 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     """
     @eval $T(h::HamiltonianInterp, Σ, args...; kwargs...) =
         FourierIntegrand($f, h, Σ, args...; kwargs...)
-    
+
     # pre-evaluate the self energy when constructing the integrand
     @eval function FourierIntegrand(f::typeof($f), h::HamiltonianInterp, p::EvalMType)
         FourierIntegrand(f, h, evalM(p))
     end
 
-    # Define default equispace grid stepping based 
+    # Define default equispace grid stepping based
     @eval function npt_update(f::FourierIntegrand{typeof($f)}, npt::Integer)
         η = im_sigma_to_eta(-imag(f.p[1]))
         eta_npt_update(npt, η, period(f.s)[1])
@@ -300,8 +300,8 @@ default result gets truncated if the default result would recommend a wider
 interval. If there is any truncation, a warning is emitted to the user, but the
 program will continue with the truncated limits.
 """
-function get_safe_fermi_window_limits(Ω, β, lb, ub)
-    l, u = fermi_window_limits(Ω, β)
+function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
+    l, u = fermi_window_limits(Ω, β; kwargs...)
     if l < lb
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
         l = lb
