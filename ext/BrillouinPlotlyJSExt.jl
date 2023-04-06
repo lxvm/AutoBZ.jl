@@ -3,12 +3,12 @@ module BrillouinPlotlyJSExt
 using LinearAlgebra: checksquare
 
 if isdefined(Base, :get_extension)
-    using AutoBZ: Hamiltonian
+    using AutoBZ: Hamiltonian, HamiltonianInterp
     using Brillouin
     using PlotlyJS
     import PlotlyJS: plot
 else
-    using ..AutoBZ: Hamiltonian
+    using ..AutoBZ: Hamiltonian, HamiltonianInterp
     using ..Brillouin
     using ..PlotlyJS
     import ..PlotlyJS: plot
