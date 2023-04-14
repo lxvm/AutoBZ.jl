@@ -27,6 +27,7 @@ function fermi′(x)
 end
 
 """
+    fermi_window(β, ω, Ω)
     fermi_window(x, y)
 
 Evaluates a unitless window function with unitless inputs determined by the
@@ -36,7 +37,20 @@ Fermi distribution ``f`` and defined by
 ```
 In the case `y==0` then this simplifies to the derivative of the Fermi distribution.
 """
-fermi_window(x, y) = y == zero(y) ? -fermi′(x) : fermi_window_(x, y)
+function fermi_window(β, ω, Ω)
+    if isinf(β)
+        if iszero(ω) && iszero(Ω)
+            β   # this is technically a Dirac delta function :(
+        elseif -Ω < ω < 0
+            inv(Ω)
+        else
+            zero(β)
+        end
+    else
+        β*fermi_window(β*ω, β*Ω)
+    end
+end
+fermi_window(x, y) = iszero(y) ? -fermi′(x) : fermi_window_(x, y)
 
 fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
 function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
@@ -91,6 +105,7 @@ window for which the Fermi window function is greater than `atol`. Returns half
 the width of this window.
 """
 function fermi_window_halfwidth(Ω, β, atol)
+    isinf(β) && return Ω/2
     x = β*Ω
     if x == zero(x) || atol == zero(atol)
         fermi_window_halfwidth(β, atol)

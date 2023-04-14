@@ -191,10 +191,10 @@ end
 
 
 transport_fermi_integrand(ω, Γ, n::Real, β::Real, Ω::Real, μ::Real) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * Γ(ω, ω+Ω, μ)
+    (ω*β)^n * fermi_window(β, ω, Ω) * Γ(ω, ω+Ω, μ)
 
 kinetic_coefficient_integrand(ω, Σ, hv_k, n::Real, β::Real, Ω::Real, μ::Real) =
-    (ω*β)^n * β * fermi_window(β*ω, β*Ω) * transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
+    (ω*β)^n * fermi_window(β, ω, Ω) * transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
 
 kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real, Ω::Real, μ::Real) =
     frequency_solver(hv_k, n, β, Ω, μ)
@@ -243,18 +243,19 @@ function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::Abstr
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
-    transport_solver(0.0, 10.0, 0) # precompile the solver
+    transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)-lb(Σ)), 0) # precompile the solver
     Integrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
 end
 KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, Σ, args...; kwargs...)
 
-function KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, args...;
+function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     # put the frequency integral inside otherwise
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
-    frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1.0, 10.0, 0) # precompile the solver
+    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
+    # frequency_solver(hv(fill(0.0, ndims(hv))), 0, 0.1, 10.0, 0) # precompile the solver
+    frequency_solver(hv(fill(0.0, ndims(hv))), 0, Inf, min(10.0, ub(Σ)-lb(Σ)), 0) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
 end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
@@ -325,6 +326,7 @@ end
 # provide safe limits of integration for frequency integrals
 function construct_problem(s::Union{IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}},IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}}, p::MixedParameters) where iip
     Ω, β = get_window_params(merge(s.f.p, p))
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
