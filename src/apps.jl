@@ -159,7 +159,14 @@ See `FourierIntegrand` for more details.
 TransportDistributionIntegrand(hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     FourierIntegrand(transport_distribution_integrand, hv, Σ, args...; kwargs...)
 
-evalM2(Σ, ω₁, ω₂, μ) = (evalM(Σ, ω₁, μ), evalM(Σ, ω₂, μ))
+function evalM2(Σ, ω₁, ω₂, μ)
+    M = evalM(Σ, ω₁, μ)
+    if ω₁ == ω₂
+        (M, M)
+    else
+        (M, evalM(Σ, ω₂, μ))
+    end
+end
 evalM2(Σ, ω₁, ω₂; μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 evalM2(Σ; ω₁, ω₂, μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 
@@ -209,7 +216,7 @@ function kinetic_coefficient_integrand(ω, Σ, (h, vs), n::Real, β::Real, Ω::R
     vsGω₂ = map(v -> v*Gω₂, vs)
     vsGω₁′ = map(v -> v*(Gω₁'), vs)
     vsGω₂′ = map(v -> v*(Gω₂'), vs)
-    
+
     SVector{5}(
         # 10000sqrt.(abs.(s * tr_kron(vsGω₁, vsGω₂))), # auxiliary integrand
         s * tr_kron(vsGω₁, vsGω₂),
@@ -218,7 +225,7 @@ function kinetic_coefficient_integrand(ω, Σ, (h, vs), n::Real, β::Real, Ω::R
         s * tr_kron(vsGω₁′, vsGω₂′),
         )
     end
-        
+
 kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real, Ω::Real, μ::Real) =
     sum(frequency_solver(hv_k, n, β, Ω, μ)[2:5])
 =#
@@ -243,7 +250,7 @@ function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::Abstr
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
-    transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)-lb(Σ)), 0) # precompile the solver
+    transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)), 0) # precompile the solver
     Integrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
 end
 KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
@@ -252,9 +259,9 @@ KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityIn
 function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     # put the frequency integral inside otherwise
+    # TODO fix warnings so that safe limits of integration are computed only once
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
-    # frequency_solver(hv(fill(0.0, ndims(hv))), 0, 0.1, 10.0, 0) # precompile the solver
     frequency_solver(hv(fill(0.0, ndims(hv))), 0, Inf, min(10.0, ub(Σ)-lb(Σ)), 0) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
 end
@@ -262,6 +269,16 @@ KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs
     KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
 
 canonize_kc_params(solver::IntegralSolver, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) = (solver, n, β, Ω, μ)
+#=
+function canonize_kc_params(solver_::IntegralSolver{iip,}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_)
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
+    a, b = get_safe_fermi_window_limits(Ω, β, solver_.lb, solver_.ub)
+    solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
+            do_inf_transformation = solver_.do_inf_transformation, kwargs = solver_.kwargs,
+            abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
+    (solver, n, β, Ω, μ)
+end
+=#
 canonize_kc_params(solver::IntegralSolver, n, β, Ω; μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
@@ -278,6 +295,7 @@ const CanonizeKCType = Union{
 
 canonize_kc_params(p::CanonizeKCType) =
     MixedParameters(canonize_kc_params(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
+# TODO, if T=Ω=0, intercept this stage and replace with distributional integrand
 Integrand(f::typeof(transport_fermi_integrand), p::CanonizeKCType) =
     Integrand(f, canonize_kc_params(p))
 FourierIntegrand(f::typeof(kinetic_coefficient_frequency_integral), hv::AbstractVelocityInterp, p::CanonizeKCType) =
