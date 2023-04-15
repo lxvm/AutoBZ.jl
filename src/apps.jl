@@ -259,18 +259,16 @@ KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityIn
 function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     # put the frequency integral inside otherwise
-    # TODO fix warnings so that safe limits of integration are computed only once
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
-    frequency_solver(hv(fill(0.0, ndims(hv))), 0, Inf, min(10.0, ub(Σ)-lb(Σ)), 0) # precompile the solver
+    frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1e100, 0.0, 0) # precompile the solver
     FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
 end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
 
 canonize_kc_params(solver::IntegralSolver, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) = (solver, n, β, Ω, μ)
-#=
-function canonize_kc_params(solver_::IntegralSolver{iip,}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_)
+function canonize_kc_params(solver_::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) where iip
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
     a, b = get_safe_fermi_window_limits(Ω, β, solver_.lb, solver_.ub)
     solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
@@ -278,12 +276,13 @@ function canonize_kc_params(solver_::IntegralSolver{iip,}, n_, β_, Ω_, μ_; n=
             abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
     (solver, n, β, Ω, μ)
 end
-=#
 canonize_kc_params(solver::IntegralSolver, n, β, Ω; μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver; n, β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 
+# TODO replace this dispatch table by a Val{true/false} parameter in the MixedParameters
+# that signals whether or not it is in canonical form
 const CanonizeKCType = Union{
     MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
     MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real},NamedTuple{(),Tuple{}}},
@@ -342,7 +341,7 @@ function get_window_params(p::MixedParameters{<:Tuple{EvalSelfEnergyType,Tuple,R
 end
 
 # provide safe limits of integration for frequency integrals
-function construct_problem(s::Union{IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}},IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}}, p::MixedParameters) where iip
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p::MixedParameters) where iip
     Ω, β = get_window_params(merge(s.f.p, p))
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
