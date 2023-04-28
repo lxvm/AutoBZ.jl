@@ -322,11 +322,11 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
     l, u = fermi_window_limits(Ω, β; kwargs...)
     if l < lb
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from below"
-        l = lb
+        l = oftype(l, lb)
     end
     if u+Ω > ub
         @warn "At Ω=$Ω, β=$β, the interpolant limits the desired frequency window from above"
-        u = ub-Ω
+        u = oftype(u, ub-Ω)
     end
     l, u
 end
@@ -363,10 +363,10 @@ OpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, args..
 
 
 dos_fermi_integrand(ω, dos, β, μ) =
-    fermi(β*ω)*dos(ω, μ)
+    fermi(β, ω)*dos(ω, μ)
 
 electron_density_integrand(ω, Σ, h_k, β, μ) =
-    fermi(β*ω)*dos_integrand(h_k, evalM(Σ, ω, μ))
+    fermi(β, ω)*dos_integrand(h_k, evalM(Σ, ω, μ))
 
 electron_density_frequency_integral(h_k, frequency_solver, β, μ) =
     frequency_solver(h_k, β, μ)
@@ -406,6 +406,15 @@ ElectronDensityIntegrand(alg, h::HamiltonianInterp, Σ, args...; kwargs...) =
     ElectronDensityIntegrand(lb(Σ), ub(Σ), alg, h, Σ, args...; kwargs...)
 
 canonize_density_params(solver::IntegralSolver, β_, μ_; β=β_, μ=μ_) = (solver, β, μ)
+function canonize_density_params(solver_::IntegralSolver{iip,<:Integrand{typeof(electron_density_integrand)}}, β_, μ_; β=β_, μ=μ_) where iip
+    Σ = solver_.f.p[1]
+    a, b = get_safe_fermi_function_limits(β, lb(Σ), ub(Σ))
+    # throw((β, μ))
+    solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
+            do_inf_transformation = solver_.do_inf_transformation, kwargs = solver_.kwargs,
+            abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
+    (solver, β, μ)
+end
 canonize_density_params(solver::IntegralSolver, β; μ=0) = canonize_density_params(solver, β, μ)
 canonize_density_params(solver::IntegralSolver; β, μ=0) = canonize_density_params(solver, β, μ)
 
@@ -423,3 +432,24 @@ Integrand(f::typeof(dos_fermi_integrand), p::CanonizeDensityType) =
     Integrand(f, canonize_density_params(p))
 FourierIntegrand(f::typeof(electron_density_frequency_integral), hv::HamiltonianInterp, p::CanonizeDensityType) =
     FourierIntegrand(f, hv, canonize_density_params(p))
+
+function get_safe_fermi_function_limits(β, lb, ub; kwargs...)
+    l, u = fermi_function_limits(β; kwargs...)
+    if l < lb
+        @warn "At β=$β, the interpolant limits the desired frequency window from below"
+        l = oftype(l, lb)
+    end
+    if u > ub
+        @warn "At β=$β, the interpolant limits the desired frequency window from above"
+        u = oftype(u, ub)
+    end
+    l, u
+end
+
+# provide safe limits of integration for frequency integrals
+function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(dos_fermi_integrand)}}, p::MixedParameters) where iip
+    β = canonize_density_params(merge(s.f.p, p))[2]
+    # error()
+    a, b = get_safe_fermi_function_limits(β, s.lb, s.ub)
+    IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
+end

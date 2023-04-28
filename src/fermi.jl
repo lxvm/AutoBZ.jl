@@ -1,4 +1,5 @@
 """
+    fermi(β, ω)
     fermi(x)
 
 Evaluates a Fermi distribution with unitless input
@@ -6,6 +7,7 @@ Evaluates a Fermi distribution with unitless input
 f(x) = \\frac{1}{e^{x}+1}
 ```
 """
+fermi(β, ω) = isinf(β) ? (ω <= 0 ? one(β) : zero(β)) : fermi(β*ω)
 function fermi(x)
     y = exp(x)
     inv(one(y) + y)
@@ -41,7 +43,7 @@ function fermi_window(β, ω, Ω)
     if isinf(β)
         if iszero(ω) && iszero(Ω)
             β   # this is technically a Dirac delta function :(
-        elseif -Ω < ω < 0
+        elseif -Ω <= ω <= 0
             inv(Ω)
         else
             zero(β)
@@ -138,3 +140,9 @@ function fermi_window_halfwidth_(x::T, atol) where {T<:Union{Float32,Float64}}
     # to be exact, add log1p(exp(-2abs_y)) to abs_y, but this is lost to roundoff
 end
 fermi_window_halfwidth_(x::Float16, atol) = Float16(fermi_window_halfwidth_(Float32(x), atol))
+
+function fermi_function_limits(β; atol=0.0, rtol=iszero(atol) ? 1e-20 : zero(atol))
+    tol = max(atol, rtol) # since max of fermi function is always 1
+    u = -log(tol)/β
+    return (typeof(u)(-Inf), u)
+end
