@@ -20,11 +20,8 @@ hv, bz = load_wannier90_data(seed; interp=CovariantVelocityInterp, gauge=Wannier
 shift!(hv, μ)
 Σ = EtaSelfEnergy(η)
 
-#= this is how you use FTPS self energies
-using EquiBaryInterp
-omegas, values = load_self_energy("svo_self_energy_scalar.txt")
-Σ = ScalarSelfEnergy(LocalEquiBaryInterp(omegas, values), extrema(omegas)...)
-=#
+# use self energies
+# Σ = load_self_energy("svo_self_energy_scalar.txt")
 
 # set error tolerances
 atol = 1e-2

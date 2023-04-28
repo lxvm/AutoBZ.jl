@@ -18,8 +18,7 @@ h, bz = load_wannier90_data("svo"; interp=HamiltonianInterp, bz=CubicSymIBZ())
 # β = inv(sqrt(η*8.617333262e-5*0.5*300/pi)) # eV # Fermi liquid scaling
 # Σ = EtaSelfEnergy(η)
 
-omegas, values = load_self_energy("svo_self_energy_scalar.txt")
-Σ = ScalarSelfEnergy(LocalEquiBaryInterp(omegas, values), extrema(omegas)...)
+Σ = load_self_energy("svo_self_energy_scalar.txt")
 
 T = 50 # K
 β = 1/(8.617333262e-5*T) # eV

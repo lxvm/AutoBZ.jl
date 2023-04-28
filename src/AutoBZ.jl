@@ -34,6 +34,9 @@ import AutoBZCore: SymRep, symmetrize_,
     FourierSeriesEvaluators.offset, FourierSeriesEvaluators.shift,
     AutoSymPTR.npt_update
 
+using EquiBaryInterp: LocalEquiBaryInterp
+using BaryRational: aaa
+using HChebInterp: hchebinterp
 
 export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
 export AbstractSelfEnergy, lb, ub

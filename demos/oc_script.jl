@@ -24,10 +24,8 @@ shift!(hv, μ) # shift the Fermi energy to zero
 η = 0.5 # eV
 Σ = EtaSelfEnergy(η)
 
-# Use FTPS self energies
-# using EquiBaryInterp
-# omegas, values = load_self_energy("svo_self_energy_scalar.txt")
-# Σ = ScalarSelfEnergy(LocalEquiBaryInterp(omegas, values), extrema(omegas)...)
+# Use self energies
+# Σ = load_self_energy("svo_self_energy_scalar.txt")
 
 
 # define constants
