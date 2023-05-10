@@ -54,7 +54,7 @@ parse_self_energy_matrix(filename) = open(filename) do file
     nfpts = parse(Int, readline(file))
     num_wann = parse(Int, readline(file))
     omegas = Vector{Float64}(undef, nfpts)
-    values = Vector{SMatrix{num_wann,numwann,ComplexF64,num_wann^2}}(undef, nfpts)
+    values = Vector{SMatrix{num_wann,num_wann,ComplexF64,num_wann^2}}(undef, nfpts)
     omega = Vector{Float64}(undef, num_wann^2)
     value = Matrix{ComplexF64}(undef, num_wann, num_wann)
     for i in 1:nfpts
