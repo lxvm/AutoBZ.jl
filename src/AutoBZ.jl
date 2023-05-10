@@ -65,6 +65,7 @@ export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
 export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
+export AuxTransportDistributionIntegrand, AuxKineticCoefficientIntegrand, AuxOpticalConductivityIntegrand
 include("apps.jl")
 
 export load_bz
