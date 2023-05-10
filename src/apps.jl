@@ -1,4 +1,4 @@
-propagator_denominator(h::AbstractMatrix, M) = M-h
+propagator_denominator(h, M) = M-h
 propagator_denominator(h::Eigen, M::UniformScaling) =
     propagator_denominator(Diagonal(h.values), M)
 propagator_denominator((h, U)::Eigen, M::AbstractMatrix) =
@@ -148,7 +148,7 @@ function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::
 end
 
 spectral_function(G::AbstractMatrix) = (G - G')/(-2pi*im)   # skew-Hermitian part
-spectral_function(G::Diagonal) = imag(G)/(-pi)              # optimization
+spectral_function(G::Union{Number,Diagonal}) = imag(G)/(-pi)# optimization
 spectral_function(h, M) = spectral_function(gloc_integrand(h, M))
 
 transport_distribution_integrand((h, vs), Mω₁, Mω₂) =

@@ -11,7 +11,7 @@ struct HamiltonianInterp{G,N,T,F} <: AbstractGaugeInterp{G,N,T}
 end
 
 # recursively wrap inner Fourier series with Hamiltonian
-HamiltonianInterp(f::InplaceFourierSeries; gauge=GaugeDefault(HamiltonianInterp)) =
+HamiltonianInterp(f; gauge=GaugeDefault(HamiltonianInterp)) =
     HamiltonianInterp{gauge}(f)
 
 GaugeDefault(::Type{<:HamiltonianInterp}) = Wannier()
@@ -69,6 +69,19 @@ function evaluate(bc::BerryConnectionInterp, x::NTuple{1})
 end
 
 # ------------------------------------------------------------------------------
+
+# These methods are missing from FourierSeriesEvaluators.jl
+deriv(f::FourierSeries) = f.a
+offset(f::FourierSeries) = f.o
+shift(f::FourierSeries) = f.q
+function contract(f::FourierSeries{N,T}, x::Number, ::Val{N}) where {N,T}
+    c = fourier_contract(f.c, x-f.q[N], f.k[N], f.a[N], f.o[N], Val(N))
+    k = Base.front(f.k)
+    a = Base.front(f.a)
+    o = Base.front(f.o)
+    q = Base.front(f.q)
+    FourierSeries{N-1,eltype(c)}(c, k, a, o, q)
+end
 
 raise_multiplier(::Val{0}) = Val(1)
 raise_multiplier(::Val{1}) = 2

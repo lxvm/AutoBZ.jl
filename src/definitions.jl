@@ -115,7 +115,7 @@ Transform the Hamiltonian according to the following values of `gauge`
 - [`Wannier`](@ref): keeps `h, vs` in the original, orbital basis
 - [`Hamiltonian`](@ref): diagonalizes `h` and rotates `h` into the energy, band basis
 """
-to_gauge(::Wannier, H::AbstractMatrix) = H
+to_gauge(::Wannier, H) = H
 to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 
 function to_gauge(::Hamiltonian, H::AbstractMatrix)

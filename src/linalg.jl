@@ -107,7 +107,7 @@ Calculate `tr(A*B)` without storing the intermediate result.
 
 Returns a matrix whose `[i,j]`th entry is `tr(A[i]*B[j])`.
 """
-@inline function tr_kron(A::SVector{N,TA}, B::SVector{N,TB}) where {N,TA<:AbstractMatrix,TB<:AbstractMatrix}
+@inline function tr_kron(A::SVector{N,TA}, B::SVector{N,TB}) where {N,TA,TB}
     T = Base.promote_op(tr_mul, TA, TB)
     data = ntuple(Val(N^2)) do n
         d, r = divrem(n-1, N)
