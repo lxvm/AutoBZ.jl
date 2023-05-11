@@ -59,37 +59,38 @@ function load_interp(::Type{HamiltonianInterp}, seed; gauge=GaugeDefault(Hamilto
     HamiltonianInterp(f; gauge=gauge)
 end
 
+load_coeff_type(::Val{:N}, n) = SMatrix{n,n,ComplexF64,n^2}
+load_coeff_type(::Val, n) = SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}
+load_coeff_type(::Union{Val{:SOC},Val{:SOC_L},Val{:SOC_U},Val{:SOC_S}}, n) = SOC{2n,ComplexF64}
+
+load_coeff(T, ::Val{:N}, c) = c
+load_coeff(T, ::Val{:L}, c) = T(c)
+load_coeff(T, ::Val{:U}, c) = T(c')
+load_coeff(T, ::Val{:S}, c) = T(0.5*(c+c'))
+load_coeff(T, ::Val{:SOC}, c) = SOC(c)
+load_coeff(::Type{<:SOC{N}}, ::Val{:SOC_L}, c) where N = SOC(load_coeff(load_coeff_type(Val(:L), div(N,2)), Val(:L), c))
+load_coeff(::Type{<:SOC{N}}, ::Val{:SOC_U}, c) where N = SOC(load_coeff(load_coeff_type(Val(:U), div(N,2)), Val(:U), c))
+load_coeff(::Type{<:SOC{N}}, ::Val{:SOC_S}, c) where N = SOC(load_coeff(load_coeff_type(Val(:S), div(N,2)), Val(:S), c))
+
 load_coefficients(compact, num_wann, irvec, cs...) = load_coefficients(compact, num_wann, irvec, cs)
-@generated function load_coefficients(compact, num_wann, irvec, cs::NTuple{N}) where N
-    T_full = :(SMatrix{num_wann,num_wann,ComplexF64,num_wann^2})
-    T_compact = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
-    if compact === Val{:N}
-        T = T_full; expr = :(c[i])
-    elseif compact === Val{:L}
-        T = T_compact; expr = :($T(c[i]))
-    elseif compact === Val{:U}
-        T = T_compact; expr = :($T(c[i]'))
-    elseif compact === Val{:S}
-        T = T_compact; expr = :($T(0.5*(c[i]+c[i]')))
-    end
-    quote
-        nmodes = zeros(Int, 3)
-        for idx in irvec
-            @inbounds for i in 1:3
-                if (n = abs(idx[i])) > nmodes[i]
-                    nmodes[i] = n
-                end
+function load_coefficients(compact, num_wann, irvec, cs::NTuple{N}) where N
+    T = load_coeff_type(compact, num_wann)
+    nmodes = zeros(Int, 3)
+    for idx in irvec
+        @inbounds for i in 1:3
+            if (n = abs(idx[i])) > nmodes[i]
+                nmodes[i] = n
             end
         end
-        Cs = Base.Cartesian.@ntuple $N _ -> zeros($T, (2nmodes .+ 1)...)
-        for (i,idx) in enumerate(irvec)
-            idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
-            for (j,c) in enumerate(cs)
-                Cs[j][idx_] = $expr
-            end
-        end
-        Cs
     end
+    Cs = ntuple(_ -> zeros(T, (2nmodes .+ 1)...), Val(N))
+    for (i,idx) in enumerate(irvec)
+        idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
+        for (j,c) in enumerate(cs)
+            Cs[j][idx_] = load_coeff(T, compact, c[i])
+        end
+    end
+    Cs
 end
 
 
