@@ -212,25 +212,27 @@ function pg_vert_from_zslice(z::Float64, face_coord::Vector{Matrix{Float64}})
         # Find the point of intersection and add it to the list of polygon
         # vertices
         t = (z - z1) / (z2 - z1)
-        v = t * face[jp1, 1:2] + (1 - t) * face[j, 1:2]
+        # dot syntax removes some allocations/array copies as do views
+        v = @. t * @view(face[jp1, 1:2]) + (1 - t) * @view(face[j, 1:2])
         push!(pg_vert, v)
       end
     end
   end
 
-  pg_vert = hcat(pg_vert...)'
+  pg_vert1 = stack(pg_vert)'  # new variable name since type may change
+  # pg_vert1 = hcat(pg_vert...)'  # not type stable
 
   # There will be redundant vertices in the verts array because of shared
   # edges between faces; these should be exactly equal (in floating point
   # arithmetic) because the vertices in each face should come from a common
   # list of unique vertices of the polyhedron. Remove the redundant vertices.
-  pg_vert = unique(pg_vert, dims=1)
+  pg_vert2 = unique(pg_vert1, dims=1)
 
   # Sort the points in the polygon by their angle with respect to the centroid
-  p = sortpts2D(pg_vert') # permutation which sorts the points
-  pg_vert = pg_vert[p, :]
+  p = sortpts2D(pg_vert2') # permutation which sorts the points
+  pg_vert3 = pg_vert2[p, :]
 
-  return pg_vert
+  return pg_vert3
 end
 
 """
@@ -256,7 +258,7 @@ function xlim_from_yslice(y::Float64, pg_vert::Matrix{Float64})
 
   # Loop through ordered pairs of vertices, and check whether the line segment
   # connecting them intersects the line of constant y
-  xlims = zeros(2)
+  lb = NaN  # undefined Float64
   k = 0
   nv = size(pg_vert, 1)
   for j = 1:nv
@@ -267,19 +269,21 @@ function xlim_from_yslice(y::Float64, pg_vert::Matrix{Float64})
     # If y1 and y2 are on opposite sides of y, then line intersects the edge. If
     # y = y1, then line intersects a vertex and we include it. If y = y2, then
     # line intersects a vertex, but we don't include it to avoid double-counting.
-    if (y1 < y && y2 > y) || (y1 > y && y2 < y || y1 == y)
+    if (y1 < y && y2 > y) || (y1 > y && y2 < y) || y1 == y
       # Find the point of intersection and add it to the list of intersection points
       t = (y - y1) / (y2 - y1)
       k += 1
-      xlims[k] = t * pg_vert[jp1, 1] + (1 - t) * pg_vert[j, 1]
-      if (k == 2) # Found two unique intersection points
-        return sort(xlims)
+      lim = t * pg_vert[jp1, 1] + (1 - t) * pg_vert[j, 1]
+      if k == 1
+        lb = lim
+      elseif (k == 2) # Found two unique intersection points
+        return extrema((lb, lim))
       end
     end
   end
 
   # If we reach the end and have only found one intersection point, then the
   # line is tangent to a single vertex, and both x limits are the same
-  xlims[2] = xlims[1]
-  return xlims
+  @assert k == 1 "could not find intersection with polygon"
+  return (lb, lb)
 end
