@@ -5,8 +5,6 @@ import SymmetryReduceBZ.Symmetry: calc_bz, calc_ibz
 
 using Test
 
-include("ibzlims.jl")
-
 """
     ph_vol(n, tri_idx, ph_vert)
 
@@ -89,6 +87,22 @@ function test_vol(latvec::Matrix{Float64}, n::Int64)
 
 end
 
+function test_vol2(latvec::Matrix{Float64}, n::Int64)
+    SymmetryReduceBZExt = Base.get_extension(AutoBZ, :SymmetryReduceBZExt)
+    atom_types = [0]
+    atom_pos = Array([0 0 0]')
+    coordinates = "Cartesian"
+    ibz_poly = SymmetryReduceBZExt.load_polyhedra(latvec, latvec, atom_types, atom_pos, coordinates)
+    vol_poly, = nested_quadgk(ThunkIntegrand{3}(x -> 1.0), ibz_poly)
+    ibz_hull = SymmetryReduceBZExt.load_custom(latvec, latvec, atom_types, atom_pos, coordinates)
+    vol_hull, = nested_quadgk(ThunkIntegrand{3}(x -> 1.0), ibz_hull)
+
+    # println("Reference volume: ", vol_poly)
+    # println("Estimated volume: ", vol_hull)
+
+    return abs(vol_poly - vol_hull) / vol_poly # Return relative error
+end
+
 @testset "IBZ volumes" begin
 
   a = 1.0         # Lattice constant
@@ -98,22 +112,22 @@ end
   beta = pi / 3   # Lattice angle
   gamma = pi / 4  # Lattice angle
   n = 1000        # Number of integration points in z dimension
-  tol = 0.01      # Relative error tolerance
+  tol = 1e-6      # Relative error tolerance
 
   # Estimate volumes of different lattices
-  @test test_vol(genlat_CUB(a), n) < tol
-  @test test_vol(genlat_FCC(a), n) < tol
-  @test test_vol(genlat_BCC(a), n) < tol
-  @test test_vol(genlat_TET(a, c), n) < tol
-  @test test_vol(genlat_BCT(a, c), n) < tol
-  @test test_vol(genlat_ORC(a, b, c), n) < tol
-  @test test_vol(genlat_ORCF(a, b, c), n) < tol
-  @test test_vol(genlat_ORCI(a, b, c), n) < tol
-  @test test_vol(genlat_ORCC(a, b, c), n) < tol
-  @test test_vol(genlat_HEX(a, c), n) < tol
-  @test test_vol(genlat_RHL(a, alpha), n) < tol
-  @test test_vol(genlat_MCL(a, b, c, alpha), n) < tol
-  @test test_vol(genlat_MCLC(a, b, c, alpha), n) < tol
-  @test test_vol(genlat_TRI(a, b, c, alpha, beta, gamma), n) < tol
+  @test test_vol2(genlat_CUB(a), n) < tol
+  @test test_vol2(genlat_FCC(a), n) < tol
+  @test test_vol2(genlat_BCC(a), n) < tol
+  @test test_vol2(genlat_TET(a, c), n) < tol
+  @test test_vol2(genlat_BCT(a, c), n) < tol
+  @test test_vol2(genlat_ORC(a, b, c), n) < tol
+  @test test_vol2(genlat_ORCF(a, b, c), n) < tol
+  @test test_vol2(genlat_ORCI(a, b, c), n) < tol
+  @test test_vol2(genlat_ORCC(a, b, c), n) < tol
+  @test test_vol2(genlat_HEX(a, c), n) < tol
+  @test test_vol2(genlat_RHL(a, alpha), n) < tol
+  @test test_vol2(genlat_MCL(a, b, c, alpha), n) < tol
+  @test test_vol2(genlat_MCLC(a, b, c, alpha), n) < tol
+  @test test_vol2(genlat_TRI(a, b, c, alpha, beta, gamma), n) < tol
 
 end

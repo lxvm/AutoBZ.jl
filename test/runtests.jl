@@ -3,7 +3,10 @@ using LinearAlgebra
 
 using StaticArrays
 
+using SymmetryReduceBZ
 using AutoBZ
+
+include("test_ibz.jl")
 
 @testset "AutoBZ" begin
     # 3D integer lattice Hamiltonian
@@ -19,11 +22,11 @@ using AutoBZ
     end
 
     @testset "fermi" begin
-        
+
     end
 
     @testset "Hamiltonian" begin
-        
+
     end
 
     @testset "HamiltonianVelocity" begin

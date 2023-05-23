@@ -17,7 +17,7 @@ dimension of the polytope, to be integrated over
 - `lim::Array{Float64, 1}`: 2-element array of limits of integration
 """
 function get_lim(vert::Matrix{Float64})
-  return [minimum(vert[:, end]), maximum(vert[:, end])]
+  return extrema(vert[:, end])
 end
 
 """
@@ -112,7 +112,7 @@ function faces_from_triangles(tri_idx::Matrix{Int32}, ph_vert::Matrix{Float64})
     # Determine subgroup 1 by repeatedly looping through triangles in group
     placed_a_triangle = true # True if a triangle was placed in subgroup 1 in previous iteration
     while (placed_a_triangle) # Keep looping through triangles in group until all are placed
-      placed_a_triangle = false # Initialize as false 
+      placed_a_triangle = false # Initialize as false
       for j = 1:length(grpi_idx) # Loop through remaining triangles
         # If jth triangle has a vertex which appears in subgroup 1, add its
         # vertices to subgroup 1 and delete it from group
