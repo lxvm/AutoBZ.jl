@@ -117,7 +117,7 @@ end
 function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, μ) where {N,T}
     f′ = Diagonal(β .* fermi′.(β .* (h.values .- μ)))
     f′vs = map(v -> f′*v, vs)
-    tr_kron(f′, f′vs)
+    tr_kron(vs, f′vs)
 end
 transport_function_integrand(hvs, β; μ=0) = transport_function_integrand(hvs, β, μ)
 transport_function_integrand(hvs; β, μ=0) = transport_function_integrand(hvs, β, μ)

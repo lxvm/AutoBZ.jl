@@ -8,12 +8,6 @@ function load_bz(::FBZ, seedname::String; atol=1e-5)
     FullBZ(A, B; atol=atol)
 end
 
-function load_bz(::IBZ, ::String)
-    throw(ArgumentError("""
-    IBZ integration relies on SymmetryReduceBZ. Make sure to have `using SymmetryReduceBZ` before `using AutoBZ` in your file to use this feature.
-    """))
-end
-
 checkorthog(A::AbstractMatrix) = isdiag(transpose(A)*A)
 
 sign_flip_tuples(n::Val{d}) where {d} = Iterators.product(ntuple(_ -> (1,-1), n)...)
