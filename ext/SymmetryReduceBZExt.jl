@@ -1,18 +1,13 @@
 module SymmetryReduceBZExt
 
 using LinearAlgebra
-using Polyhedra: polyhedron, doubledescription
+using Polyhedra: polyhedron, doubledescription, hrepiscomputed, hrep
 using StaticArrays
 
-if isdefined(Base, :get_extension)
-    using SymmetryReduceBZ
-    using AutoBZ: parse_wout, IBZ, SymmetricBZ, PolyhedralLimits, CubicLimits, AbstractIteratedLimits
-    import AutoBZ: load_bz, IteratedIntegration.fixandeliminate, IteratedIntegration.endpoints, IteratedIntegration.iterated_segs
-else
-    using ..SymmetryReduceBZ
-    using ..AutoBZ: parse_wout, IBZ, SymmetricBZ, PolyhedralLimits, CubicLimits, AbstractIteratedLimits
-    import ..AutoBZ: load_bz, IteratedIntegration.fixandeliminate, IteratedIntegration.endpoints, IteratedIntegration.iterated_segs
-end
+using SymmetryReduceBZ
+using AutoBZ: parse_wout, IBZ, SymmetricBZ, CubicLimits, AbstractIteratedLimits, load_limits
+import AutoBZ: load_bz, IteratedIntegration.fixandeliminate, IteratedIntegration.endpoints, IteratedIntegration.iterated_segs
+
 
 include("ibzlims.jl")
 
@@ -51,7 +46,8 @@ end
 function load_polyhedra(a, real_latvecs, atom_types, atom_pos, coordinates; ibzformat="half-space", makeprim=false, convention="ordinary")
     hull_cart = calc_ibz(real_latvecs, atom_types, atom_pos, coordinates, ibzformat, makeprim, convention)
     hull = a' * polyhedron(doubledescription(hull_cart)) # rotate Cartesian basis to lattice basis in reciprocal coordinates
-    PolyhedralLimits(hull)
+    hrepiscomputed(hull) || hrep(hull) # precompute hrep if it isn't already
+    load_limits(hull)
 end
 
 function load_custom(a, real_latvecs, atom_types, atom_pos, coordinates; ibzformat="convex hull", makeprim=false, convention="ordinary", digits=12)

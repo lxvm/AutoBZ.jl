@@ -44,18 +44,9 @@ evalM(Σ::AbstractSelfEnergy, ω, μ) = evalM(Σ(ω), ω, μ)
 evalM(Σ, ω; μ=0) = evalM(Σ, ω, μ)
 evalM(Σ; ω, μ=0) = evalM(Σ, ω, μ)
 
-const EvalSelfEnergyType = Union{AbstractSelfEnergy,AbstractMatrix,UniformScaling}
-
-const EvalMType = Union{
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real},<:NamedTuple{(:μ,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType},<:NamedTuple{(:ω,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType},<:NamedTuple{<:Any,<:Tuple{Real,Real}}},
-}
-
-evalM(p::EvalMType) =
-    MixedParameters(evalM(getfield(p, :args)...; getfield(p, :kwargs)...))
+function evalM(p::MixedParameters)
+    return MixedParameters(evalM(getfield(p, :args)...; getfield(p, :kwargs)...))
+end
 
 # Generic behavior for single Green's function integrands (methods and types)
 for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
@@ -69,18 +60,19 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     $(T)(h, Σ, ω; μ=0)
     $(T)(h, Σ; ω, μ=0)
 
-    See `FourierIntegrand` for more details.
+    See `Integrand` for more details.
     """
     @eval $T(h::HamiltonianInterp, Σ, args...; kwargs...) =
-        FourierIntegrand($f, h, Σ, args...; kwargs...)
+        Integrand($f, h, Σ, args...; kwargs...)
 
     # pre-evaluate the self energy when constructing the integrand
-    @eval function FourierIntegrand(f::typeof($f), h::HamiltonianInterp, p::EvalMType)
-        FourierIntegrand(f, h, evalM(p))
-    end
+    # @eval function Integrand(f::typeof($f), h::HamiltonianInterp, p::EvalMType)
+    #     error()
+    #     Integrand(f, h, evalM(p))
+    # end
 
     # Define default equispace grid stepping based
-    @eval function npt_update(f::FourierIntegrand{typeof($f)}, npt::Integer)
+    @eval function npt_update(f::Integrand{typeof($f)}, npt::Integer)
         η = im_sigma_to_eta(-imag(f.p[1]))
         eta_npt_update(npt, η, maximum(period(f.s)))
     end
@@ -133,10 +125,10 @@ Computes the following integral
 function TransportFunctionIntegrand(hv::AbstractVelocityInterp, args...; kwargs...)
     @assert gauge(hv) isa Hamiltonian
     # TODO change to the Hamiltonian gauge automatically
-    FourierIntegrand(transport_function_integrand, hv, args...; kwargs...)
+    Integrand(transport_function_integrand, hv, args...; kwargs...)
 end
 
-const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
+const TransportFunctionIntegrandType = Integrand{typeof(transport_function_integrand)}
 
 SymRep(D::TransportFunctionIntegrandType) = coord_to_rep(D.s)
 
@@ -164,10 +156,10 @@ A function whose integral over the BZ gives the transport distribution
 \\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See `FourierIntegrand` for more details.
+See `Integrand` for more details.
 """
 TransportDistributionIntegrand(hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
-    FourierIntegrand(transport_distribution_integrand, hv, Σ, args...; kwargs...)
+    Integrand(transport_distribution_integrand, hv, Σ, args...; kwargs...)
 
 function evalM2(Σ, ω₁, ω₂, μ)
     M = evalM(Σ, ω₁, μ)
@@ -180,22 +172,13 @@ end
 evalM2(Σ, ω₁, ω₂; μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 evalM2(Σ; ω₁, ω₂, μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 
-const EvalM2Type = Union{
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real,Real,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType,Real,Real},<:NamedTuple{(:μ,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType},<:NamedTuple{(:ω₁, :ω₂),<:Tuple{Real,Real}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType},<:NamedTuple{(:ω₂, :ω₁),<:Tuple{Real,Real}}},
-    MixedParameters{<:Tuple{EvalSelfEnergyType},<:NamedTuple{<:Any,<:Tuple{Real,Real,Real}}},
-}
-
-evalM2(p::EvalM2Type) =
+evalM2(p::MixedParameters) =
     MixedParameters(evalM2(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
-function FourierIntegrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocityInterp, p::EvalM2Type)
-    FourierIntegrand(f, hv, evalM2(p))
-end
+# function Integrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocityInterp, p::EvalM2Type)
+#     Integrand(f, hv, evalM2(p))
+# end
 
-const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
+const TransportDistributionIntegrandType = Integrand{typeof(transport_distribution_integrand)}
 
 SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.s)
 
@@ -248,7 +231,7 @@ function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, 
     frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
     frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1e100, 0.0, 0) # precompile the solver
-    FourierIntegrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
+    Integrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
 end
 KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
     KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
@@ -267,27 +250,17 @@ canonize_kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = canonize_kc_params
 canonize_kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 canonize_kc_params(solver::IntegralSolver; n, β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 
-# TODO replace this dispatch table by a Val{true/false} parameter in the MixedParameters
-# that signals whether or not it is in canonical form
-const CanonizeKCType = Union{
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real,Real},<:NamedTuple{(:μ,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real},<:NamedTuple{<:Any,<:Tuple{Real,Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver},<:NamedTuple{<:Any,<:Tuple{Real,Real,Real,Vararg{Real}}}},
-}
 
-canonize_kc_params(p::CanonizeKCType) =
+canonize_kc_params(p::MixedParameters) =
     MixedParameters(canonize_kc_params(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
 # TODO, if T=Ω=0, intercept this stage and replace with distributional integrand
 Integrand(f::typeof(transport_fermi_integrand), p::CanonizeKCType) =
     Integrand(f, canonize_kc_params(p))
-FourierIntegrand(f::typeof(kinetic_coefficient_frequency_integral), hv::AbstractVelocityInterp, p::CanonizeKCType) =
-    FourierIntegrand(f, hv, canonize_kc_params(p))
+Integrand(f::typeof(kinetic_coefficient_frequency_integral), hv::AbstractVelocityInterp, p::CanonizeKCType) =
+    Integrand(f, hv, canonize_kc_params(p))
 
 
-const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_frequency_integral)}
+const KineticCoefficientIntegrandType = Integrand{typeof(kinetic_coefficient_frequency_integral)}
 
 SymRep(kc::KineticCoefficientIntegrandType) = coord_to_rep(kc.s)
 
@@ -317,18 +290,10 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
     l, u
 end
 
-# return (Ω, β)
-function get_window_params(p::CanonizeKCType, T=Float64)
-    pp = canonize_kc_params(p)
-    return (convert(T, pp[4]), convert(T, pp[3]))
-end
-function get_window_params(p::MixedParameters{<:Tuple{EvalSelfEnergyType,Tuple,Real,Real,Real,Real},NamedTuple{(),Tuple{}}}, T=Float64)
-    return (convert(T, p[5]), convert(T, p[4]))
-end
-
 # provide safe limits of integration for frequency integrals
 function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p::MixedParameters) where iip
-    Ω, β = get_window_params(merge(s.f.p, p))
+    pp = canonize_kc_params(merge(s.f.p, p))
+    Ω = pp[4]; β = pp[3]
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
     a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
@@ -386,7 +351,7 @@ function ElectronDensityIntegrand(lb, ub, alg, h::HamiltonianInterp, Σ, args...
     frequency_integrand = Integrand(electron_density_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     frequency_solver(h(fill(0.0, ndims(h))), 1.0, 0) # precompile the solver
-    FourierIntegrand(electron_density_frequency_integral, h, frequency_solver, args...; kwargs...)
+    Integrand(electron_density_frequency_integral, h, frequency_solver, args...; kwargs...)
 end
 ElectronDensityIntegrand(alg, h::HamiltonianInterp, Σ, args...; kwargs...) =
     ElectronDensityIntegrand(lb(Σ), ub(Σ), alg, h, Σ, args...; kwargs...)
@@ -404,20 +369,12 @@ end
 canonize_density_params(solver::IntegralSolver, β; μ=0) = canonize_density_params(solver, β, μ)
 canonize_density_params(solver::IntegralSolver; β, μ=0) = canonize_density_params(solver, β, μ)
 
-const CanonizeDensityType = Union{
-    MixedParameters{<:Tuple{IntegralSolver,Real,Real},<:NamedTuple{<:Any,<:Tuple{Real,Vararg{Real}}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real},NamedTuple{(),Tuple{}}},
-    MixedParameters{<:Tuple{IntegralSolver,Real},<:NamedTuple{(:μ,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{IntegralSolver},<:NamedTuple{(:β,),<:Tuple{Real}}},
-    MixedParameters{<:Tuple{IntegralSolver},<:NamedTuple{<:Any,<:Tuple{Real,Real}}},
-}
-
-canonize_density_params(p::CanonizeDensityType) =
+canonize_density_params(p::MixedParameters) =
     MixedParameters(canonize_density_params(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
-Integrand(f::typeof(dos_fermi_integrand), p::CanonizeDensityType) =
-    Integrand(f, canonize_density_params(p))
-FourierIntegrand(f::typeof(electron_density_frequency_integral), hv::HamiltonianInterp, p::CanonizeDensityType) =
-    FourierIntegrand(f, hv, canonize_density_params(p))
+# Integrand(f::typeof(dos_fermi_integrand), p::CanonizeDensityType) =
+#     Integrand(f, canonize_density_params(p))
+# Integrand(f::typeof(electron_density_frequency_integral), hv::HamiltonianInterp, p::CanonizeDensityType) =
+#     Integrand(f, hv, canonize_density_params(p))
 
 function get_safe_fermi_function_limits(β, lb, ub; kwargs...)
     l, u = fermi_function_limits(β; kwargs...)
@@ -435,7 +392,98 @@ end
 # provide safe limits of integration for frequency integrals
 function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(dos_fermi_integrand)}}, p::MixedParameters) where iip
     β = canonize_density_params(merge(s.f.p, p))[2]
-    # error()
     a, b = get_safe_fermi_function_limits(β, s.lb, s.ub)
     IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
 end
+
+function aux_transport_distribution_integrand_(vs::SVector{N,V}, Gω₁::G, Gω₂::G) where {N,V,G}
+    vsGω₁ = map(v -> v * Gω₁, vs)
+    vsGω₂ = map(v -> v * Gω₂, vs)
+    Aω₁ = spectral_function(Gω₁)
+    Aω₂ = spectral_function(Gω₂)
+    vsAω₁ = map(v -> v * Aω₁, vs)
+    vsAω₂ = map(v -> v * Aω₂, vs)
+    return AuxValue(tr_kron(vsAω₁, vsAω₂), tr_kron(vsGω₁, vsGω₂))
+end
+
+aux_transport_distribution_integrand((h, vs), Mω₁, Mω₂) =
+    aux_transport_distribution_integrand_(vs, gloc_integrand(h, Mω₁), gloc_integrand(h, Mω₂))
+
+"""
+    TransportDistributionIntegrand(hv, Σ, ω₁, ω₂, μ)
+    TransportDistributionIntegrand(hv, Σ, ω₁, ω₂; μ)
+    TransportDistributionIntegrand(hv, Σ; ω₁, ω₂, μ)
+
+A function whose integral over the BZ gives the transport distribution
+```math
+\\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
+```
+Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
+See `Integrand` for more details.
+"""
+AuxTransportDistributionIntegrand(hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    Integrand(aux_transport_distribution_integrand, hv, Σ, args...; kwargs...)
+
+# function Integrand(f::typeof(aux_transport_distribution_integrand), hv::AbstractVelocityInterp, p::EvalM2Type)
+#     Integrand(f, hv, evalM2(p))
+# end
+
+const AuxTransportDistributionIntegrandType = Integrand{typeof(aux_transport_distribution_integrand)}
+
+SymRep(Γ::AuxTransportDistributionIntegrandType) = coord_to_rep(Γ.s)
+
+function npt_update(Γ::AuxTransportDistributionIntegrandType, npt::Integer)
+    ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
+    ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
+    eta_npt_update(npt, min(ηω₁, ηω₂), maximum(period(Γ.s)))
+end
+
+
+
+aux_kinetic_coefficient_integrand(ω, Σ, hv_k, n::Real, β::Real, Ω::Real, μ::Real) =
+    (ω*β)^n * fermi_window(β, ω, Ω) * aux_transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
+
+function AuxKineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...;
+    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+    # put the frequency integral outside if the provided algorithm is for the BZ
+    transport_integrand = AuxTransportDistributionIntegrand(hv, Σ)
+    transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)), 0) # precompile the solver
+    Integrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
+end
+AuxKineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    AuxKineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, Σ, args...; kwargs...)
+
+function AuxKineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
+    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+    # put the frequency integral inside otherwise
+    frequency_integrand = Integrand(aux_kinetic_coefficient_integrand, Σ)
+    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1e100, 0.0, 0) # precompile the solver
+    Integrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
+end
+AuxKineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    AuxKineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
+
+"""
+    AuxOpticalConductivityIntegrand
+
+Returns a `AuxKineticCoefficientIntegrand` with `n=0`. See
+[`AuxKineticCoefficientIntegrand`](@ref) for further details
+"""
+AuxOpticalConductivityIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    AuxKineticCoefficientIntegrand(alg, hv, Σ, 0, args...; kwargs...)
+AuxOpticalConductivityIntegrand(bz, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    AuxKineticCoefficientIntegrand(bz, alg, hv, Σ, 0, args...; kwargs...)
+AuxOpticalConductivityIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
+    AuxKineticCoefficientIntegrand(lb, ub, alg, hv, Σ, 0, args...; kwargs...)
+
+function canonize_kc_params(solver_::IntegralSolver{iip,<:Integrand{typeof(aux_kinetic_coefficient_integrand)}}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) where iip
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
+    a, b = get_safe_fermi_window_limits(Ω, β, solver_.lb, solver_.ub)
+    solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
+            do_inf_transformation = solver_.do_inf_transformation, kwargs = solver_.kwargs,
+            abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
+    (solver, n, β, Ω, μ)
+end
+
