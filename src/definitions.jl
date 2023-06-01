@@ -176,13 +176,35 @@ Singleton type representing Cartesian coordinates.
 struct Cartesian <: AbstractCoordinate end
 
 """
+    LatticeRep()
+
+Symmetry representation of objects that transform under the group action in the
+same way as the lattice.
+"""
+struct LatticeRep <: AbstractSymRep end
+
+"""
     CartesianRep()
 
 Symmetry representation of objects that transform under the group action in the
 same way as the lattice and in Cartesian coordinates.
 """
-struct CartesianRep <: FaithfulRep end
+struct CartesianRep <: AbstractSymRep end
 
+function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractVector)
+    r = zero(x)
+    for S in bz.syms
+        r += S * x
+    end
+    r
+end
+function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
+    r = zero(x)
+    for S in bz.syms
+        r += S * x * S'
+    end
+    r
+end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
     B = bz.A'; invB = inv(B)
     invB * symmetrize_(LatticeRep(), bz, B * x)
@@ -276,7 +298,7 @@ Take the velocity components of `vs` in any gauge according to the value of `C`
 - [Whole](@ref): return the whole velocity (sum of interband and intraband components)
 - [Intra](@ref): return the intraband velocity (diagonal in Hamiltonian gauge)
 - [Inter](@ref): return the interband velocity (off-diagonal terms in Hamiltonian gauge)
-    
+
 Transform the velocities into a gauge according to the following values of `G`
 - [`Wannier`](@ref): keeps `H, vs` in the original, orbital basis
 - [`Hamiltonian`](@ref): diagonalizes `H` and rotates `H, vs` into the energy, band basis
