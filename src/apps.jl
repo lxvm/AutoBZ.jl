@@ -36,16 +36,18 @@ See [`AutoBZ.Jobs.safedos_integrand`](@ref).
 """
 dos_integrand(h, M) = imag(tr_inv(propagator_denominator(h, M)))/(-pi)
 
-# TODO write a macro to automate the evaluation/canonization of arguments
-
 # shift energy by chemical potential, but not self energy
-evalM(Σ::Union{AbstractMatrix,UniformScaling}, ω, μ) = (ω+μ)*I - Σ
+evalM(M::Union{AbstractMatrix,UniformScaling}) = (M,)
+evalM(Σ::Union{AbstractMatrix,UniformScaling}, ω, μ) = ((ω+μ)*I - Σ,)
 evalM(Σ::AbstractSelfEnergy, ω, μ) = evalM(Σ(ω), ω, μ)
 evalM(Σ, ω; μ=0) = evalM(Σ, ω, μ)
 evalM(Σ; ω, μ=0) = evalM(Σ, ω, μ)
 
-function evalM(p::MixedParameters)
-    return MixedParameters(evalM(getfield(p, :args)...; getfield(p, :kwargs)...))
+# given mixed parameters and a function that maps them to a tuple of a canonical
+# form for the integrand, return new mixed parameters
+function canonize(f, p::MixedParameters)
+    params = f(getfield(p, :args)...; getfield(p, :kwargs)...)
+    return MixedParameters(params, NamedTuple())
 end
 
 # Generic behavior for single Green's function integrands (methods and types)
@@ -62,19 +64,19 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
 
     See `Integrand` for more details.
     """
-    @eval $T(h::HamiltonianInterp, Σ, args...; kwargs...) =
-        Integrand($f, h, Σ, args...; kwargs...)
+    @eval function $T(h::HamiltonianInterp, Σ, args...; kwargs...)
+        return Integrand($f, h, Σ, args...; kwargs...)
+    end
 
-    # pre-evaluate the self energy when constructing the integrand
-    # @eval function Integrand(f::typeof($f), h::HamiltonianInterp, p::EvalMType)
-    #     error()
-    #     Integrand(f, h, evalM(p))
-    # end
+    # pre-evaluate the self energy when constructing the problem
+    @eval function remake_autobz_problem(::typeof($f), prob)
+        return remake(prob, p=canonize(evalM, prob.p))
+    end
 
     # Define default equispace grid stepping based
-    @eval function npt_update(f::Integrand{typeof($f)}, npt::Integer)
+    @eval function npt_update(f::AbstractAutoBZIntegrand{typeof($f)}, npt)
         η = im_sigma_to_eta(-imag(f.p[1]))
-        eta_npt_update(npt, η, maximum(period(f.s)))
+        return eta_npt_update(npt, η, maximum(period(f.s)))
     end
 end
 
@@ -98,10 +100,10 @@ canonical BZ, approximately places a point in every box of size `η`. Choice of
 `Δn=log(10)` should get an extra digit of accuracy from PTR upon refinement.
 """
 function eta_npt_update(npt, η, T=6.283185307179586, Δn=2.302585092994046)
-    npt + eta_npt_update_(η, npt == 0 ? one(Δn) : Δn, T)
+    return npt + eta_npt_update_(η, npt == 0 ? one(Δn) : Δn, T)
 end
 function eta_npt_update_(η, c, T)
-    min(max(50, round(Int, c*T/(6.283185307179586*η))), 1000) # limit too large update for tiny eta
+   return min(max(50, round(Int, c*T/(6.283185307179586*η))), 1000) # limit too large update for tiny eta
 end
 
 # transport and conductivity integrands
@@ -109,10 +111,8 @@ end
 function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, μ) where {N,T}
     f′ = Diagonal(β .* fermi′.(β .* (h.values .- μ)))
     f′vs = map(v -> f′*v, vs)
-    tr_kron(vs, f′vs)
+    return tr_kron(vs, f′vs)
 end
-transport_function_integrand(hvs, β; μ=0) = transport_function_integrand(hvs, β, μ)
-transport_function_integrand(hvs; β, μ=0) = transport_function_integrand(hvs, β, μ)
 
 """
     TransportFunctionIntegrand(hv; β, μ=0)
@@ -125,26 +125,49 @@ Computes the following integral
 function TransportFunctionIntegrand(hv::AbstractVelocityInterp, args...; kwargs...)
     @assert gauge(hv) isa Hamiltonian
     # TODO change to the Hamiltonian gauge automatically
-    Integrand(transport_function_integrand, hv, args...; kwargs...)
+    return Integrand(transport_function_integrand, hv, args...; kwargs...)
 end
 
-const TransportFunctionIntegrandType = Integrand{typeof(transport_function_integrand)}
+tf_params(β, μ)   = promote(β, μ)
+tf_params(β; μ=0) = tf_params(β, μ)
+
+function remake_autobz_problem(::typeof(transport_function_integrand), prob)
+    return remake(prob, p=canonize(tf_params, prob.p))
+end
+
+const TransportFunctionIntegrandType = AbstractAutoBZIntegrand{typeof(transport_function_integrand)}
 
 SymRep(D::TransportFunctionIntegrandType) = coord_to_rep(D.s)
 
+function npt_update(f::TransportFunctionIntegrandType, npt)
+    τ = inv(f.p[1]) # use the scale of exponential localization as η
+    return eta_npt_update(npt, τ, maximum(period(f.s)))
+end
 
 function transport_distribution_integrand_(vs::SVector{N,V}, Aω₁::A, Aω₂::A) where {N,V,A}
     vsAω₁ = map(v -> v * Aω₁, vs)
     vsAω₂ = map(v -> v * Aω₂, vs)
     return tr_kron(vsAω₁, vsAω₂)
 end
+function transport_distribution_integrand_(vs::SVector{N,V}, Aω::A) where {N,V,A}
+    vsAω = map(v -> v * Aω, vs)
+    return tr_kron(vsAω, vsAω)
+end
 
 spectral_function(G::AbstractMatrix) = (G - G')/(-2pi*im)   # skew-Hermitian part
 spectral_function(G::Union{Number,Diagonal}) = imag(G)/(-pi)# optimization
 spectral_function(h, M) = spectral_function(gloc_integrand(h, M))
 
-transport_distribution_integrand((h, vs), Mω₁, Mω₂) =
-    transport_distribution_integrand_(vs, spectral_function(h, Mω₁), spectral_function(h, Mω₂))
+function transport_distribution_integrand((h, vs), Mω₁, Mω₂, isdistinct)
+    if isdistinct
+        Aω₁ = spectral_function(h, Mω₁)
+        Aω₂ = spectral_function(h, Mω₂)
+        return transport_distribution_integrand_(vs, Aω₁, Aω₂)
+    else
+        Aω = spectral_function(h, Mω₁)
+        return transport_distribution_integrand_(vs, Aω)
+    end
+end
 
 """
     TransportDistributionIntegrand(hv, Σ, ω₁, ω₂, μ)
@@ -158,46 +181,50 @@ A function whose integral over the BZ gives the transport distribution
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 See `Integrand` for more details.
 """
-TransportDistributionIntegrand(hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
-    Integrand(transport_distribution_integrand, hv, Σ, args...; kwargs...)
+function TransportDistributionIntegrand(hv::AbstractVelocityInterp, Σ, args...; kwargs...)
+    return Integrand(transport_distribution_integrand, hv, Σ, args...; kwargs...)
+end
 
+evalM2(Mω₁, Mω₂) = (Mω₁, Mω₂, Mω₁ == Mω₂)
 function evalM2(Σ, ω₁, ω₂, μ)
     M = evalM(Σ, ω₁, μ)
     if ω₁ == ω₂
-        (M, M)
+        (M, M, false)
     else
-        (M, evalM(Σ, ω₂, μ))
+        (M, evalM(Σ, ω₂, μ), true)
     end
 end
 evalM2(Σ, ω₁, ω₂; μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 evalM2(Σ; ω₁, ω₂, μ=0) = evalM2(Σ, ω₁, ω₂, μ)
 
-evalM2(p::MixedParameters) =
-    MixedParameters(evalM2(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
-# function Integrand(f::typeof(transport_distribution_integrand), hv::AbstractVelocityInterp, p::EvalM2Type)
-#     Integrand(f, hv, evalM2(p))
-# end
+function remake_autobz_problem(::typeof(transport_distribution_integrand), prob)
+    return remake(prob, canonize(evalM2, prob.p))
+end
 
-const TransportDistributionIntegrandType = Integrand{typeof(transport_distribution_integrand)}
+const TransportDistributionIntegrandType = AbstractAutoBZIntegrand{typeof(transport_distribution_integrand)}
 
 SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.s)
 
 function npt_update(Γ::TransportDistributionIntegrandType, npt::Integer)
     ηω₁ = im_sigma_to_eta(-imag(Γ.p[1]))
     ηω₂ = im_sigma_to_eta(-imag(Γ.p[2]))
-    eta_npt_update(npt, min(ηω₁, ηω₂), maximum(period(Γ.s)))
+    return eta_npt_update(npt, min(ηω₁, ηω₂), maximum(period(Γ.s)))
 end
 
 
-
-transport_fermi_integrand(ω, Γ, n::Real, β::Real, Ω::Real, μ::Real) =
-    (ω*β)^n * fermi_window(β, ω, Ω) * Γ(ω, ω+Ω, μ)
-
-kinetic_coefficient_integrand(ω, Σ, hv_k, n::Real, β::Real, Ω::Real, μ::Real) =
-    (ω*β)^n * fermi_window(β, ω, Ω) * transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
-
-kinetic_coefficient_frequency_integral(hv_k, frequency_solver, n::Real, β::Real, Ω::Real, μ::Real) =
-    frequency_solver(hv_k, n, β, Ω, μ)
+function transport_fermi_integrand(ω, Γ, n, β, Ω)
+    return (ω*β)^n * fermi_window(β, ω, Ω) * Γ
+end
+function transport_fermi_integrand(ω, Γ, n, β, Ω, μ)
+    return transport_fermi_integrand(ω, Γ(ω, ω+Ω, μ), n, β, Ω)
+end
+function transport_fermi_integrand(ω, Σ, n, β, Ω, μ, hv_k)
+    Γ = transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
+    return transport_fermi_integrand(ω, Γ, n, β, Ω)
+end
+function kinetic_coefficient_integrand(hv_k, frequency_solver)
+    return frequency_solver(hv_k)
+end
 
 """
     KineticCoefficientIntegrand([bz=FullBZ,] alg::AbstractAutoBZAlgorithm, hv::AbstracVelocity, Σ; n, β, Ω, abstol, reltol, maxiters)
@@ -220,49 +247,29 @@ function KineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::Abstr
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
     transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)), 0) # precompile the solver
-    Integrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
+    return Integrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
 end
-KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
-    KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, Σ, args...; kwargs...)
+function KineticCoefficientIntegrand(alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
+    return KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, Σ, args...; kwargs...)
+end
 
 function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     # put the frequency integral inside otherwise
-    frequency_integrand = Integrand(kinetic_coefficient_integrand, Σ)
+    frequency_integrand = Integrand(transport_fermi_integrand, Σ)
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; do_inf_transformation=Val(false), abstol=abstol, reltol=reltol, maxiters=maxiters)
     frequency_solver(hv(fill(0.0, ndims(hv))), 0, 1e100, 0.0, 0) # precompile the solver
-    Integrand(kinetic_coefficient_frequency_integral, hv, frequency_solver, args...; kwargs...)
+    return Integrand(kinetic_coefficient_integrand, hv, frequency_solver, args...; kwargs...)
 end
-KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...) =
-    KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
-
-canonize_kc_params(solver::IntegralSolver, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) = (solver, n, β, Ω, μ)
-function canonize_kc_params(solver_::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) where iip
-    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
-    a, b = get_safe_fermi_window_limits(Ω, β, solver_.lb, solver_.ub)
-    solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
-            do_inf_transformation = solver_.do_inf_transformation, kwargs = solver_.kwargs,
-            abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
-    (solver, n, β, Ω, μ)
+function KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
+    return KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
 end
-canonize_kc_params(solver::IntegralSolver, n, β, Ω; μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
-canonize_kc_params(solver::IntegralSolver; n, β, Ω, μ=0) = canonize_kc_params(solver, n, β, Ω, μ)
 
-
-canonize_kc_params(p::MixedParameters) =
-    MixedParameters(canonize_kc_params(getfield(p, :args)...; getfield(p, :kwargs)...), NamedTuple())
-# TODO, if T=Ω=0, intercept this stage and replace with distributional integrand
-Integrand(f::typeof(transport_fermi_integrand), p::CanonizeKCType) =
-    Integrand(f, canonize_kc_params(p))
-Integrand(f::typeof(kinetic_coefficient_frequency_integral), hv::AbstractVelocityInterp, p::CanonizeKCType) =
-    Integrand(f, hv, canonize_kc_params(p))
-
-
-const KineticCoefficientIntegrandType = Integrand{typeof(kinetic_coefficient_frequency_integral)}
-
-SymRep(kc::KineticCoefficientIntegrandType) = coord_to_rep(kc.s)
+kc_params(solver::IntegralSolver, n, β, Ω, μ)   = (solver, n, β, Ω, μ)
+kc_params(solver::IntegralSolver, n, β, Ω; μ=0) = (solver, n, β, Ω, μ)
+kc_params(solver::IntegralSolver, n, β; Ω, μ=0) = (solver, n, β, Ω, μ)
+kc_params(solver::IntegralSolver, n; β, Ω, μ=0) = (solver, n, β, Ω, μ)
+kc_params(solver::IntegralSolver; n, β, Ω, μ=0) = (solver, n, β, Ω, μ)
 
 
 """
@@ -291,13 +298,39 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
 end
 
 # provide safe limits of integration for frequency integrals
-function construct_problem(s::IntegralSolver{iip,<:Integrand{typeof(transport_fermi_integrand)}}, p::MixedParameters) where iip
-    pp = canonize_kc_params(merge(s.f.p, p))
-    Ω = pp[4]; β = pp[3]
+function remake_autobz_problem(::typeof(transport_fermi_integrand), lb, ub, p)
+    q = canonize(kc_params, p)
+    Ω = q[4]; β = q[3]
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
-    a, b = get_safe_fermi_window_limits(Ω, β, s.lb, s.ub)
-    IntegralProblem{iip}(s.f, a, b, p; s.kwargs...)
+    a, b = get_safe_fermi_window_limits(Ω, β, lb, ub)
+    return a, b, q
 end
+
+
+# TODO, if T=Ω=0, intercept this stage and replace with distributional integrand
+# which would likely cause a type instability
+function kc_params(solver_::IntegralSolver{iip,<:Integrand{typeof(kinetic_coefficient_integrand)}}, n_, β_, Ω_, μ_; n=n_, β=β_, Ω=Ω_, μ=μ_) where iip
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate the KCIntegrand at ω=0"))
+    a, b = get_safe_fermi_window_limits(Ω, β, solver_.lb, solver_.ub)
+    solver = IntegralSolver(solver_.f, a, b, solver_.alg, sensealg = solver_.sensealg,
+            do_inf_transformation = solver_.do_inf_transformation, kwargs = solver_.kwargs,
+            abstol = solver_.abstol, reltol = solver_.reltol, maxiters = solver_.maxiters)
+    return (solver, n, β, Ω, μ)
+end
+function remake_autobz_problem(::typeof(kinetic_coefficient_integrand), prob)
+    solver = p[1]
+    # construct_problem(p[1],
+    IntegralSolver
+    return prob
+end
+
+# const KineticCoefficientIntegrandType = Integrand{typeof(kinetic_coefficient_frequency_integral)}
+
+
+# SymRep(kc::KineticCoefficientIntegrandType) = coord_to_rep(kc.s)
+
+# function npt_update(f::KineticCoefficientIntegrandType, npt)
+# end
 
 """
     OpticalConductivityIntegrand
@@ -440,7 +473,7 @@ end
 
 
 
-aux_kinetic_coefficient_integrand(ω, Σ, hv_k, n::Real, β::Real, Ω::Real, μ::Real) =
+aux_kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω, μ) =
     (ω*β)^n * fermi_window(β, ω, Ω) * aux_transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
 
 function AuxKineticCoefficientIntegrand(bz, alg::AbstractAutoBZAlgorithm, hv::AbstractVelocityInterp, Σ, args...;

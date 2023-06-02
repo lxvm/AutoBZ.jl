@@ -74,7 +74,7 @@ end
 
 Calculate the trace of the inverse of `A`.
 """
-tr_inv(A::AbstractMatrix) = tr(inv(A))
+tr_inv(A) = tr(inv(A))
 
 tr_inv(A::SMatrix{3,3}) = tr_inv_(A.data...)
 function tr_inv_(A1::T, A2::T, A3::T, A4::T, A5::T, A6::T, A7::T, A8::T, A9::T) where T
@@ -121,7 +121,7 @@ end
 
 Return the Hermitian part of the matrix `A`, i.e. `(A+A')/2`.
 """
-@inline herm(A::AbstractMatrix) = 0.5I * (A + A')
+@inline herm(A) = 0.5I * (A + A')
 
 """
     commutator(A, B)
