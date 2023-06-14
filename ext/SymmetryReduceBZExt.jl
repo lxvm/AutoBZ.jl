@@ -6,63 +6,58 @@ using StaticArrays
 
 using SymmetryReduceBZ
 using AutoBZ: parse_wout, IBZ, DefaultPolyhedron, SymmetricBZ, CubicLimits, AbstractIteratedLimits, load_limits
-import AutoBZ: load_bz, IteratedIntegration.fixandeliminate, IteratedIntegration.endpoints, IteratedIntegration.iterated_segs
+import AutoBZ: load_bz, IteratedIntegration.fixandeliminate, IteratedIntegration.segments
 
 
 include("ibzlims.jl")
 
-# the problem with this function is it is type-unstable (length of tuple
-# determined from the data)
-function get_proj(vert::AbstractMatrix)
+function get_segs(vert::AbstractMatrix)
     rtol = atol = sqrt(eps(eltype(vert)))
-    uniquepts=zeros(size(vert, 1))
+    uniquepts=Vector{NTuple{2,eltype(vert)}}(undef, size(vert, 1))
     numpts = 0
     for i in axes(vert,1)
         v = vert[i,end]
         test = isapprox(v, atol=atol, rtol=rtol)
-        if !any(test, @view(uniquepts[begin:begin+numpts-1,end]))
+        if !any(x -> test(x[1]), @view(uniquepts[begin:begin+numpts-1,end]))
             numpts += 1
-            uniquepts[numpts] = v
+            uniquepts[numpts] = (v,v)
         end
     end
     @assert numpts >= 2 uniquepts
     resize!(uniquepts,numpts)
     sort!(uniquepts)
+    top = pop!(uniquepts)
+    for i in numpts-1:-1:1
+        uniquepts[i] = top = (uniquepts[i][2],top[1])
+    end
     return uniquepts
 end
 
-struct Polyhedron3{N,T<:Real} <: AbstractIteratedLimits{3,T}
+struct Polyhedron3{T<:Real} <: AbstractIteratedLimits{3,T}
     face_coord::Vector{Matrix{T}}
-    proj::NTuple{N,T}
+    segs::Vector{Tuple{T,T}}
 end
-endpoints(ph::Polyhedron3{N}) where N = (ph.proj[1], ph.proj[N])
+function segments(ph::Polyhedron3, dim)
+    @assert dim == 3
+    return ph.segs
+end
 
 struct Polygon2{T<:Real} <: AbstractIteratedLimits{2,T}
     vert::Matrix{T}
-    proj::Vector{T}
+    segs::Vector{Tuple{T,T}}
 end
-endpoints(pg::Polygon2) = (pg.proj[begin], pg.proj[end])
+function segments(pg::Polygon2, dim)
+    @assert dim == 2
+    return pg.segs
+end
 
-function fixandeliminate(ph::Polyhedron3, z, digits=12)
+function fixandeliminate(ph::Polyhedron3, z, ::Val{3})
     pg_vert = pg_vert_from_zslice(z, ph.face_coord)
-    # tidy_vertices!(pg_vert, digits)
-    Polygon2(pg_vert, get_proj(pg_vert))
+    segs = get_segs(pg_vert)
+    return Polygon2(pg_vert, segs)
 end
-function fixandeliminate(pg::Polygon2, y)
-    CubicLimits(xlim_from_yslice(y, pg.vert)...)
-end
-
-function iterated_segs(_, ph::Polyhedron3, a, b, ::Val{initdivs}) where initdivs
-    # vert = unique(Iterators.flatten(@view(face[:,end]) for face in ph.face_coord))
-    # sort!(vert)
-    # tuple(vert...)
-    ph.proj
-end
-function iterated_segs(_, pg::Polygon2, a, b, ::Val{initdivs}) where initdivs
-    # vert = unique(@view(pg.vert[:, end]))
-    # sort!(vert)
-    # tuple(vert...)
-    pg.proj
+function fixandeliminate(pg::Polygon2, y, ::Val{2})
+    return CubicLimits(xlim_from_yslice(y, pg.vert)...)
 end
 
 function (::IBZ{Polyhedron})(a, real_latvecs, atom_types, atom_pos, coordinates; ibzformat="half-space", makeprim=false, convention="ordinary")
@@ -80,7 +75,8 @@ function (::IBZ{DefaultPolyhedron})(a, real_latvecs, atom_types, atom_pos, coord
     face_idx = faces_from_triangles(tri_idx, ph_vert)
     # face_idx = SymmetryReduceBZ.Utilities.get_uniquefacets(hull)
     face_coord = face_coord_from_idx(face_idx, ph_vert)
-    Polyhedron3(face_coord, Tuple(get_proj(ph_vert)))
+    segs = get_segs(ph_vert)
+    Polyhedron3(face_coord, segs)
 end
 
 fixsign(x) = iszero(x) ? abs(x) : x

@@ -18,9 +18,9 @@ end
 @testset "AutoBZ" begin
 
 #=
-    @testset "linalg" begin
-        # diag_inv == diag ∘ inv
-        # tr_inv == tr ∘ inv
+@testset "linalg" begin
+    # diag_inv == diag ∘ inv
+    # tr_inv == tr ∘ inv
         # commutator
         # herm
     end
@@ -30,9 +30,9 @@ end
     end
 
     @testset "interp begin
-        @testset "HamiltonianInterp" begin
+    @testset "HamiltonianInterp" begin
 
-        end
+    end
 
         @testset "GradientVelocityInterp" begin
             # check that it evaluates to the same as 4 independent fourier series
@@ -43,7 +43,7 @@ end
             # check for gauge covariance (eigenvalues of velocities the same in both gauges)
         end
     end
-=#
+    =#
     @testset "apps" begin
         @testset "DOSIntegrand" begin
             dims = 1
@@ -52,25 +52,25 @@ end
             f = DOSIntegrand(h, Σ)
             bz= FullBZ(2pi*I(dims))
             prob = IntegralProblem(f, bz)
-            dos = IntegralSolver(prob, AuxIAI())
+            dos = IntegralSolver(prob, IAI())
             # compare the various interfaces
             ω = 1.0; μ = 0.1
             @test @inferred(Float64, dos(ω, μ)) == dos(ω, μ=μ) == dos(ω=ω, μ=μ)
         end
         @testset "TransportDistributionIntegrand" begin
-            
+
         end
         @testset "KineticCoefficientIntegrand" begin
-            
+
         end
         @testset "ElectronDensityIntegrand" begin
-            
+
         end
         @testset "AuxTransportDistributionIntegrand" begin
-            
+
         end
         @testset "AuxKineticCoefficientIntegrand" begin
-            
+
         end
     end
 end
