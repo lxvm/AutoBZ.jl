@@ -21,7 +21,11 @@ struct FBZ <: AbstractBZ end
 
 Singleton type representing irreducible Brillouin zones
 """
-struct IBZ <: AbstractBZ end
+struct IBZ{P} <: AbstractBZ end
+
+struct DefaultPolyhedron end
+
+IBZ() = IBZ{DefaultPolyhedron}()
 
 """
     HBZ <: AbstractBZ
