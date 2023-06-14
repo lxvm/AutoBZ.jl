@@ -19,8 +19,7 @@ using Reexport
 
 import FourierSeriesEvaluators: period, deriv, offset, shift,
     contract, evaluate, coefficients, show_details
-import AutoBZCore: SymRep, symmetrize_, remake_autobz_problem, NullParameters,
-    AutoSymPTR.npt_update
+import AutoBZCore: SymRep, symmetrize_, AutoBZAlgorithm
 
 
 using EquiBaryInterp: LocalEquiBaryInterp

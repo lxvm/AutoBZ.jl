@@ -37,7 +37,7 @@ SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["SymmetryReduceBZ", "Test", "StaticArrays", "OffsetArrays"]
+test = ["OffsetArrays", "Polyhedra", "StaticArrays", "SymmetryReduceBZ", "Test"]
 
 [weakdeps]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
