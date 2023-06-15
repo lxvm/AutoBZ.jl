@@ -3,11 +3,11 @@ In this script we compute the electron count at single chemical potential using 
 =#
 using LinearAlgebra
 
-# using SymmetryReduceBZ # add package to use bzkind=:ibz
+# using SymmetryReduceBZ # add package to use bz=IBZ()
 using AutoBZ
 using EquiBaryInterp
 
-# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 h, bz = load_wannier90_data("svo"; interp=HamiltonianInterp, bz=CubicSymIBZ())
 
 # Define problem parameters
@@ -28,37 +28,23 @@ atol = 1e-3
 rtol = 0.0
 npt = 100
 
-# setup oc_solver
-# IMPORTANT: pre-allocating rules/memory for algorithms helps with performance
-# compute types to pre-allocate resources for algorithms
-DT = eltype(bz) # domain type of Brillouin zone
-RT = real(eltype(fourier_type(h, DT))) # range type of density integrand
-NT = Base.promote_op(AutoBZ.norm, RT) # norm type for RT
 
-kalgs = (
-    IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(h))),
-    TAI(),
-    AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(h, DT, bz.syms)),
-    PTR(; npt=npt, rule=AutoBZCore.alloc_rule(h, DT, bz.syms, npt)),
-)
-
-# setup algorithm for frequency integral
-## alert: cannot allocate a segbuf yet. See https://github.com/SciML/Integrals.jl/pull/151
-falg = QuadGKJL()#; segbuf=alloc_segbuf(DT, RT, NT))
+kalgs = (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
+falg = QuadGKJL()
 
 
 # loop to test various routines with the frequency integral on the inside
 integrand = ElectronDensityIntegrand(falg, h, Σ; β=β, abstol=atol/nsyms(bz), reltol=rtol)
-for kalg in (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
+for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
     @time @show solver(μ=μ)
 end
 
 # loop to test various routines with the frequency integral on the outside
-for kalg in (IAI(), TAI(), AutoPTR(),  PTR(; npt=npt))
+for kalg in kalgs
     local integrand = ElectronDensityIntegrand(bz, kalg, h, Σ; β=β, abstol=atol/nsyms(bz), reltol=rtol)
     @show nameof(typeof(kalg))
-    solver = IntegralSolver(integrand, lb(Σ), ub(Σ), falg; abstol=atol, reltol=rtol)
+    solver = IntegralSolver(integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
     @time @show solver(μ=μ)
 end

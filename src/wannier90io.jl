@@ -1,15 +1,17 @@
+check_degen(r_degen, nkpt) = @assert Int(sum(m -> 1//m, r_degen)) == nkpt
+
 """
     parse_hamiltonian(filename)
 
 Parse an ab-initio Hamiltonian output from Wannier90 into `filename`, extracting
 the fields `(date_time, num_wann, nrpts, degen, irvec, C)`
 """
-parse_hamiltonian(filename) = open(filename) do file
+function parse_hamiltonian(file::IO)
     date_time = readline(file)
-    
+
     num_wann = parse(Int, readline(file))
     nrpts = parse(Int, readline(file))
-    
+
     entries_per_line = 15
     degen = Vector{Int}(undef, nrpts)
     for j in 1:ceil(Int, nrpts/entries_per_line)
@@ -35,7 +37,7 @@ parse_hamiltonian(filename) = open(filename) do file
         end
         C[k] = SMatrix{num_wann,num_wann,ComplexF64,num_wann^2}(c)
     end
-    date_time, num_wann, nrpts, degen, irvec, C
+    return date_time, num_wann, nrpts, degen, irvec, C
 end
 
 """
@@ -52,44 +54,51 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_interp(::Type{HamiltonianInterp}, seed; gauge=GaugeDefault(HamiltonianInterp), period=1.0, compact=:N)
+function load_interp(::Type{T}, seed; gauge=GaugeDefault(T), period=1.0, compact=:N) where {T<:Union{HamiltonianInterp,InplaceHamiltonianInterp}}
+    A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout")
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
-    C = load_coefficients(Val{compact}(), num_wann, irvec, C_)[1]
-    f = InplaceFourierSeries(C; period=period, offset=map(s -> -div(s,2)-1, size(C)))
-    HamiltonianInterp(f; gauge=gauge)
+    check_degen(degen, kpts.nkpt)
+    C = load_coefficients(Val{compact}(), num_wann, irvec, degen, C_)[1]
+    offset = map(s -> -div(s,2)-1, size(C))
+    f = if T<:HamiltonianInterp
+        FourierSeries(C; period=period, offset=offset)
+    elseif T<:InplaceHamiltonianInterp
+        InplaceFourierSeries(C; period=period, offset=offset)
+    else
+        throw(ArgumentError("unrecognized Hamiltonian type"))
+    end
+    return HamiltonianInterp(f, gauge=gauge)
 end
 
-load_coefficients(compact, num_wann, irvec, cs...) = load_coefficients(compact, num_wann, irvec, cs)
-@generated function load_coefficients(compact, num_wann, irvec, cs::NTuple{N}) where N
-    T_full = :(SMatrix{num_wann,num_wann,ComplexF64,num_wann^2})
-    T_compact = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
-    if compact === Val{:N}
-        T = T_full; expr = :(c[i])
-    elseif compact === Val{:L}
-        T = T_compact; expr = :($T(c[i]))
-    elseif compact === Val{:U}
-        T = T_compact; expr = :($T(c[i]'))
-    elseif compact === Val{:S}
-        T = T_compact; expr = :($T(0.5*(c[i]+c[i]')))
-    end
-    quote
-        nmodes = zeros(Int, 3)
-        for idx in irvec
-            @inbounds for i in 1:3
-                if (n = abs(idx[i])) > nmodes[i]
-                    nmodes[i] = n
-                end
+load_coeff_type(::Val{:N}, n) = SMatrix{n,n,ComplexF64,n^2}
+load_coeff_type(::Val, n) = SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}
+
+load_coeff(T, ::Val{:N}, c) = c
+load_coeff(T, ::Val{:L}, c) = T(c)
+load_coeff(T, ::Val{:U}, c) = T(c')
+load_coeff(T, ::Val{:S}, c) = T(0.5*(c+c'))
+
+function load_coefficients(compact, num_wann, irvec, degen, cs...)
+    return load_coefficients(compact, num_wann, irvec, degen, cs)
+end
+function load_coefficients(compact, num_wann, irvec, degen, cs::NTuple{N}) where N
+    T = load_coeff_type(compact, num_wann)
+    nmodes = zeros(Int, 3)
+    for idx in irvec
+        @inbounds for i in 1:3
+            if (n = abs(idx[i])) > nmodes[i]
+                nmodes[i] = n
             end
         end
-        Cs = Base.Cartesian.@ntuple $N _ -> zeros($T, (2nmodes .+ 1)...)
-        for (i,idx) in enumerate(irvec)
-            idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
-            for (j,c) in enumerate(cs)
-                Cs[j][idx_] = $expr
-            end
-        end
-        Cs
     end
+    Cs = ntuple(_ -> zeros(T, (2nmodes .+ 1)...), Val(N))
+    for (i,idx) in enumerate(irvec)
+        idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
+        for (j,c) in enumerate(cs)
+            Cs[j][idx_] = load_coeff(T, compact, c[i])/degen[i]
+        end
+    end
+    return Cs
 end
 
 
@@ -102,7 +111,7 @@ A3` are in the Cartesian basis (i.e. `X, Y, Z` because the Wannier90
 `seedname_r.dat` file is), however a rotation matrix `rot` can be applied to
 change the basis of the input to other coordinates.
 """
-parse_position_operator(filename, rot=I) = open(filename) do file
+function parse_position_operator(file::IO, rot=I)
     date_time = readline(file)
 
     num_wann = parse(Int, readline(file))
@@ -137,7 +146,7 @@ parse_position_operator(filename, rot=I) = open(filename) do file
         A2[k] = T(a2)
         A3[k] = T(a3)
     end
-    date_time, num_wann, nrpts, irvec, A1, A2, A3
+    return date_time, num_wann, nrpts, irvec, A1, A2, A3
 end
 
 pick_rot(::Cartesian, A, invA) = (I, invA)
@@ -159,16 +168,25 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_interp(::Type{BerryConnectionInterp{P}}, seed; coord=P, period=1.0, compact=:N) where P
-    A = parse_wout(seed * ".wout")[1]
+function load_interp(::Type{T}, seed; coord=CoordDefault(T), period=1.0, compact=:N) where {T<:Union{BerryConnectionInterp,InplaceBerryConnectionInterp}}
+    A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout")
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
-    rot, irot = pick_rot(P, A, invA)
+    rot, irot = pick_rot(coord, A, invA)
+    date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
+    check_degen(degen, kpts.nkpt)
     date_time, num_wann, nrpts, irvec, A1_, A2_, A3_ = parse_position_operator(seed * "_r.dat", rot)
-    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, A1_, A2_, A3_)
-    F1 = InplaceFourierSeries(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
-    F2 = InplaceFourierSeries(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
-    F3 = InplaceFourierSeries(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
-    BerryConnectionInterp{P}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
+    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, A1_, A2_, A3_)
+    fs = if T<:BerryConnectionInterp
+        FourierSeries
+    elseif T<:InplaceBerryConnectionInterp
+        InplaceFourierSeries
+    else
+        throw(ArgumentError("unrecognized Berry connection type"))
+    end
+    F1 = fs(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
+    F2 = fs(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
+    F3 = fs(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
+    BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
 end
 
 """
@@ -190,27 +208,41 @@ and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
 [`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
 details.
 """
-function load_interp(::Type{GradientVelocityInterp}, seed; period=1.0, compact=:N,
-    gauge=GaugeDefault(GradientVelocityInterp),
-    coord=CoordDefault(GradientVelocityInterp),
-    vcomp=VcompDefault(GradientVelocityInterp))
+function load_interp(::Type{T}, seed; period=1.0, compact=:N,
+    gauge=GaugeDefault(T),
+    coord=CoordDefault(T),
+    vcomp=VcompDefault(T)) where {T<:Union{GradientVelocityInterp,InplaceGradientVelocityInterp}}
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; period=period, compact=compact)
+    H = if T<:GradientVelocityInterp
+        HamiltonianInterp
+    elseif T<:InplaceGradientVelocityInterp
+        InplaceHamiltonianInterp
+    else
+        throw(ArgumentError("unrecognized gradient velocity type"))
+    end
+    h = load_interp(H, seed; period=period, compact=compact)
     A = parse_wout(seed * ".wout")[1] # get A for map from lattice to Cartesian coordinates
-    GradientVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    T(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
 """
     load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N,
     gauge=Wannier(), vcomp=whole(), coord=Lattice())
 """
-function load_interp(::Type{CovariantVelocityInterp}, seed; period=1.0, compact=:N,
-    gauge=GaugeDefault(CovariantVelocityInterp),
-    coord=CoordDefault(CovariantVelocityInterp),
-    vcomp=VcompDefault(CovariantVelocityInterp))
+function load_interp(::Type{T}, seed; period=1.0, compact=:N,
+    gauge=GaugeDefault(T),
+    coord=CoordDefault(T),
+    vcomp=VcompDefault(T)) where {T<:Union{CovariantVelocityInterp,InplaceCovariantVelocityInterp}}
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed; coord=coord, period=period, compact=compact)
-    a = load_interp(BerryConnectionInterp{coord}, seed; coord=coord, period=period, compact=compact)
+    V, B = if T<:CovariantVelocityInterp
+        GradientVelocityInterp, BerryConnectionInterp
+    elseif T<:InplaceCovariantVelocityInterp
+        InplaceGradientVelocityInterp, InplaceBerryConnectionInterp
+    else
+        throw(ArgumentError("unrecognized covariant velocity type"))
+    end
+    hv = load_interp(V, seed; coord=coord, period=period, compact=compact)
+    a = load_interp(B, seed; coord=coord, period=period, compact=compact)
     CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
@@ -219,8 +251,7 @@ end
 
 returns the lattice vectors `a` and reciprocal lattice vectors `b`
 """
-parse_wout(filename; iprint=1) = open(filename) do file
-    iprint != 1 && throw(ArgumentError("Verbosity setting iprint not implemented"))
+function parse_wout(file::IO)
 
     # header
     while (l = strip(readline(file))) != "SYSTEM"
@@ -272,8 +303,60 @@ parse_wout(filename; iprint=1) = open(filename) do file
     end
     frac_lat = Matrix(reshape(reinterpret(Float64, frac_lat_), 3, :))
     cart_lat = Matrix(reshape(reinterpret(Float64, cart_lat_), 3, :))
-    # projections
+
+    readline(file)
+    readline(file) # projections
+    readline(file)
+    readline(file)
+    readline(file)
+    readline(file) # Frac. coord, l, mr, r, z-axis, x-axis, Z/a
+    readline(file)
+
+    pfrac = SVector{3,Float64}[]
+    l = Int[]
+    mr = Int[]
+    r = Int[]
+    zax = SVector{3,Float64}[]
+    xax = SVector{3,Float64}[]
+    za = Float64[]
+    while true
+        col = split(readline(file))
+        length(col) == 15 || break
+        push!(pfrac, SVector{3,Float64}(parse.(Float64, col[2:4])))
+        push!(l, parse(Int, col[5]))
+        push!(mr, parse(Int, col[6]))
+        push!(r, parse(Int, col[7]))
+        push!(zax, SVector{3,Float64}(parse.(Float64, col[8:10])))
+        push!(xax, SVector{3,Float64}(parse.(Float64, col[11:13])))
+        push!(za, parse(Float64, col[14]))
+    end
+    proj = (; frac=pfrac, l=l, mr=mr, r=r, zax=zax, xax=xax, za=za)
+
     # k-point grid
+    readline(file)
+    readline(file)
+    readline(file) # k-point grid
+    readline(file)
+    readline(file)
+
+    kpt_header = split(readline(file))
+    sizes = (parse(Int, kpt_header[4]), parse(Int, kpt_header[6]), parse(Int, kpt_header[8]))
+    nkpt = parse(Int, kpt_header[12])
+    readline(file)
+    readline(file)
+    readline(file)  # k-point, fractional coordinate, Cartesian coordinate (Ang^-1)
+    readline(file)
+    ikvec = Vector{Int}(undef, nkpt)
+    kfrac = Vector{SVector{3,Float64}}(undef, nkpt)
+    kcart = Vector{SVector{3,Float64}}(undef, nkpt)
+    for i in 1:nkpt
+        col = split(readline(file))
+        ikvec[i] = parse(Int, col[2])
+        kfrac[i] = parse.(Float64, col[3:5])
+        kcart[i] = parse.(Float64, col[7:9])
+    end
+    kpts = (; sizes=sizes, nkpt=nkpt, ikvec=ikvec, cart=kcart, frac=kfrac)
+
     # main
     # wannierise
     # disentangle
@@ -281,10 +364,10 @@ parse_wout(filename; iprint=1) = open(filename) do file
     # k-mesh
     # etc...
 
-    return A, B, species, site, frac_lat, cart_lat
+    return A, B, species, site, frac_lat, cart_lat, proj, kpts
 end
 
-parse_sym(filename) = open(filename) do file
+function parse_sym(file::IO)
     nsymmetry = parse(Int, readline(file))
     readline(file)
     point_sym = Vector{SMatrix{3,3,Float64,9}}(undef, nsymmetry)
@@ -308,7 +391,7 @@ load_interp(seedname::String; kwargs...) =
 
 """
     load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp, kwargs...)
-    
+
 Return a tuple `(interp, bz)` containing the requested Wannier interpolant,
 `interp` and the Brillouin zone `bz` to integrate over. The `seedname` should
 point to Wannier90 data to read in. Additional keywords are passed to the
@@ -319,5 +402,10 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     wi = load_interp(interp, seedname; kwargs...)
     bz = load_bz(bz, seedname)
+    # TODO: check that the interpolants approximately satisfy symmetries and Hermiticity
     return (wi, bz)
+end
+
+for name in (:parse_hamiltonian, :parse_position_operator, :parse_wout, :parse_sym)
+    @eval $name(filename::String, args...) = open(io -> $name(io, args...), filename)
 end

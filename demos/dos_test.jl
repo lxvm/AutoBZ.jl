@@ -2,11 +2,11 @@
 In this script we compute DOS at single point using the interface in AutoBZ.jl
 =#
 
-# using SymmetryReduceBZ # add package to use bzkind=:ibz
+# using SymmetryReduceBZ # add package to use bz=IBZ()
 using AutoBZ
 
 seed = "svo"
-# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 h, bz = load_wannier90_data(seed; interp=HamiltonianInterp, bz=CubicSymIBZ())
 
 # Define problem parameters
@@ -25,7 +25,9 @@ npt = 100
 
 integrand = DOSIntegrand(h, Σ; μ=0)
 
-for alg in (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
+algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
+
+for alg in algs
     @show nameof(typeof(alg))
     solver = IntegralSolver(integrand, bz, alg; abstol=atol, reltol=rtol)
     @time @show solver(ω=ω)

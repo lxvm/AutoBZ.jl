@@ -9,37 +9,25 @@ define custom BZ integrands.
 """
 module AutoBZ
 
-!isdefined(Base, :get_extension) && using Requires
-@static if !isdefined(Base, :get_extension)
-    function __init__()
-        @require SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046" include("../ext/SymmetryReduceBZExt.jl")
-        @require Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0" begin
-            @require PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a" include("../ext/BrillouinPlotlyJSExt.jl")
-        end
-    end
-end
-
 using LinearAlgebra
 using LinearAlgebra: checksquare
 
 using StaticArrays
 using Reexport
+@reexport using FourierSeriesEvaluators
 @reexport using AutoBZCore
 
-import AutoBZCore: SymRep, symmetrize_,
-    Integrand, FourierIntegrand, construct_problem,
-    FourierSeriesEvaluators.period, FourierSeriesEvaluators.contract,
-    FourierSeriesEvaluators.evaluate, FourierSeriesEvaluators.coefficients,
-    FourierSeriesEvaluators.show_details, FourierSeriesEvaluators.deriv,
-    FourierSeriesEvaluators.offset, FourierSeriesEvaluators.shift,
-    AutoSymPTR.npt_update
+import FourierSeriesEvaluators: period, deriv, offset, shift,
+    contract, evaluate, coefficients, show_details, fourier_type
+import AutoBZCore: SymRep, symmetrize_, AutoBZAlgorithm
+
 
 using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
 
 export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
-export AbstractSelfEnergy, lb, ub
+export AbstractSelfEnergy
 export AbstractWannierInterp
 export AbstractGauge, Wannier, Hamiltonian
 export AbstractGaugeInterp, gauge
@@ -55,7 +43,10 @@ include("linalg.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
-export HamiltonianInterp, BerryConnectionInterp, GradientVelocityInterp, CovariantVelocityInterp
+export HamiltonianInterp, InplaceHamiltonianInterp
+export BerryConnectionInterp, InplaceBerryConnectionInterp
+export GradientVelocityInterp, InplaceGradientVelocityInterp
+export CovariantVelocityInterp, InplaceCovariantVelocityInterp
 include("interp.jl")
 
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
