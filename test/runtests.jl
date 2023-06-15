@@ -15,6 +15,7 @@ function integer_lattice(n)
     FourierSeries(C, period=1)
 end
 
+# run these tests with multiple threads to check multithreading works
 @testset "AutoBZ" begin
 
 #=
@@ -44,7 +45,7 @@ end
         end
     end
 =#
-    @testset "apps" for dims in (1, 2), alg in (IAI(), AutoPTR()), sym in (false, true)
+    @testset "apps" for dims in (1, 2), alg in (IAI(), AutoPTR(), IAI(parallels=Parallel(dims)), AutoPTR(parallel=true)), sym in (false, true)
         h = HamiltonianInterp(integer_lattice(dims))
         bz= if sym
             lims = TetrahedralLimits(fill(0.5, dims))

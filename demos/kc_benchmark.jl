@@ -68,6 +68,9 @@ h5open("sro_tetra_oc_fl_ptr_eta$(η)_atol$(atol)_rtol$(rtol)_k$(npt).h5", "w") d
     kc_1 = create_group(h5, "kc_1")
     batchsolve(kc_1, kc_solver, paramproduct(Ω=0.0, n=1, β=β); nthreads=nthreads)
 end
-kalg isa AutoPTR && @show kalg.buffer.npt1[] kalg.buffer.npt2[]
+# show the number of points used on the ibz
+kalg isa AutoPTR && @show AutoSymPTR.countevals.(kc_integrand.p[1].cacheval.cache)
+# show npt/dim
+kalg isa AutoPTR && bz.syms !== nothing && @show getproperty.(kc_integrand.p[1].cacheval.cache, :npt)
 
 nothing

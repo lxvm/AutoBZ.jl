@@ -48,7 +48,7 @@ falg = QuadGKJL() # adaptive algorithm for frequency integral
 # setup algorithm for Brillouin zone integral
 npt = 15
 kalg = PTR(; npt=npt)
-# kalg = AutoPTR()
+kalg = AutoPTR()
 # kalg = IAI()
 #= alternative algorithms that save work for IAI when requesting a reltol
 kalg = AutoPTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
@@ -71,7 +71,9 @@ results = h5open("oc.h5", "w") do h5
     batchsolve(h5, oc_solver, Ωs; nthreads=nthreads)
 end
 
-# show kpts/dim of converged ptr grid
-kalg isa AutoPTR && @show kalg.buffer.npt1[] kalg.buffer.npt2[]
+# show the number of points used on the ibz
+kalg isa AutoPTR && @show AutoSymPTR.countevals.(oc_integrand.p[1].cacheval.cache)
+# show npt/dim
+kalg isa AutoPTR && bz.syms !== nothing && @show getproperty.(oc_integrand.p[1].cacheval.cache, :npt)
 
 nothing

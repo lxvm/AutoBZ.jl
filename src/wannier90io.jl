@@ -54,13 +54,20 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_interp(::Type{HamiltonianInterp}, seed; gauge=GaugeDefault(HamiltonianInterp), period=1.0, compact=:N)
+function load_interp(::Type{T}, seed; gauge=GaugeDefault(T), period=1.0, compact=:N) where {T<:Union{HamiltonianInterp,InplaceHamiltonianInterp}}
     A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout")
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
     check_degen(degen, kpts.nkpt)
     C = load_coefficients(Val{compact}(), num_wann, irvec, degen, C_)[1]
-    f = InplaceFourierSeries(C; period=period, offset=map(s -> -div(s,2)-1, size(C)))
-    return HamiltonianInterp(f; gauge=gauge)
+    offset = map(s -> -div(s,2)-1, size(C))
+    f = if T<:HamiltonianInterp
+        FourierSeries(C; period=period, offset=offset)
+    elseif T<:InplaceHamiltonianInterp
+        InplaceFourierSeries(C; period=period, offset=offset)
+    else
+        throw(ArgumentError("unrecognized Hamiltonian type"))
+    end
+    return HamiltonianInterp(f, gauge=gauge)
 end
 
 load_coeff_type(::Val{:N}, n) = SMatrix{n,n,ComplexF64,n^2}
@@ -161,18 +168,25 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_interp(::Type{BerryConnectionInterp{P}}, seed; coord=P, period=1.0, compact=:N) where P
+function load_interp(::Type{T}, seed; coord=CoordDefault(T), period=1.0, compact=:N) where {T<:Union{BerryConnectionInterp,InplaceBerryConnectionInterp}}
     A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout")
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
-    rot, irot = pick_rot(P, A, invA)
+    rot, irot = pick_rot(coord, A, invA)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
     check_degen(degen, kpts.nkpt)
     date_time, num_wann, nrpts, irvec, A1_, A2_, A3_ = parse_position_operator(seed * "_r.dat", rot)
     A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, A1_, A2_, A3_)
-    F1 = InplaceFourierSeries(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
-    F2 = InplaceFourierSeries(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
-    F3 = InplaceFourierSeries(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
-    BerryConnectionInterp{P}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
+    fs = if T<:BerryConnectionInterp
+        FourierSeries
+    elseif T<:InplaceBerryConnectionInterp
+        InplaceFourierSeries
+    else
+        throw(ArgumentError("unrecognized Berry connection type"))
+    end
+    F1 = fs(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
+    F2 = fs(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
+    F3 = fs(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
+    BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
 end
 
 """
@@ -194,27 +208,41 @@ and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
 [`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
 details.
 """
-function load_interp(::Type{GradientVelocityInterp}, seed; period=1.0, compact=:N,
-    gauge=GaugeDefault(GradientVelocityInterp),
-    coord=CoordDefault(GradientVelocityInterp),
-    vcomp=VcompDefault(GradientVelocityInterp))
+function load_interp(::Type{T}, seed; period=1.0, compact=:N,
+    gauge=GaugeDefault(T),
+    coord=CoordDefault(T),
+    vcomp=VcompDefault(T)) where {T<:Union{GradientVelocityInterp,InplaceGradientVelocityInterp}}
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; period=period, compact=compact)
+    H = if T<:GradientVelocityInterp
+        HamiltonianInterp
+    elseif T<:InplaceGradientVelocityInterp
+        InplaceHamiltonianInterp
+    else
+        throw(ArgumentError("unrecognized gradient velocity type"))
+    end
+    h = load_interp(H, seed; period=period, compact=compact)
     A = parse_wout(seed * ".wout")[1] # get A for map from lattice to Cartesian coordinates
-    GradientVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    T(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
 """
     load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N,
     gauge=Wannier(), vcomp=whole(), coord=Lattice())
 """
-function load_interp(::Type{CovariantVelocityInterp}, seed; period=1.0, compact=:N,
-    gauge=GaugeDefault(CovariantVelocityInterp),
-    coord=CoordDefault(CovariantVelocityInterp),
-    vcomp=VcompDefault(CovariantVelocityInterp))
+function load_interp(::Type{T}, seed; period=1.0, compact=:N,
+    gauge=GaugeDefault(T),
+    coord=CoordDefault(T),
+    vcomp=VcompDefault(T)) where {T<:Union{CovariantVelocityInterp,InplaceCovariantVelocityInterp}}
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed; coord=coord, period=period, compact=compact)
-    a = load_interp(BerryConnectionInterp{coord}, seed; coord=coord, period=period, compact=compact)
+    V, B = if T<:CovariantVelocityInterp
+        GradientVelocityInterp, BerryConnectionInterp
+    elseif T<:InplaceCovariantVelocityInterp
+        InplaceGradientVelocityInterp, InplaceBerryConnectionInterp
+    else
+        throw(ArgumentError("unrecognized covariant velocity type"))
+    end
+    hv = load_interp(V, seed; coord=coord, period=period, compact=compact)
+    a = load_interp(B, seed; coord=coord, period=period, compact=compact)
     CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 

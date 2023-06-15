@@ -10,13 +10,13 @@ struct HamiltonianInterp{G,N,T,F} <: AbstractGaugeInterp{G,N,T}
         new{G,ndims(f),eltype(f),F}(f)
 end
 
-# recursively wrap inner Fourier series with Hamiltonian
 HamiltonianInterp(f; gauge=GaugeDefault(HamiltonianInterp)) =
     HamiltonianInterp{gauge}(f)
 
+contract(h::HamiltonianInterp, x::Number, ::Val{d}) where d =
+    HamiltonianInterp{gauge(h)}(contract(h.f, x, Val(d)))
+
 GaugeDefault(::Type{<:HamiltonianInterp}) = Wannier()
-
-
 """
     shift!(h::HamiltonianInterp, λ::Number)
 
@@ -33,9 +33,6 @@ end
 
 period(h::HamiltonianInterp) = period(h.f)
 
-contract(h::HamiltonianInterp, x::Number, ::Val{d}) where d =
-    HamiltonianInterp{gauge(h)}(contract(h.f, x, Val(d)))
-
 evaluate(h::HamiltonianInterp, x::NTuple{1}) =
     to_gauge(h, evaluate(h.f, x))
 
@@ -49,6 +46,9 @@ function fourier_type(h::HamiltonianInterp, x)
         return typeof(eigen(Hermitian(one(T))))
     end
 end
+
+struct InplaceHamiltonianInterp end
+GaugeDefault(::Type{<:InplaceHamiltonianInterp}) = Wannier()
 
 # ------------------------------------------------------------------------------
 
@@ -66,6 +66,7 @@ end
 period(bc::BerryConnectionInterp) = period(bc.a)
 
 GaugeDefault(::Type{<:BerryConnectionInterp}) = Wannier()
+CoordDefault(::Type{<:BerryConnectionInterp}) = Cartesian()
 CoordDefault(::Type{<:BerryConnectionInterp{P}}) where P = P
 
 contract(bc::BerryConnectionInterp, x::Number, ::Val{d}) where d =
@@ -80,6 +81,9 @@ function fourier_type(a::BerryConnectionInterp, x)
     T = fourier_type(eltype(eltype(a.a)), x)
     return SVector{length(a.a.fs),T}
 end
+
+struct InplaceBerryConnectionInterp end
+CoordDefault(::Type{<:InplaceBerryConnectionInterp}) = Cartesian()
 
 # ------------------------------------------------------------------------------
 
@@ -100,40 +104,20 @@ raise_multiplier(::Val{0}) = Val(1)
 raise_multiplier(::Val{1}) = 2
 raise_multiplier(a) = a + 1
 
-
-"""
-    GradientVelocityInterp(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
-
-Evaluates the band velocities by directly computing the Hamiltonian gradient,
-which is not gauge-covariant. Returns a tuple of the Hamiltonian and the three
-velocity matrices. See [`to_vcomp_gauge`](@ref) for the `vcomp` keyword.
-`A` should be the matrix of lattice vectors, which is used only if `vcord` is
-`:cartesian`.
-"""
-struct GradientVelocityInterp{C,B,G,N,T,H,U,V,TA} <: AbstractVelocityInterp{C,B,G,N,T}
+struct GradientVelocityInterp{C,B,G,N,T,H,V,TA} <: AbstractVelocityInterp{C,B,G,N,T}
     h::H
-    u::U
     v::V
     A::TA
-    GradientVelocityInterp{C,B,G}(h::H, u::U, v::V, A::TA) where {C,B,G,H<:HamiltonianInterp{GaugeDefault(HamiltonianInterp)},U,V,TA} =
-        new{C,B,G,ndims(h),eltype(h),H,U,V,TA}(h, u, v, A)
+    GradientVelocityInterp{C,B,G}(h::H, v::V, A::TA) where {C,B,G,H<:HamiltonianInterp{GaugeDefault(HamiltonianInterp)},V,TA} =
+        new{C,B,G,ndims(h),eltype(h),H,V,TA}(h, v, A)
 end
 
 function GradientVelocityInterp(h::HamiltonianInterp{GaugeDefault(HamiltonianInterp)}, A;
     gauge=GaugeDefault(GradientVelocityInterp),
     coord=CoordDefault(GradientVelocityInterp),
     vcomp=VcompDefault(GradientVelocityInterp))
-    T = h.f isa InplaceFourierSeries ? InplaceFourierSeries : FourierSeries
-    u = (); cd = coefficients(h); d = ndims(h)
-    while d > 0
-        v = view(cd, ntuple(n -> n>d ? first(axes(cd,n)) : axes(cd,n), Val(ndims(h)))...)
-        c = similar(v, fourier_type(eltype(h),eltype(period(h.f))))
-        ud = T(c; period=2pi .* period(h.f)[1:d], deriv=(deriv(h.f)[1:d-1]..., raise_multiplier(deriv(h.f)[d])), offset=offset(h.f)[1:d], shift=shift(h.f)[1:d])
-        u = (ud, u...)
-        d -= 1
-    end
-    u[ndims(h)].c .= h.f.c
-    GradientVelocityInterp{vcomp,coord,gauge}(h, u[1:ndims(h)-1], (u[ndims(h)],), A)
+    h.f isa FourierSeries || throw(ArgumentError("h must not be inplace"))
+    GradientVelocityInterp{vcomp,coord,gauge}(h, (), A)
 end
 
 hamiltonian(hv::GradientVelocityInterp) = hv.h
@@ -145,19 +129,88 @@ function contract(hv::GradientVelocityInterp{C,B,G}, x::Number, ::Val{d}) where 
     h = contract(hv.h, x, Val(d))
     tpx = 2pi*x
     v = map(vi -> contract(vi, tpx, Val(d)), hv.v)
-    u = hv.u[1:d-2]
-    vd = hv.u[d-1]
-    vd.c .= h.f.c # copy contracted coefficients to velocity
-    GradientVelocityInterp{C,B,G}(h, u, (vd, v...), hv.A)
+    # compute the derivative of the current dimension
+    dv = deriv(hv.h.f)
+    vd = contract(FourierSeries(hv.h.f.c, period=map(x->2pi*x, period(hv.h.f)), deriv=ntuple(n -> n == d ? raise_multiplier(dv[d]) : dv[n], Val(ndims(hv))), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx, Val(d))
+    GradientVelocityInterp{C,B,G}(h, (vd, v...), hv.A)
 end
 
 function evaluate(hv::GradientVelocityInterp, x::NTuple{1})
+    tpx = (2pi*x[1],)   # period adjusted to correct for angular coordinates in derivative
+    v = map(vi -> evaluate(vi, tpx), hv.v)
+    # compute the derivative of the current dimension
+    v1 = evaluate(FourierSeries(hv.h.f.c, period=(2pi*period(hv.h.f)[1]), deriv=(raise_multiplier(deriv(hv.h.f)[1]),), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx)
+    h, vs = to_vcomp_gauge(hv, evaluate(hv.h, x),  (v1, v...))
+    return (h, to_coord(hv, hv.A, SVector(vs)))
+end
+
+function fourier_type(hv::GradientVelocityInterp, x)
+    T = fourier_type(hv.h, x)
+    V = SVector{ndims(hv.h)+length(hv.v),T}
+    if gauge(hv) isa Wannier
+        return Tuple{T,V}
+    else
+        return Tuple{typeof(eigen(Hermitian(one(T)))),V}
+    end
+end
+
+"""
+    InplaceGradientVelocityInterp(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
+
+Evaluates the band velocities by directly computing the Hamiltonian gradient,
+which is not gauge-covariant. Returns a tuple of the Hamiltonian and the three
+velocity matrices. See [`to_vcomp_gauge`](@ref) for the `vcomp` keyword.
+`A` should be the matrix of lattice vectors, which is used only if `vcord` is
+`:cartesian`.
+"""
+struct InplaceGradientVelocityInterp{C,B,G,N,T,H,U,V,TA} <: AbstractVelocityInterp{C,B,G,N,T}
+    h::H
+    u::U
+    v::V
+    A::TA
+    InplaceGradientVelocityInterp{C,B,G}(h::H, u::U, v::V, A::TA) where {C,B,G,H<:HamiltonianInterp{GaugeDefault(HamiltonianInterp)},U,V,TA} =
+        new{C,B,G,ndims(h),eltype(h),H,U,V,TA}(h, u, v, A)
+end
+
+function InplaceGradientVelocityInterp(h::HamiltonianInterp{GaugeDefault(HamiltonianInterp)}, A;
+    gauge=GaugeDefault(InplaceGradientVelocityInterp),
+    coord=CoordDefault(InplaceGradientVelocityInterp),
+    vcomp=VcompDefault(InplaceGradientVelocityInterp))
+    h.f isa InplaceFourierSeries || throw(ArgumentError("h must be inplace"))
+    u = (); cd = coefficients(h); d = ndims(h)
+    while d > 0
+        v = view(cd, ntuple(n -> n>d ? first(axes(cd,n)) : axes(cd,n), Val(ndims(h)))...)
+        c = similar(v, fourier_type(eltype(h),eltype(period(h.f))))
+        ud = InplaceFourierSeries(c; period=2pi .* period(h.f)[1:d], deriv=(deriv(h.f)[1:d-1]..., raise_multiplier(deriv(h.f)[d])), offset=offset(h.f)[1:d], shift=shift(h.f)[1:d])
+        u = (ud, u...)
+        d -= 1
+    end
+    u[ndims(h)].c .= h.f.c
+    InplaceGradientVelocityInterp{vcomp,coord,gauge}(h, u[1:ndims(h)-1], (u[ndims(h)],), A)
+end
+
+hamiltonian(hv::InplaceGradientVelocityInterp) = hv.h
+CoordDefault(::Type{<:InplaceGradientVelocityInterp}) = Lattice()
+GaugeDefault(::Type{<:InplaceGradientVelocityInterp}) = Wannier()
+VcompDefault(::Type{<:InplaceGradientVelocityInterp}) = Whole()
+
+function contract(hv::InplaceGradientVelocityInterp{C,B,G}, x::Number, ::Val{d}) where {C,B,G,d}
+    h = contract(hv.h, x, Val(d))
+    tpx = 2pi*x
+    v = map(vi -> contract(vi, tpx, Val(d)), hv.v)
+    u = hv.u[1:d-2]
+    vd = hv.u[d-1]
+    vd.c .= h.f.c # copy contracted coefficients to velocity
+    InplaceGradientVelocityInterp{C,B,G}(h, u, (vd, v...), hv.A)
+end
+
+function evaluate(hv::InplaceGradientVelocityInterp, x::NTuple{1})
     tpx = (2pi*x[1],)   # period adjusted to correct for angular coordinates in derivative
     h, vs = to_vcomp_gauge(hv, evaluate(hv.h, x),  map(v -> evaluate(v, tpx), hv.v))
     return (h, to_coord(hv, hv.A, SVector(vs)))
 end
 
-function fourier_type(hv::GradientVelocityInterp, x)
+function fourier_type(hv::InplaceGradientVelocityInterp, x)
     T = fourier_type(hv.h, x)
     V = SVector{length(hv.u)+length(hv.v),T}
     if gauge(hv) isa Wannier
@@ -192,8 +245,12 @@ tuple of the Hamiltonian and the three velocity matrices.
 struct CovariantVelocityInterp{C,B,G,N,T,HV,A} <: AbstractVelocityInterp{C,B,G,N,T}
     hv::HV
     a::A
-    CovariantVelocityInterp{C,B,G}(hv::HV, a::A) where {C,B,G,HV<:GradientVelocityInterp{VcompDefault(GradientVelocityInterp),B,GaugeDefault(GradientVelocityInterp)},A<:BerryConnectionInterp{B}} =
-        new{C,B,G,ndims(hv),eltype(hv),HV,A}(hv, a)
+    function CovariantVelocityInterp{C,B,G}(hv::HV, a::A) where {C,B,G,HV<:Union{GradientVelocityInterp,InplaceGradientVelocityInterp},A<:BerryConnectionInterp{B}}
+        @assert vcomp(hv) == VcompDefault(HV)
+        @assert gauge(hv) == GaugeDefault(HV)
+        @assert coord(hv) == B
+        return new{C,B,G,ndims(hv),eltype(hv),HV,A}(hv, a)
+    end
 end
 function CovariantVelocityInterp(hv, a;
     gauge=GaugeDefault(CovariantVelocityInterp),
@@ -208,6 +265,7 @@ function CovariantVelocityInterp(hv, a;
 end
 
 hamiltonian(chv::CovariantVelocityInterp) = hamiltonian(chv.hv)
+
 CoordDefault(::Type{<:CovariantVelocityInterp}) = Lattice()
 GaugeDefault(::Type{<:CovariantVelocityInterp}) = Wannier()
 VcompDefault(::Type{<:CovariantVelocityInterp}) = Whole()
@@ -231,6 +289,12 @@ function fourier_type(hv::CovariantVelocityInterp, x)
         return Tuple{typeof(eigen(Hermitian(one(T)))),V}
     end
 end
+
+struct InplaceCovariantVelocityInterp end
+CoordDefault(::Type{<:InplaceCovariantVelocityInterp}) = Lattice()
+GaugeDefault(::Type{<:InplaceCovariantVelocityInterp}) = Wannier()
+VcompDefault(::Type{<:InplaceCovariantVelocityInterp}) = Whole()
+
 
 # some special methods for inferring the rule
 # for HamiltonianInterp

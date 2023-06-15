@@ -43,7 +43,10 @@ include("linalg.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
-export HamiltonianInterp, BerryConnectionInterp, GradientVelocityInterp, CovariantVelocityInterp
+export HamiltonianInterp, InplaceHamiltonianInterp
+export BerryConnectionInterp, InplaceBerryConnectionInterp
+export GradientVelocityInterp, InplaceGradientVelocityInterp
+export CovariantVelocityInterp, InplaceCovariantVelocityInterp
 include("interp.jl")
 
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
