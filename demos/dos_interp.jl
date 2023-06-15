@@ -4,12 +4,12 @@ In this script we interpolate DOS over a frequency interval using the interface 
 
 using Plots
 
-# using SymmetryReduceBZ # add package to use bzkind=:ibz
+# using SymmetryReduceBZ # add package to use bz=IBZ()
 using AutoBZ
 using HChebInterp
 
 seed = "svo"
-# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 h, bz = load_wannier90_data(seed; interp=HamiltonianInterp, bz=CubicSymIBZ())
 
 # Define problem parameters

@@ -7,12 +7,12 @@ Users have the following choices:
 - Order of integration: frequency then BZ integral or vice versa
 =#
 
-# using SymmetryReduceBZ # add package to use bzkind=:ibz
+# using SymmetryReduceBZ # add package to use bz=IBZ()
 using HDF5  # load before AutoBZ
 using AutoBZ
 
 seed = "svo"; μ = 12.3958 # eV
-# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone 
+# Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 hv, bz = load_wannier90_data(seed; gauge=Wannier(), interp=CovariantVelocityInterp, coord=Cartesian(), vcomp=Whole(), bz=CubicSymIBZ())
 shift!(hv, μ) # shift the Fermi energy to zero
 
@@ -43,48 +43,32 @@ T = sqrt(η/c)
 rtol = 1e-3
 atol = 1e-2
 
-# setup oc_solver
-# IMPORTANT: pre-allocating rules/memory for algorithms helps with performance
-# compute types to pre-allocate resources for algorithms
-DT = eltype(bz) # domain type of Brillouin zone
-RT = typeof(complex(bz.A)) # range type of oc integrand
-NT = Float64 # norm type for RT
+falg = QuadGKJL() # adaptive algorithm for frequency integral
 
 # setup algorithm for Brillouin zone integral
-npt = 50; kalg = PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt))
-# kalg = AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms))
-# kalg = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
+npt = 15
+kalg = PTR(; npt=npt)
+# kalg = AutoPTR()
+# kalg = IAI()
 #= alternative algorithms that save work for IAI when requesting a reltol
-npt = 50
-ptr = PTR(; npt=npt, rule=AutoBZCore.alloc_rule(hv, DT, bz.syms, npt))
-iai = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
-kalg = AutoPTR_IAI(; ptr=ptr, iai=iai)
+kalg = AutoPTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
+kalg = AutoPTR_IAI(; ptr=AutoPTR(), iai=IAI())
 =#
-#=
-ptr = AutoPTR(; buffer=AutoBZCore.alloc_autobuffer(hv, DT, bz.syms))
-iai = IAI(; order=7, segbufs=AutoBZCore.alloc_segbufs(DT,RT,NT,ndims(hv)))
-kalg = AutoPTR_IAI(; ptr=ptr, iai=iai)
-=#
-
-# setup limits and algorithm for frequency integral
-## alert: cannot allocate a segbuf yet. See https://github.com/SciML/Integrals.jl/pull/151
-falg = QuadGKJL()#; segbuf=alloc_segbuf(DT, RT, NT))
 
 
 # create integrand with bz integral on the inside
 oc_integrand = OpticalConductivityIntegrand(bz, kalg, hv, Σ, β; abstol=atol, reltol=rtol)
-oc_solver = IntegralSolver(oc_integrand, lb(Σ), ub(Σ), falg; abstol=atol, reltol=rtol)
+oc_solver = IntegralSolver(oc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
 
 # create integrand with frequency integral on the inside
 # oc_integrand = OpticalConductivityIntegrand(falg, hv, Σ, β; abstol=atol/nsyms(bz), reltol=rtol)
 # oc_solver = IntegralSolver(oc_integrand, bz, kalg; abstol=atol, reltol=rtol)
 
-
 # run calculation
 nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
 
 results = h5open("oc.h5", "w") do h5
-    batchsolve(h5, oc_solver, Ωs, RT; nthreads=nthreads)
+    batchsolve(h5, oc_solver, Ωs; nthreads=nthreads)
 end
 
 # show kpts/dim of converged ptr grid

@@ -25,7 +25,9 @@ npt = 100
 
 integrand = DOSIntegrand(h, Σ; μ=0)
 
-for alg in (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
+algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
+
+for alg in algs
     @show nameof(typeof(alg))
     solver = IntegralSolver(integrand, bz, alg; abstol=atol, reltol=rtol)
     @time @show solver(ω=ω)

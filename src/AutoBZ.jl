@@ -18,7 +18,7 @@ using Reexport
 @reexport using AutoBZCore
 
 import FourierSeriesEvaluators: period, deriv, offset, shift,
-    contract, evaluate, coefficients, show_details
+    contract, evaluate, coefficients, show_details, fourier_type
 import AutoBZCore: SymRep, symmetrize_, AutoBZAlgorithm
 
 
@@ -27,7 +27,7 @@ using BaryRational: aaa
 using HChebInterp: hchebinterp
 
 export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
-export AbstractSelfEnergy, lb, ub
+export AbstractSelfEnergy
 export AbstractWannierInterp
 export AbstractGauge, Wannier, Hamiltonian
 export AbstractGaugeInterp, gauge
