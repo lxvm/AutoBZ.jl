@@ -654,7 +654,7 @@ end
 
 function AutoBZCore.remake_integrand_cache(f::ElectronDensityIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
-    new_p = canonize(dens_params_inside, p)
+    new_p = canonize(dens_params_inside, merge(is_threaded(alg), p))
     # We omit adapting the equispace grid stepping since we cannot query the
     # frequency-dependence of the self energy within the inner frequency integral
     # new_alg, new_cacheval = reset_autoptr_eta(alg, cacheval, f, dom, new_p)
