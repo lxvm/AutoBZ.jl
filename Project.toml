@@ -14,9 +14,19 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
+[weakdeps]
+Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
+PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
+Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
+SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046"
+
+[extensions]
+BrillouinPlotlyJSExt = ["Brillouin", "PlotlyJS"]
+SymmetryReduceBZExt = ["SymmetryReduceBZ", "Polyhedra"]
+
 [compat]
 AutoBZCore = "0.2"
-BaryRational = "0.1"
+BaryRational = "0.1, 1"
 EquiBaryInterp = "0.1"
 FourierSeriesEvaluators = "0.1"
 HChebInterp = "0.1"
@@ -24,10 +34,6 @@ Reexport = "1"
 StaticArrays = "1"
 SymmetryReduceBZ = "0.1"
 julia = "1.9"
-
-[extensions]
-BrillouinPlotlyJSExt = ["Brillouin", "PlotlyJS"]
-SymmetryReduceBZExt = ["SymmetryReduceBZ", "Polyhedra"]
 
 [extras]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
@@ -39,9 +45,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["OffsetArrays", "Polyhedra", "SymmetryReduceBZ", "Test"]
-
-[weakdeps]
-Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
-PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
-Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
-SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046"
