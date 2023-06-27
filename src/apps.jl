@@ -385,11 +385,14 @@ function KineticCoefficientIntegrand(alg::AutoBZAlgorithm, hv::AbstractVelocityI
     return KineticCoefficientIntegrand(FullBZ(2pi*I(ndims(hv))), alg, hv, Σ, args...; kwargs...)
 end
 
-kc_params(ispar, solver, n, β, Ω, μ)     = (ispar, solver, n, β, Ω, μ)
-kc_params(ispar, solver, n, β, Ω; μ=0.0) = (ispar, solver, n, β, Ω, μ)
-kc_params(ispar, solver, n, β; Ω, μ=0.0) = (ispar, solver, n, β, Ω, μ)
-kc_params(ispar, solver, n; β, Ω, μ=0.0) = (ispar, solver, n, β, Ω, μ)
-kc_params(ispar, solver; n, β, Ω, μ=0.0) = (ispar, solver, n, β, Ω, μ)
+function kc_params(ispar, solver, n, β, Ω, μ)
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, change order of integration or evaluate a TransportDistributionIntegrand at ω₁=ω₂=0"))
+    return (ispar, solver, n, β, Ω, μ)
+end
+kc_params(ispar, solver, n, β, Ω; μ=0.0) = kc_params(ispar, solver, n, β, Ω, μ)
+kc_params(ispar, solver, n, β; Ω, μ=0.0) = kc_params(ispar, solver, n, β, Ω, μ)
+kc_params(ispar, solver, n; β, Ω, μ=0.0) = kc_params(ispar, solver, n, β, Ω, μ)
+kc_params(ispar, solver; n, β, Ω, μ=0.0) = kc_params(ispar, solver, n, β, Ω, μ)
 
 const KCFrequencyType = Integrand{typeof(transport_fermi_integrand)}
 
@@ -412,9 +415,12 @@ function transport_fermi_integrand_inside(ω, Σ, _, n, β, Ω, μ, hv_k)
     Γ = transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
 end
-function kinetic_coefficient_integrand(hv_k::FourierValue, ::Val{ispar}, f) where {ispar}
+function kinetic_coefficient_integrand(hv_k::FourierValue, ::Val{ispar}, f, Σ, n, β, Ω, μ) where {ispar}
+    if iszero(Ω) && isinf(β)
+        return Ω^n * transport_distribution_integrand(hv_k, evalM2(Σ, Ω, Ω, μ)...)
+    end
     frequency_solver = ispar ? deepcopy(f) : f
-    return frequency_solver(hv_k.s)
+    return frequency_solver(n, β, Ω, μ, hv_k)
 end
 
 function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
@@ -423,7 +429,7 @@ function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, 
     frequency_integrand = Integrand(transport_fermi_integrand_inside, Σ, hv(fill(0.0, ndims(hv))))
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     # frequency_solver(0, 1e100, 0.0, 0.0, hv(fill(0.0, ndims(hv)))) # precompile the solver
-    return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, args...; kwargs...)
+    return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, Σ, args...; kwargs...)
 end
 function KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
     return KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
@@ -469,20 +475,16 @@ function get_safe_fermi_window_limits(Ω, β, dom; kwargs...)
     return AutoBZCore.PuncturedInterval(int)
 end
 
-# TODO, if T=Ω=0, intercept this stage and replace with distributional integrand
-# which would likely cause a type instability
-function kc_inner_params(ispar, solver_, n, β, Ω, μ)
-    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, evaluate a TransportDistributionIntegrand at ω=0"))
+function kc_inner_params(ispar, solver_, Σ, n, β, Ω, μ)
     dom = get_safe_fermi_window_limits(Ω, β, solver_.dom)
-    g = Integrand{typeof(solver_.f.f)}(solver_.f.f, merge(solver_.f.p, (n, β, Ω, μ)))
-    solver = IntegralSolver(g, dom, solver_.alg, solver_.cacheval, solver_.kwargs)
-    return (ispar, solver)
+    solver = IntegralSolver(solver_.f, dom, solver_.alg, solver_.cacheval, solver_.kwargs)
+    return (ispar, solver, Σ, convert(Int, n), convert(Float64, β), convert(Float64, Ω), convert(Float64, μ))
 end
 
-kc_inner_params(ispar, solver, n, β, Ω; μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
-kc_inner_params(ispar, solver, n, β; Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
-kc_inner_params(ispar, solver, n; β, Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
-kc_inner_params(ispar, solver; n, β, Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
+kc_inner_params(ispar, solver, Σ, n, β, Ω; μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
+kc_inner_params(ispar, solver, Σ, n, β; Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
+kc_inner_params(ispar, solver, Σ, n; β, Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
+kc_inner_params(ispar, solver, Σ; n, β, Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
 
 const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_integrand)}
 
@@ -492,7 +494,7 @@ function AutoBZCore.init_solver_cacheval(f::KineticCoefficientIntegrandType, dom
 end
 
 function AutoBZCore.integrand_return_type(f::KineticCoefficientIntegrandType, x, ::CanonicalParameters)
-    return typeof(FourierIntegrand(f.f, f.s)(x, canonize(kc_inner_params, MixedParameters(Val(false), f.p[1]; n=0, β=1e100, Ω=0.0))))
+    return typeof(FourierIntegrand(f.f, f.s)(x, canonize(kc_inner_params, MixedParameters(Val(false), f.p[1], f.p[2]; n=0, β=1e100, Ω=0.0))))
 end
 
 function AutoBZCore.remake_integrand_cache(f::KineticCoefficientIntegrandType, dom, p, alg, cacheval, kwargs)

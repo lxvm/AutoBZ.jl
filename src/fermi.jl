@@ -39,7 +39,7 @@ Fermi distribution ``f`` and defined by
 ```
 In the case `y==0` then this simplifies to the derivative of the Fermi distribution.
 """
-function fermi_window(β, ω, Ω)
+function fermi_window(β::T, ω::T, Ω::T) where {T<:AbstractFloat}
     if isinf(β)
         if iszero(ω) && iszero(Ω)
             β   # this is technically a Dirac delta function :(
@@ -52,7 +52,10 @@ function fermi_window(β, ω, Ω)
         β*fermi_window(β*ω, β*Ω)
     end
 end
-fermi_window(x, y) = iszero(y) ? -fermi′(x) : fermi_window_(x, y)
+function fermi_window(x::T, y::T) where {T<:AbstractFloat}
+    return iszero(y) ? -fermi′(x) : fermi_window_(x, y)
+end
+fermi_window(args...) = fermi_window(promote(float.(args)...)...)
 
 fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
 function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
@@ -101,7 +104,7 @@ select_fermi_atol(x, atol, rtol) = ifelse(x == zero(x), max(atol, 0.25rtol), max
 One can show that β*Ω*fermi_window(ω, β, Ω) =
 -tanh(β*Ω/2)/(cosh(β*(ω+Ω/2))/cosh(β*Ω/2)+1) >
 -tanh(β*Ω/2)/(exp(abs(β*(ω+Ω/2)))/2cosh(β*Ω/2)+1)
-as well as when Ω==0, β*fermi_window(ω, β, 0.0) = 
+as well as when Ω==0, β*fermi_window(ω, β, 0.0) =
 and these can be inverted to give a good bound on the width of the frequency
 window for which the Fermi window function is greater than `atol`. Returns half
 the width of this window.
