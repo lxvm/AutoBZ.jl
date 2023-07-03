@@ -49,7 +49,7 @@ export GradientVelocityInterp, InplaceGradientVelocityInterp
 export CovariantVelocityInterp, InplaceCovariantVelocityInterp
 include("interp.jl")
 
-export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, MatrixSelfEnergy
+export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
 
 export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
