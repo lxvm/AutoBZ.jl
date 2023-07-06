@@ -415,9 +415,11 @@ function transport_fermi_integrand_inside(ω, Σ, _, n, β, Ω, μ, hv_k)
     Γ = transport_distribution_integrand(hv_k, evalM2(Σ, ω, ω+Ω, μ)...)
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
 end
-function kinetic_coefficient_integrand(hv_k::FourierValue, ::Val{ispar}, f, Σ, n, β, Ω, μ) where {ispar}
+function kinetic_coefficient_integrand(hv_k::FourierValue, ::Val{ispar}, f, n, β, Ω, μ) where {ispar}
     if iszero(Ω) && isinf(β)
-        return Ω^n * transport_distribution_integrand(hv_k, evalM2(Σ, Ω, Ω, μ)...)
+        # we pass in β=4 since fermi_window(4,0,0)=1, the weight of the delta
+        # function, and also this prevents (0*β)^n from giving NaN when n!=0
+        return f.f(zero(Ω), MixedParameters(n, oftype(β, 4.0), Ω, μ, hv_k))
     end
     frequency_solver = ispar ? deepcopy(f) : f
     return frequency_solver(n, β, Ω, μ, hv_k)
@@ -429,7 +431,7 @@ function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, 
     frequency_integrand = Integrand(transport_fermi_integrand_inside, Σ, hv(fill(0.0, ndims(hv))))
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     # frequency_solver(0, 1e100, 0.0, 0.0, hv(fill(0.0, ndims(hv)))) # precompile the solver
-    return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, Σ, args...; kwargs...)
+    return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, args...; kwargs...)
 end
 function KineticCoefficientIntegrand(alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
     return KineticCoefficientIntegrand(lb(Σ), ub(Σ), alg, hv, Σ, args...; kwargs...)
@@ -475,16 +477,16 @@ function get_safe_fermi_window_limits(Ω, β, dom; kwargs...)
     return AutoBZCore.PuncturedInterval(int)
 end
 
-function kc_inner_params(ispar, solver_, Σ, n, β, Ω, μ)
+function kc_inner_params(ispar, solver_, n, β, Ω, μ)
     dom = get_safe_fermi_window_limits(Ω, β, solver_.dom)
     solver = IntegralSolver(solver_.f, dom, solver_.alg, solver_.cacheval, solver_.kwargs)
-    return (ispar, solver, Σ, convert(Int, n), convert(Float64, β), convert(Float64, Ω), convert(Float64, μ))
+    return (ispar, solver, convert(Int, n), convert(Float64, β), convert(Float64, Ω), convert(Float64, μ))
 end
 
-kc_inner_params(ispar, solver, Σ, n, β, Ω; μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
-kc_inner_params(ispar, solver, Σ, n, β; Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
-kc_inner_params(ispar, solver, Σ, n; β, Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
-kc_inner_params(ispar, solver, Σ; n, β, Ω, μ=0.0) = kc_inner_params(ispar, solver, Σ, n, β, Ω, μ)
+kc_inner_params(ispar, solver, n, β, Ω; μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
+kc_inner_params(ispar, solver, n, β; Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
+kc_inner_params(ispar, solver, n; β, Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
+kc_inner_params(ispar, solver; n, β, Ω, μ=0.0) = kc_inner_params(ispar, solver, n, β, Ω, μ)
 
 const KineticCoefficientIntegrandType = FourierIntegrand{typeof(kinetic_coefficient_integrand)}
 
@@ -494,7 +496,7 @@ function AutoBZCore.init_solver_cacheval(f::KineticCoefficientIntegrandType, dom
 end
 
 function AutoBZCore.integrand_return_type(f::KineticCoefficientIntegrandType, x, ::CanonicalParameters)
-    return typeof(FourierIntegrand(f.f, f.s)(x, canonize(kc_inner_params, MixedParameters(Val(false), f.p[1], f.p[2]; n=0, β=1e100, Ω=0.0))))
+    return typeof(FourierIntegrand(f.f, f.s)(x, canonize(kc_inner_params, MixedParameters(Val(false), f.p[1]; n=0, β=1e100, Ω=0.0))))
 end
 
 function AutoBZCore.remake_integrand_cache(f::KineticCoefficientIntegrandType, dom, p, alg, cacheval, kwargs)
