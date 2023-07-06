@@ -407,7 +407,9 @@ end
 
 function AutoBZCore.remake_integrand_cache(f::KCFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(kc_params, merge(is_threaded(alg), p))
-    return AutoBZCore.IntegralCache(f, dom, new_p, alg, cacheval, kwargs)
+    Ω = new_p[5]; β = new_p[4]
+    new_dom = get_safe_fermi_window_limits(Ω, β, dom)
+    return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
 
@@ -584,7 +586,9 @@ end
 
 function AutoBZCore.remake_integrand_cache(f::DensityFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(dens_params, merge(is_threaded(alg), p))
-    return AutoBZCore.IntegralCache(f, dom, new_p, alg, cacheval, kwargs)
+    β = new_p[3]
+    new_dom = get_safe_fermi_function_limits(β, dom)
+    return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
 
