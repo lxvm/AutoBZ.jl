@@ -402,10 +402,43 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     wi = load_interp(interp, seedname; kwargs...)
     bz = load_bz(bz, seedname)
-    # TODO: check that the interpolants approximately satisfy symmetries and Hermiticity
+
+    if bz.syms !== nothing
+        k = rand(SVector{ndims(bz),eltype(bz)})
+        ref = wi(k)
+        err, idx = findmax(bz.syms) do S
+            val = wi(S*k)
+            return calc_interp_error(wi, val, ref)
+        end
+        msg = """
+        Testing that the interpolant's Hamiltonian satisfies the symmetries at random k-point
+            k = $(k)
+        and found a maximum error $(err) for symmetry
+            bz.syms[$(idx)] = $(bz.syms[idx])
+        """
+        err > 1e-5 ? @warn(msg) : @info(msg)
+    end
     return (wi, bz)
 end
 
 for name in (:parse_hamiltonian, :parse_position_operator, :parse_wout, :parse_sym)
     @eval $name(filename::String, args...) = open(io -> $name(io, args...), filename)
 end
+
+
+# the only error we can evaluate is that of the Hamiltonian eigenvalues, since we do not
+# have the orbital representation of the symmetry operators available.
+# this is because H(k) and H(pg*k) are identical up to a gauge transformation
+# The velocities are also tough to compare because the point-group operator should be applied
+function calc_interp_error_(g::AbstractGauge, val, err)
+    wval = g isa Hamiltonian ? val : to_gauge(Hamiltonian(), val)
+    werr = g isa Hamiltonian ? err : to_gauge(Hamiltonian(), err)
+    return norm(wval.values - werr.values)
+end
+function calc_interp_error(h::HamiltonianInterp, val, err)
+    return calc_interp_error_(gauge(h), val, err)
+end
+function calc_interp_error(hv::AbstractVelocityInterp, val, err)
+    return calc_interp_error_(gauge(hv), val[1], err[1])
+end
+calc_interp_error(::BerryConnectionInterp, val, err) = NaN
