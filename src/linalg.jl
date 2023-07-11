@@ -218,3 +218,16 @@ end
 
 @inline LinearAlgebra.inv(a::SOC) = SOC(inv(a.A))
 @inline LinearAlgebra.tr(a::SOC) = 2tr(a.A)
+
+function isapproxhermitian(A::AbstractMatrix; kwargs...)
+    indsm, indsn = axes(A)
+    if indsm != indsn
+        return false
+    end
+    for i = indsn, j = i:last(indsn)
+        if !isapprox(A[i,j], adjoint(A[j,i]); kwargs...)
+            return false
+        end
+    end
+    return true
+end

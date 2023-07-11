@@ -123,7 +123,7 @@ to_gauge(::Wannier, H) = H
 to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 
 function to_gauge(::Hamiltonian, H::AbstractMatrix)
-    ishermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
+    isapproxhermitian(H, atol=1e-12) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
     eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
 end
 
