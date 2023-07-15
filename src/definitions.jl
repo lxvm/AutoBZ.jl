@@ -87,6 +87,11 @@ Abstract supertype for all Wannier-interpolated quantities in `AutoBZ`
 """
 abstract type AbstractWannierInterp{N,T} <: AbstractFourierSeries{N,T} end
 
+# by just evaluating the interpolant we simplify type inference
+function fourier_type(f::AbstractWannierInterp, ::Type{T}) where {T}
+    return typeof(f(fill(oneunit(eltype(T)), SVector{ndims(f),eltype(T)})))
+end
+
 #=
     DEFINITIONS FOR INTERPOLATED TENSOR OPERATORS WITH BAND/ORBITAL INDICES
 =#

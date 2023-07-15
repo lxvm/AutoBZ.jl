@@ -38,15 +38,6 @@ evaluate(h::HamiltonianInterp, x::NTuple{1}) =
 
 coefficients(h::HamiltonianInterp) = coefficients(h.f)
 
-function fourier_type(h::HamiltonianInterp, x)
-    T = fourier_type(h.f, x)
-    if gauge(h) isa Wannier
-        return T
-    else
-        return typeof(eigen(Hermitian(one(T))))
-    end
-end
-
 struct InplaceHamiltonianInterp end
 GaugeDefault(::Type{<:InplaceHamiltonianInterp}) = Wannier()
 
@@ -75,11 +66,6 @@ contract(bc::BerryConnectionInterp, x::Number, ::Val{d}) where d =
 function evaluate(bc::BerryConnectionInterp, x::NTuple{1})
     as = map(herm, evaluate(bc.a, x)) # take Hermitian part of A since Wannier90 may not enforce it
     return to_coord(bc, bc.B, SVector(as))
-end
-
-function fourier_type(a::BerryConnectionInterp, x)
-    T = fourier_type(eltype(eltype(a.a)), x)
-    return SVector{length(a.a.fs),T}
 end
 
 struct InplaceBerryConnectionInterp end
@@ -144,15 +130,6 @@ function evaluate(hv::GradientVelocityInterp, x::NTuple{1})
     return (h, to_coord(hv, hv.A, SVector(vs)))
 end
 
-function fourier_type(hv::GradientVelocityInterp, x)
-    T = fourier_type(hv.h, x)
-    V = SVector{ndims(hv.h)+length(hv.v),T}
-    if gauge(hv) isa Wannier
-        return Tuple{T,V}
-    else
-        return Tuple{typeof(eigen(Hermitian(one(T)))),V}
-    end
-end
 
 """
     InplaceGradientVelocityInterp(H::Hamiltonian{Val(:Wannier)}, A; gauge=:Wannier, vcord=:lattice, vcomp=:whole)
@@ -210,15 +187,6 @@ function evaluate(hv::InplaceGradientVelocityInterp, x::NTuple{1})
     return (h, to_coord(hv, hv.A, SVector(vs)))
 end
 
-function fourier_type(hv::InplaceGradientVelocityInterp, x)
-    T = fourier_type(hv.h, x)
-    V = SVector{length(hv.u)+length(hv.v),T}
-    if gauge(hv) isa Wannier
-        return Tuple{T,V}
-    else
-        return Tuple{typeof(eigen(Hermitian(one(T)))),V}
-    end
-end
 
 """
     covariant_velocity(H, Hα, Aα)
@@ -278,16 +246,6 @@ function evaluate(chv::CovariantVelocityInterp, x::NTuple{1})
     as = evaluate(chv.a, x)
     to_vcomp_gauge(chv, hw, map((v, a) -> covariant_velocity(hw, v, a), vws, as))
     # Note that we already enforced the final coordinate in the inner constructor
-end
-
-function fourier_type(hv::CovariantVelocityInterp, x)
-    T = fourier_type(hv.hv.h, x)
-    V = fourier_type(hv.a, x)
-    if gauge(hv) isa Wannier
-        return Tuple{T,V}
-    else
-        return Tuple{typeof(eigen(Hermitian(one(T)))),V}
-    end
 end
 
 struct InplaceCovariantVelocityInterp end
