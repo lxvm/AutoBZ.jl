@@ -266,3 +266,69 @@ end
 function Base.zero(::Type{FourierValue{X,S}}) where {X,A,B,C,D<:Eigen{A,B,C},V,S<:Tuple{D,V}}
     return FourierValue(zero(X),(eigen(Hermitian(zero(C))), zero(V)))
 end
+
+# ----------------
+
+
+struct MassVelocityInterp{C,B,G,N,T,H,V,M,TA} <: AbstractVelocityInterp{C,B,G,N,T}
+    h::H
+    v::V
+    m::M
+    A::TA
+    MassVelocityInterp{C,B,G}(h::H, v::V, m::M, A::TA) where {C,B,G,H<:HamiltonianInterp{GaugeDefault(HamiltonianInterp)},V,M,TA} =
+        new{C,B,G,ndims(h),eltype(h),H,V,M,TA}(h, v, m, A)
+end
+
+function MassVelocityInterp(h::HamiltonianInterp{GaugeDefault(HamiltonianInterp)}, A;
+    gauge=GaugeDefault(GradientVelocityInterp),
+    coord=CoordDefault(GradientVelocityInterp),
+    vcomp=VcompDefault(GradientVelocityInterp))
+    h.f isa FourierSeries || throw(ArgumentError("h must not be inplace"))
+    MassVelocityInterp{vcomp,coord,gauge}(h, (), (), A)
+end
+
+hamiltonian(hv::MassVelocityInterp) = hv.h
+CoordDefault(::Type{<:MassVelocityInterp}) = Lattice()
+GaugeDefault(::Type{<:MassVelocityInterp}) = Wannier()
+VcompDefault(::Type{<:MassVelocityInterp}) = Whole()
+
+function contract(hv::MassVelocityInterp{C,B,G}, x::Number, ::Val{d}) where {C,B,G,d}
+    h = contract(hv.h, x, Val(d))
+    tpx = 2pi*x
+    v = map(vi -> contract(vi, tpx, Val(d)), hv.v)
+    # compute the derivative of the current dimension
+    dv = deriv(hv.h.f)
+    vd = contract(FourierSeries(hv.h.f.c, period=map(x->2pi*x, period(hv.h.f)), deriv=ntuple(n -> n == d ? raise_multiplier(dv[d]) : dv[n], Val(ndims(hv))), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx, Val(d))
+    # compute second derivative of the current dimension
+    m = map(y -> map(x -> contract(x, tpx, Val(d)), y), hv.m)
+    vdd = map(vi -> contract(FourierSeries(vi.c, period=period(vi), deriv=ntuple(n -> n == d ? raise_multiplier(dv[d]) : dv[n], Val(ndims(hv))), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx, Val(d)), hv.v)
+    vd2 = contract(FourierSeries(hv.h.f.c, period=map(x->2pi*x, period(hv.h.f)), deriv=ntuple(n -> n == d ? raise_multiplier(raise_multiplier(dv[d])) : dv[n], Val(ndims(hv))), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx, Val(d))
+    MassVelocityInterp{C,B,G}(h, (vd, v...), ((vd2, vdd...), m...), hv.A)
+end
+
+function evaluate(hv::MassVelocityInterp, x::NTuple{1})
+    tpx = (2pi*x[1],)   # period adjusted to correct for angular coordinates in derivative
+    v = map(vi -> evaluate(vi, tpx), hv.v)
+    # compute the derivative of the current dimension
+    v1 = evaluate(FourierSeries(hv.h.f.c, period=(2pi*period(hv.h.f)[1]), deriv=(raise_multiplier(deriv(hv.h.f)[1]),), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx)
+    # compute second derivative of the current dimension
+    m = map(y -> map(x -> evaluate(x, tpx), y), hv.m)
+    vdd = map(vi -> evaluate(FourierSeries(vi.c, period=period(vi), deriv=(raise_multiplier(deriv(hv.h.f)[1]),), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx), hv.v)
+    vd2 = evaluate(FourierSeries(hv.h.f.c, period=map(x->2pi*x, period(hv.h.f)), deriv=(raise_multiplier(raise_multiplier(deriv(hv.h.f)[1])),), offset=offset(hv.h.f), shift=shift(hv.h.f)), tpx)
+    # wrapup
+    m_ = tunroll((vd2, vdd...), m...)
+    h, vs, ms = to_vcomp_gauge_mass(hv, evaluate(hv.h, x), (v1, v...), m_)
+    # We want a compact representation of the Hessian, which is symmetric, however we can't
+    # use LinearAlgebra.Symmetric because it is recursive
+    # https://github.com/JuliaLang/julia/pull/25688
+    # so we need a SSymmetricCompact type
+    masses = SVector{StaticArrays.triangularnumber(length(vs)),typeof(vd2)}(ms)
+    return (h, to_coord(hv, hv.A, SVector(vs)), to_coord(hv, hv.A, SSymmetricCompact(masses)))
+end
+
+tunroll() = ()
+tunroll(x::Tuple, y::Tuple...) = (x..., tunroll(y...)...)
+
+function Base.zero(::Type{FourierValue{X,S}}) where {X,A,B,C,D<:Eigen{A,B,C},V,M,S<:Tuple{D,V,M}}
+    return FourierValue(zero(X),(eigen(Hermitian(zero(C))), zero(V), zero(M)))
+end

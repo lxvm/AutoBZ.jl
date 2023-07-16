@@ -232,7 +232,9 @@ coord_to_rep(::Cartesian) = CartesianRep()
 If `B` and `D` are the same type return `vs`, however and if they differ return `A*vs`.
 """
 to_coord(::T, ::T, A, vs) where {T<:AbstractCoordinate} = vs
-to_coord(::AbstractCoordinate, ::AbstractCoordinate, A, vs) = A * vs
+to_coord(::AbstractCoordinate, ::AbstractCoordinate, A, vs) = to_coord_(A, vs)
+to_coord_(A, vs::AbstractVector) = A * vs
+to_coord_(A, vs::AbstractMatrix) = A * vs * transpose(A) # would be nice if this kept vs Symmetric
 
 """
     AbstractCoordInterp{B,G,N,T} <:AbstractGaugeInterp{G,N,T}
@@ -299,6 +301,16 @@ Singleton type representing intraband velocities
 """
 struct Intra <: AbstractVelocityComponent end
 
+to_vcomp_gauge_mass(::Whole, ::Wannier, H, vs::NTuple, ms::NTuple) = (H, vs, ms)
+function to_vcomp_gauge_mass(vcomp::C, g::Wannier, H, vs::NTuple, ms::NTuple) where C
+    E, vhs = to_vcomp_gauge(vcomp, Hamiltonian(), H, vs)
+    return to_gauge(g, E, vhs)..., ms
+end
+
+function to_vcomp_gauge_mass(vcomp::C, ::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {C,N,M}
+    E, vhs, mhs = to_gauge(Hamiltonian(), H, vws, mws)
+    return (E, to_vcomp(vcomp, vhs), mhs)
+end
 
 """
     to_vcomp_gauge(::Val{C}, ::Val{G}, h, vs...) where {C,G}
@@ -334,6 +346,11 @@ function to_gauge(g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}) where N
     U = E.vectors
     return (E, ntuple(n -> U' * vws[n] * U, Val(N)))
 end
+function to_gauge(g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {N,M}
+    E = to_gauge(g, H)
+    U = E.vectors
+    return (E, ntuple(n -> U' * vws[n] * U, Val(N)), ntuple(n -> U' * mws[n] * U, Val(M)))
+end
 
 to_vcomp(::Whole, vhs::NTuple{N,T}) where {N,T} = vhs
 to_vcomp(::Inter, vhs::NTuple{N,T}) where {N,T} =
@@ -367,6 +384,9 @@ VcompDefault(::T) where {T<:AbstractVelocityInterp} = VcompDefault(T)
 
 show_details(v::AbstractVelocityInterp) =
     " & $(vcomp(v)) velocity component & $(coord(v)) coordinates & $(gauge(v)) gauge"
+
+to_vcomp_gauge_mass(vi::AbstractVelocityInterp, h, vs::NTuple, ms::NTuple) =
+    to_vcomp_gauge_mass(vcomp(vi), gauge(vi), h, vs, ms)
 
 to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::NTuple) =
     to_vcomp_gauge(vcomp(vi), gauge(vi), h, vs)

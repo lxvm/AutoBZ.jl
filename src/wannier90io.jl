@@ -211,12 +211,14 @@ details.
 function load_interp(::Type{T}, seed; period=1.0, compact=:N,
     gauge=GaugeDefault(T),
     coord=CoordDefault(T),
-    vcomp=VcompDefault(T)) where {T<:Union{GradientVelocityInterp,InplaceGradientVelocityInterp}}
+    vcomp=VcompDefault(T)) where {T<:Union{GradientVelocityInterp,InplaceGradientVelocityInterp,MassVelocityInterp}}
     # for h require the default gauge
     H = if T<:GradientVelocityInterp
         HamiltonianInterp
     elseif T<:InplaceGradientVelocityInterp
         InplaceHamiltonianInterp
+    elseif T<:MassVelocityInterp
+        HamiltonianInterp
     else
         throw(ArgumentError("unrecognized gradient velocity type"))
     end
