@@ -159,6 +159,22 @@ show_details(w::AbstractGaugeInterp) =
 
 to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
 
+abstract type AbstractHamiltonianInterp{G,N,T} <: AbstractGaugeInterp{G,N,T} end
+
+"""
+    shift!(h::AbstractHamiltonianInterp, λ::Number)
+
+Modifies and returns `h` such that it returns `h - λ*I`. Will throw a
+`BoundsError` if this operation cannot be done on the existing data.
+"""
+function shift!(h::AbstractHamiltonianInterp, λ_::Number)
+    λ = convert(eltype(eltype(h)), λ_)
+    c = coefficients(h)
+    idx = first(CartesianIndices(c)).I .- offset(h.f) .- 1
+    c[idx...] -= λ*I
+    return h
+end
+
 #=
     DEFINITIONS FOR INTERPOLATED TENSOR OPERATORS WITH COORDINATE INDICES
 =#

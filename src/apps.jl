@@ -95,7 +95,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     Green's function integrands accepting a self energy Σ that can either be a matrix or a
     function of ω (see the self energy section of the documentation for examples)
     """
-    @eval function $T(h::HamiltonianInterp, Σ, args...; kwargs...)
+    @eval function $T(h::AbstractHamiltonianInterp, Σ, args...; kwargs...)
         return FourierIntegrand($f, h, Σ, args...; kwargs...)
     end
 
@@ -544,8 +544,8 @@ function dos_fermi_integrand(ω, ::Val{ispar}, dos_, β, μ) where {ispar}
 end
 
 """
-    ElectronDensityIntegrand([bz=FullBZ], alg::AutoBZAlgorithm, h::HamiltonianInterp, Σ; β, [μ=0])
-    ElectronDensityIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, h::HamiltonianInterp, Σ; β, [μ=0])
+    ElectronDensityIntegrand([bz=FullBZ], alg::AutoBZAlgorithm, h::AbstractHamiltonianInterp, Σ; β, [μ=0])
+    ElectronDensityIntegrand([lb=lb(Σ), ub=ub(Σ),] alg, h::AbstractHamiltonianInterp, Σ; β, [μ=0])
 
 A function whose integral over the BZ gives the electron density.
 Mathematically, this computes
@@ -559,14 +559,14 @@ integral.
 
 To get the density/number of electrons, multiply the result of this integral by `n_sp/det(bz.B)`
 """
-function ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::HamiltonianInterp, Σ, args...;
+function ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::AbstractHamiltonianInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     dos_int = DOSIntegrand(h, Σ)
     dos_solver = IntegralSolver(dos_int, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     # dos_solver(0.0, 0) # precompile the solver
     return Integrand(dos_fermi_integrand, dos_solver, args...; kwargs...)
 end
-function ElectronDensityIntegrand(alg::AutoBZAlgorithm, h::HamiltonianInterp, Σ, args...; kwargs...)
+function ElectronDensityIntegrand(alg::AutoBZAlgorithm, h::AbstractHamiltonianInterp, Σ, args...; kwargs...)
     return ElectronDensityIntegrand(FullBZ(2pi*I(ndims(h))), alg, h, Σ, args...; kwargs...)
 end
 
@@ -601,14 +601,14 @@ function electron_density_integrand(h_k::FourierValue, ::Val{ispar}, f) where {i
     return frequency_solver(h_k)
 end
 
-function ElectronDensityIntegrand(lb, ub, alg, h::HamiltonianInterp, Σ, args...;
+function ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
     frequency_integrand = Integrand(dos_fermi_integrand_inside, Σ, h(fill(0.0, ndims(h))))
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
     # frequency_solver(h(fill(0.0, ndims(h))), 1.0, 0) # precompile the solver
     return FourierIntegrand(electron_density_integrand, h, frequency_solver, args...; kwargs...)
 end
-function ElectronDensityIntegrand(alg, h::HamiltonianInterp, Σ, args...; kwargs...)
+function ElectronDensityIntegrand(alg, h::AbstractHamiltonianInterp, Σ, args...; kwargs...)
     return ElectronDensityIntegrand(lb(Σ), ub(Σ), alg, h, Σ, args...; kwargs...)
 end
 

@@ -67,6 +67,8 @@ include("bzkinds.jl")
 export load_self_energy
 include("self_energies_io.jl")
 
+include("soc.jl")
+
 export load_interp, load_wannier90_data
 include("wannier90io.jl")
 
