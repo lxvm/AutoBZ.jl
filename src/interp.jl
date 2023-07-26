@@ -229,7 +229,7 @@ function evaluate(hv::MassVelocityInterp, x::NTuple{1})
     # use LinearAlgebra.Symmetric because it is recursive
     # https://github.com/JuliaLang/julia/pull/25688
     # so we need a SSymmetricCompact type
-    masses = SVector{StaticArrays.triangularnumber(length(vs)),typeof(vd2)}(ms)
+    masses = SVector{StaticArrays.triangularnumber(length(vs)),eltype(ms)}(ms)
     return (h, to_coord(hv, hv.A, SVector(vs)), to_coord(hv, hv.A, SSymmetricCompact(masses)))
 end
 
