@@ -161,18 +161,17 @@ function evaluate(chv::CovariantVelocityInterp, x::NTuple{1})
 end
 
 # some special methods for inferring the rule
+@inline zero_eig(::Type{T}) where {T} = zero(T)
+@inline zero_eig(::Type{<:Eigen{A,B,C}}) where {A,B,C} = eigen(Hermitian(zero(C)))
+
 # for HamiltonianInterp
-function Base.zero(::Type{FourierValue{X,S}}) where {X,A,B,C,S<:Eigen{A,B,C}}
-    return FourierValue(zero(X),eigen(Hermitian(zero(C))))
+function Base.zero(::Type{FourierValue{X,S}}) where {X,S<:Eigen}
+    return FourierValue(zero(X),zero_eig(S))
 end
 # for the velocity interps
-function Base.zero(::Type{FourierValue{X,S}}) where {X,W,V,S<:Tuple{W,V}}
-    return FourierValue(zero(X),(zero(W), zero(V)))
+function Base.zero(::Type{FourierValue{X,T}}) where {X,T<:Tuple}
+    return FourierValue(zero(X), ntuple(i -> zero_eig(fieldtype(T,i)),Val(fieldcount(T))))
 end
-function Base.zero(::Type{FourierValue{X,S}}) where {X,A,B,C,D<:Eigen{A,B,C},V,S<:Tuple{D,V}}
-    return FourierValue(zero(X),(eigen(Hermitian(zero(C))), zero(V)))
-end
-
 # ----------------
 
 
@@ -235,7 +234,3 @@ end
 
 tunroll() = ()
 tunroll(x::Tuple, y::Tuple...) = (x..., tunroll(y...)...)
-
-function Base.zero(::Type{FourierValue{X,S}}) where {X,A,B,C,D<:Eigen{A,B,C},V,M,S<:Tuple{D,V,M}}
-    return FourierValue(zero(X),(eigen(Hermitian(zero(C))), zero(V), zero(M)))
-end
