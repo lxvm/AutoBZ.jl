@@ -4,7 +4,6 @@ using LinearAlgebra
 using StaticArrays
 
 using OffsetArrays
-using SymmetryReduceBZ
 using AutoBZ
 
 function integer_lattice(n)
@@ -200,10 +199,6 @@ end
         end
     end
 end
-
-# @testset "SymmetryReduceBZExt" begin
-#     include("test_ibz.jl")
-# end
 
 # @testset "BrillouinPlotlyExt" begin
 # end

@@ -373,6 +373,21 @@ end
 load_interp(seedname::String; kwargs...) =
     load_interp(HamiltonianInterp, seedname; kwargs...)
 
+"""
+    load_autobz(::AbstractBZ, seedname; kws...)
+
+Automatically load a BZ using data from a "seedname.wout" file with the `load_bz` interface
+from AutoBZCore.
+"""
+function load_autobz(bz::AbstractBZ, seedname::String; atol=1e-5)
+    A, B, = parse_wout(seedname * ".wout")
+    return load_bz(bz, A, B; atol=atol)
+end
+load_autobz(seedname::String; kws...) = load_bz(FBZ(), seedname; kws...)
+function load_autobz(bz::IBZ, seedname::String; kws...)
+    a, b, species, site, frac_lat, cart_lat = parse_wout(seedname * ".wout")
+    return load_bz(bz, a, species, frac_lat; kws..., coordinates="lattice")
+end
 
 """
     load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp, kwargs...)
@@ -380,13 +395,13 @@ load_interp(seedname::String; kwargs...) =
 Return a tuple `(interp, bz)` containing the requested Wannier interpolant,
 `interp` and the Brillouin zone `bz` to integrate over. The `seedname` should
 point to Wannier90 data to read in. Additional keywords are passed to the
-interpolant constructor, [`load_interp`](@ref), while [`load_bz`](@ref) can be
+interpolant constructor, [`load_interp`](@ref), while [`load_autobz`](@ref) can be
 referenced for Brillouin zone details. For a list of possible keywords, see
 `subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
 """
-function load_wannier90_data(seedname::String; bz=FBZ(), interp=HamiltonianInterp, kwargs...)
+function load_wannier90_data(seedname::String; load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     wi = load_interp(interp, seedname; kwargs...)
-    bz = load_bz(bz, seedname)
+    bz = load_autobz(bz, seedname)
 
     if bz.syms !== nothing
         k = rand(SVector{ndims(bz),eltype(bz)})
@@ -428,6 +443,4 @@ function calc_interp_error(hv::AbstractVelocityInterp, val, err)
 end
 calc_interp_error(::BerryConnectionInterp, val, err) = NaN
 
-function read_w90_hrdat end
-function read_w90_rdat end
-function read_wout end
+function load_wannierio_interp end

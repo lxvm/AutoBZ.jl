@@ -1,53 +1,4 @@
 #=
-    DEFINITIONS FOR BRILLOUIN ZONE SYMMETRIES
-=#
-
-"""
-    AbstractBZ
-
-Abstract supertype for all Brillouin zone data types
-"""
-abstract type AbstractBZ end
-
-"""
-    FBZ <: AbstractBZ
-
-Singleton type representing first/full Brillouin zones
-"""
-struct FBZ <: AbstractBZ end
-
-"""
-    IBZ <: AbstractBZ
-
-Singleton type representing irreducible Brillouin zones
-"""
-struct IBZ{P} <: AbstractBZ end
-
-struct DefaultPolyhedron end
-
-IBZ() = IBZ{DefaultPolyhedron}()
-
-"""
-    HBZ <: AbstractBZ
-
-Singleton type representing Brillouin zones with full inversion symmetry
-
-!!! warning "Assumptions"
-    Only expect this to work for systems with orthogonal lattice vectors
-"""
-struct HBZ <: AbstractBZ end
-
-"""
-    CubicSymIBZ <: AbstractBZ
-
-Singleton type representing Brillouin zones with full cubic symmetry
-
-!!! warning "Assumptions"
-    Only expect this to work for systems with orthogonal lattice vectors
-"""
-struct CubicSymIBZ <: AbstractBZ end
-
-#=
     DEFINITIONS FOR SELF ENERGY INTERPOLANTS
 =#
 
@@ -81,11 +32,11 @@ function ub end
 =#
 
 """
-    AbstractWannierInterp{N,T} <: AbstractFourierSeries{N,T}
+    AbstractWannierInterp{N} <: AbstractFourierSeries{N}
 
 Abstract supertype for all Wannier-interpolated quantities in `AutoBZ`
 """
-abstract type AbstractWannierInterp{N,T} <: AbstractFourierSeries{N,T} end
+abstract type AbstractWannierInterp{N} <: AbstractFourierSeries{N} end
 
 # by just evaluating the interpolant we simplify type inference
 function fourier_type(f::AbstractWannierInterp, ::Type{T}) where {T}
@@ -141,7 +92,7 @@ Fourier series evaluators for Wannier-interpolated quantities with a choice of
 basis, or gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
 For details, see [`to_gauge`](@ref).
 """
-abstract type AbstractGaugeInterp{G,N,T} <: AbstractWannierInterp{N,T} end
+abstract type AbstractGaugeInterp{G,N} <: AbstractWannierInterp{N} end
 
 gauge(::AbstractGaugeInterp{G}) where G = G
 
@@ -159,7 +110,7 @@ show_details(w::AbstractGaugeInterp) =
 
 to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
 
-abstract type AbstractHamiltonianInterp{G,N,T} <: AbstractGaugeInterp{G,N,T} end
+abstract type AbstractHamiltonianInterp{G,N} <: AbstractGaugeInterp{G,N} end
 
 """
     shift!(h::AbstractHamiltonianInterp, λ::Number)
@@ -260,7 +211,7 @@ the coordinate basis `B`, which is either [`Lattice`](@ref) or
 [`Cartesian`](@ref). For details see [`to_coord`](@ref) and
 [`CoordDefault`](@ref).
 """
-abstract type AbstractCoordInterp{B,G,N,T} <:AbstractGaugeInterp{G,N,T} end
+abstract type AbstractCoordInterp{B,G,N} <:AbstractGaugeInterp{G,N} end
 
 """
     CoordDefault(::Type{T})::AbstractCoordinate where T
@@ -377,7 +328,7 @@ to_vcomp(::Intra, vhs::NTuple{N,T}) where {N,T} =
 
 
 """
-    AbstractVelocityInterp{C,B,G,N,T} <:AbstractCoordInterp{B,G,N,T}
+    AbstractVelocityInterp{C,B,G,N} <:AbstractCoordInterp{B,G,N}
 
 An abstract subtype of `AbstractCoordInterp` also containing information the
 velocity component, `C`, which is typically `Val(:whole)`, `Val(:inter)`, or
@@ -385,7 +336,7 @@ velocity component, `C`, which is typically `Val(:whole)`, `Val(:inter)`, or
 Since the velocity depends on the Hamiltonian, subtypes should also evaluate the
 Hamiltonian.
 """
-abstract type AbstractVelocityInterp{C,B,G,N,T} <:AbstractCoordInterp{B,G,N,T} end
+abstract type AbstractVelocityInterp{C,B,G,N} <:AbstractCoordInterp{B,G,N} end
 
 vcomp(::AbstractVelocityInterp{C}) where C = C
 
