@@ -58,8 +58,7 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; gauge=GaugeDefault(Hamil
     A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout")
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
     check_degen(degen, kpts.nkpt)
-    cm = soc === nothing ? compact : Symbol(compact, :_SOC)
-    C = load_coefficients(Val{cm}(), num_wann, irvec, degen, C_)[1]
+    C = load_coefficients(Val{compact}(), num_wann, irvec, degen, C_)[1]
     offset = map(s -> -div(s,2)-1, size(C))
     f = FourierSeries(C; period=period, offset=offset)
     return soc === nothing ? HamiltonianInterp(f, gauge=gauge) : SOCHamiltonianInterp(f, soc, gauge=gauge)
@@ -68,20 +67,10 @@ end
 load_coeff_type(::Val{:N}, n) = SMatrix{n,n,ComplexF64,n^2}
 load_coeff_type(::Val, n) = SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}
 
-load_coeff_type(::Val{:N_SOC}, n) = SOC{2n,ComplexF64,SMatrix{n,n,ComplexF64,n^2}}
-load_coeff_type(::Val{:L_SOC}, n) = SOC{2n,ComplexF64,SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}}
-load_coeff_type(::Val{:U_SOC}, n) = SOC{2n,ComplexF64,SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}}
-load_coeff_type(::Val{:S_SOC}, n) = SOC{2n,ComplexF64,SHermitianCompact{n,ComplexF64,StaticArrays.triangularnumber(n)}}
-
 load_coeff(T, ::Val{:N}, c) = c
 load_coeff(T, ::Val{:L}, c) = T(c)
 load_coeff(T, ::Val{:U}, c) = T(c')
 load_coeff(T, ::Val{:S}, c) = T(0.5*(c+c'))
-
-load_coeff(T, ::Val{:N_SOC}, c) = SOC(load_coeff(fieldtype(T,:A), Val(:N), c))
-load_coeff(T, ::Val{:L_SOC}, c) = SOC(load_coeff(fieldtype(T,:A), Val(:L), c))
-load_coeff(T, ::Val{:U_SOC}, c) = SOC(load_coeff(fieldtype(T,:A), Val(:U), c))
-load_coeff(T, ::Val{:S_SOC}, c) = SOC(load_coeff(fieldtype(T,:A), Val(:S), c))
 
 function load_coefficients(compact, num_wann, irvec, degen, cs...)
     return load_coefficients(compact, num_wann, irvec, degen, cs)
@@ -180,12 +169,14 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; coord=CoordDefault(B
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat")
     check_degen(degen, kpts.nkpt)
     date_time, num_wann, nrpts, irvec, A1_, A2_, A3_ = parse_position_operator(seed * "_r.dat", rot)
-    c = soc === nothing ? compact : Symbol(compact, :_SOC)
-    A1, A2, A3 = load_coefficients(Val{c}(), num_wann, irvec, degen, A1_, A2_, A3_)
-    F1 = FourierSeries(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
-    F2 = FourierSeries(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
-    F3 = FourierSeries(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
-    BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3), irot; coord=coord)
+    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, A1_, A2_, A3_)
+    F1_ = FourierSeries(A1; period=period, offset=map(s -> -div(s,2)-1, size(A1)))
+    F1  = soc === nothing ? F1_ : WrapperSeries(F1_, wrap_soc)
+    F2_ = FourierSeries(A2; period=period, offset=map(s -> -div(s,2)-1, size(A2)))
+    F2  = soc === nothing ? F2_ : WrapperSeries(F2_, wrap_soc)
+    F3_ = FourierSeries(A3; period=period, offset=map(s -> -div(s,2)-1, size(A3)))
+    F3  = soc === nothing ? F3_ : WrapperSeries(F3_, wrap_soc)
+    BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3; period=period), irot; coord=coord)
 end
 
 """
@@ -207,28 +198,36 @@ and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
 [`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
 details.
 """
-function load_interp(::Type{T}, seed; period=1.0, compact=:N, soc=nothing,
-    gauge=GaugeDefault(T),
-    coord=CoordDefault(T),
-    vcomp=VcompDefault(T)) where {T<:Union{GradientVelocityInterp,MassVelocityInterp}}
+function load_interp(::Type{<:GradientVelocityInterp}, seed, A=parse_wout(seed * ".wout")[1]; period=1.0, compact=:N, soc=nothing,
+    gauge=GaugeDefault(GradientVelocityInterp),
+    coord=CoordDefault(GradientVelocityInterp),
+    vcomp=VcompDefault(GradientVelocityInterp))
     # for h require the default gauge
     h = load_interp(HamiltonianInterp, seed; period=period, compact=compact, soc=soc)
-    A = parse_wout(seed * ".wout")[1] # get A for map from lattice to Cartesian coordinates
-    T(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    return GradientVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
 """
     load_covariant_hamiltonian_velocities(seed; period=1.0, compact=:N,
     gauge=Wannier(), vcomp=whole(), coord=Lattice())
 """
-function load_interp(::Type{<:CovariantVelocityInterp}, seed; period=1.0, compact=:N, soc=nothing,
+function load_interp(::Type{<:CovariantVelocityInterp}, seed, A=parse_wout(seed * ".wout")[1]; period=1.0, compact=:N, soc=nothing,
     gauge=GaugeDefault(CovariantVelocityInterp),
     coord=CoordDefault(CovariantVelocityInterp),
     vcomp=VcompDefault(CovariantVelocityInterp))
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed; coord=coord, period=period, compact=compact, soc=soc)
+    hv = load_interp(GradientVelocityInterp, seed, A; coord=coord, period=period, compact=compact, soc=soc)
     a = load_interp(BerryConnectionInterp, seed; coord=coord, period=period, compact=compact, soc=soc)
-    CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
+    return CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
+end
+
+function load_interp(::Type{<:MassVelocityInterp}, seed, A=parse_wout(seed * ".wout")[1]; period=1.0, compact=:N, soc=nothing,
+    gauge=GaugeDefault(MassVelocityInterp),
+    coord=CoordDefault(MassVelocityInterp),
+    vcomp=VcompDefault(MassVelocityInterp))
+    # for h require the default gauge
+    h = load_interp(HamiltonianInterp, seed; period=period, compact=compact, soc=soc)
+    return MassVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
 """
@@ -383,10 +382,9 @@ function load_autobz(bz::AbstractBZ, seedname::String; atol=1e-5)
     A, B, = parse_wout(seedname * ".wout")
     return load_bz(bz, A, B; atol=atol)
 end
-load_autobz(seedname::String; kws...) = load_bz(FBZ(), seedname; kws...)
 function load_autobz(bz::IBZ, seedname::String; kws...)
     a, b, species, site, frac_lat, cart_lat = parse_wout(seedname * ".wout")
-    return load_bz(bz, a, species, frac_lat; kws..., coordinates="lattice")
+    return load_bz(convert(AbstractBZ{3}, bz), a, b, species, frac_lat; kws..., coordinates="lattice")
 end
 
 """
@@ -400,11 +398,15 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 `subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
 """
 function load_wannier90_data(seedname::String; load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
-    wi = load_interp(interp, seedname; kwargs...)
     bz = load_autobz(bz, seedname)
+    wi = if interp <: AbstractVelocityInterp
+        load_interp(interp, seedname, bz.A; kwargs...)
+    else
+        load_interp(interp, seedname; kwargs...)
+    end
 
     if bz.syms !== nothing
-        k = rand(SVector{ndims(bz),eltype(bz)})
+        k = rand(SVector{checksquare(bz.B),eltype(bz.B)})
         ref = wi(k)
         err, idx = findmax(bz.syms) do S
             val = wi(S*k)

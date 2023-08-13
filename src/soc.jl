@@ -106,25 +106,43 @@ function t2g_coupling(λ::Number=1)
     return (kron(σˣ, ϵˣ) + kron(σʸ, ϵʸ) + kron(σᶻ, ϵᶻ)) * λ * im // 2
 end
 
-struct SOCHamiltonianInterp{G,N,T,F,L} <: AbstractHamiltonianInterp{G,N,T}
-    f::F
+struct WrapperSeries{S,N,iip,C,A,T,F,W} <: AbstractFourierSeries{N,T,iip}
+    s::FourierSeries{S,N,iip,C,A,T,F}
+    w::W
+end
+
+Base.parent(s::WrapperSeries) = s.s
+
+period(s::WrapperSeries) = period(parent(s))
+frequency(s::WrapperSeries) = frequency(parent(s))
+allocate(s::WrapperSeries, x, dim) = allocate(parent(s), x, dim)
+function contract!(cache, s::WrapperSeries, x, dim)
+    return WrapperSeries(contract!(cache, parent(s), x, dim), s.w)
+end
+evaluate!(cache, s::WrapperSeries, x) = s.w(evaluate!(cache, parent(s), x))
+nextderivative(s::WrapperSeries, dim) = WrapperSeries(nextderivative(parent(s), dim), s.w)
+
+wrap_soc(A) = SOC(A)
+
+struct SOCHamiltonianInterp{G,S,N,iip,C,A,T,F,L} <: AbstractHamiltonianInterp{G,N,T,iip}
+    s::WrapperSeries{S,N,iip,C,A,T,F,typeof(wrap_soc)}
     λ::L
-    SOCHamiltonianInterp{G}(f::F, λ::L) where {G,F<:FourierSeries,L} =
-        new{G,ndims(f),eltype(f),F,L}(f,λ)
+    SOCHamiltonianInterp{G}(s::WrapperSeries{S,N,iip,C,A,T,F,typeof(wrap_soc)}, λ::L) where {G,S,N,iip,C,A,T,F,L} =
+        new{G,S,N,iip,C,A,T,F,L}(s,λ)
 end
 
-function SOCHamiltonianInterp(f, λ::AbstractMatrix; gauge=GaugeDefault(SOCHamiltonianInterp))
-    return SOCHamiltonianInterp{gauge}(f, λ)
+function SOCHamiltonianInterp(s::FourierSeries, λ::AbstractMatrix; gauge=GaugeDefault(SOCHamiltonianInterp))
+    return SOCHamiltonianInterp{gauge}(WrapperSeries(s, wrap_soc), λ)
 end
-
-contract(h::SOCHamiltonianInterp, x::Number, ::Val{d}) where d =
-    SOCHamiltonianInterp{gauge(h)}(contract(h.f, x, Val(d)), h.λ)
-
-period(h::SOCHamiltonianInterp) = period(h.f)
-
-evaluate(h::SOCHamiltonianInterp, x::NTuple{1}) =
-    to_gauge(h, evaluate(h.f, x) + h.λ)
 
 GaugeDefault(::Type{<:SOCHamiltonianInterp}) = Wannier()
+Base.parent(h::SOCHamiltonianInterp) = h.s
 
-coefficients(h::SOCHamiltonianInterp) = coefficients(h.f)
+period(h::SOCHamiltonianInterp) = period(parent(h))
+frequency(h::SOCHamiltonianInterp) = frequency(parent(h))
+allocate(h::SOCHamiltonianInterp, x, dim) = allocate(parent(h), x, dim)
+function contract!(cache, h::SOCHamiltonianInterp, x, dim)
+    return SOCHamiltonianInterp{gauge(h)}(contract!(cache, parent(h), x, dim), h.λ)
+end
+evaluate!(cache, h::SOCHamiltonianInterp, x) = to_gauge(h, evaluate!(cache, parent(h), x) + h.λ)
+nextderivative(h::SOCHamiltonianInterp, dim) = nextderivative(parent(h), dim)

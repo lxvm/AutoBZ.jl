@@ -32,11 +32,11 @@ function ub end
 =#
 
 """
-    AbstractWannierInterp{N} <: AbstractFourierSeries{N}
+    AbstractWannierInterp{N,T,iip} <: AbstractFourierSeries{N,T,iip}
 
 Abstract supertype for all Wannier-interpolated quantities in `AutoBZ`
 """
-abstract type AbstractWannierInterp{N} <: AbstractFourierSeries{N} end
+abstract type AbstractWannierInterp{N,T,iip} <: AbstractFourierSeries{N,T,iip} end
 
 # by just evaluating the interpolant we simplify type inference
 function fourier_type(f::AbstractWannierInterp, ::Type{T}) where {T}
@@ -79,20 +79,22 @@ to_gauge(::Wannier, H) = H
 to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 
 function to_gauge(::Hamiltonian, H::AbstractMatrix)
+    # this test will fail if we do contour deformation. It would be better to check the
+    # types of the inputs are real instead, but we don't have access to the FourierValue
     isapproxhermitian(H, atol=1e-12) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
     eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
 end
 
 
 """
-    AbstractGaugeInterp{G,N,T} <: AbstractWannierInterp{N,T}
+    AbstractGaugeInterp{G,N,T,iip} <: AbstractWannierInterp{N,T,iip}
 
 An abstract subtype of `AbstractFourierSeries` representing in-place
 Fourier series evaluators for Wannier-interpolated quantities with a choice of
 basis, or gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
 For details, see [`to_gauge`](@ref).
 """
-abstract type AbstractGaugeInterp{G,N} <: AbstractWannierInterp{N} end
+abstract type AbstractGaugeInterp{G,N,T,iip} <: AbstractWannierInterp{N,T,iip} end
 
 gauge(::AbstractGaugeInterp{G}) where G = G
 
@@ -106,11 +108,32 @@ GaugeDefault(::T) where {T<:AbstractGaugeInterp} = GaugeDefault(T)
 
 
 show_details(w::AbstractGaugeInterp) =
-    " & $(gauge(w)) gauge"
+    " in $(gauge(w)) gauge"
 
 to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
 
-abstract type AbstractHamiltonianInterp{G,N} <: AbstractGaugeInterp{G,N} end
+"""
+    AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip}
+
+Abstract type representing Hamiltonians, which are matrix-valued Hermitian Fourier series.
+"""
+abstract type AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip} end
+
+"""
+    parent(::AbstractHamiltonianInterp)::FourierSeries
+
+Return the Fourier series that the Hamiltonian wraps
+"""
+Base.parent(::AbstractHamiltonianInterp)
+
+show_dims(h::AbstractHamiltonianInterp) = show_dims(parent(h))
+
+function shift!(f::FourierSeries, λ_::Number)
+    λ = convert(eltype(eltype(f.c)), λ_)
+    idx = map((i,o) -> i-o-1, first(CartesianIndices(f.c)).I, f.o)
+    f.c[idx...] -= λ*I
+    return f
+end
 
 """
     shift!(h::AbstractHamiltonianInterp, λ::Number)
@@ -118,11 +141,8 @@ abstract type AbstractHamiltonianInterp{G,N} <: AbstractGaugeInterp{G,N} end
 Modifies and returns `h` such that it returns `h - λ*I`. Will throw a
 `BoundsError` if this operation cannot be done on the existing data.
 """
-function shift!(h::AbstractHamiltonianInterp, λ_::Number)
-    λ = convert(eltype(eltype(h)), λ_)
-    c = coefficients(h)
-    idx = first(CartesianIndices(c)).I .- offset(h.f) .- 1
-    c[idx...] -= λ*I
+function shift!(h::AbstractHamiltonianInterp, λ::Number)
+    shift!(parent(h), λ)
     return h
 end
 
@@ -204,14 +224,14 @@ to_coord_(A, vs::AbstractVector) = A * vs
 to_coord_(A, vs::AbstractMatrix) = A * vs * transpose(A) # would be nice if this kept vs Symmetric
 
 """
-    AbstractCoordInterp{B,G,N,T} <:AbstractGaugeInterp{G,N,T}
+    AbstractCoordInterp{B,G,N,T,iip} <:AbstractGaugeInterp{G,N,T,iip}
 
 An abstract subtype of `AbstractGaugeInterp` also containing information about
 the coordinate basis `B`, which is either [`Lattice`](@ref) or
 [`Cartesian`](@ref). For details see [`to_coord`](@ref) and
 [`CoordDefault`](@ref).
 """
-abstract type AbstractCoordInterp{B,G,N} <:AbstractGaugeInterp{G,N} end
+abstract type AbstractCoordInterp{B,G,N,T,iip} <:AbstractGaugeInterp{G,N,T,iip} end
 
 """
     CoordDefault(::Type{T})::AbstractCoordinate where T
@@ -234,7 +254,7 @@ to_coord(ci::AbstractCoordInterp, A, x) =
     to_coord(coord(ci), CoordDefault(ci), A, x)
 
 show_details(v::AbstractCoordInterp) =
-    " & $(coord(v)) coordinates & $(gauge(v)) gauge"
+    " in $(gauge(v)) gauge and $(coord(v)) coordinates"
 
 #=
     DEFINITIONS FOR INTERPOLATED VELOCITY OPERATORS
@@ -328,7 +348,7 @@ to_vcomp(::Intra, vhs::NTuple{N,T}) where {N,T} =
 
 
 """
-    AbstractVelocityInterp{C,B,G,N} <:AbstractCoordInterp{B,G,N}
+    AbstractVelocityInterp{C,B,G,N,T,iip} <:AbstractCoordInterp{B,G,N,T,iip}
 
 An abstract subtype of `AbstractCoordInterp` also containing information the
 velocity component, `C`, which is typically `Val(:whole)`, `Val(:inter)`, or
@@ -336,7 +356,7 @@ velocity component, `C`, which is typically `Val(:whole)`, `Val(:inter)`, or
 Since the velocity depends on the Hamiltonian, subtypes should also evaluate the
 Hamiltonian.
 """
-abstract type AbstractVelocityInterp{C,B,G,N} <:AbstractCoordInterp{B,G,N} end
+abstract type AbstractVelocityInterp{C,B,G,N,T,iip} <:AbstractCoordInterp{B,G,N,T,iip} end
 
 vcomp(::AbstractVelocityInterp{C}) where C = C
 
@@ -350,7 +370,7 @@ VcompDefault(::T) where {T<:AbstractVelocityInterp} = VcompDefault(T)
 
 
 show_details(v::AbstractVelocityInterp) =
-    " & $(vcomp(v)) velocity component & $(coord(v)) coordinates & $(gauge(v)) gauge"
+    " in $(gauge(v)) gauge and $(coord(v)) coordinates with $(vcomp(v)) velocities"
 
 to_vcomp_gauge_mass(vi::AbstractVelocityInterp, h, vs::NTuple, ms::NTuple) =
     to_vcomp_gauge_mass(vcomp(vi), gauge(vi), h, vs, ms)
@@ -363,13 +383,19 @@ function to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::SVector)
 end
 
 """
-    hamiltonian(::AbstractVelocityInterp)
+    parent(::AbstractVelocityInterp)::DerivativeSeries
 
 Return the Hamiltonian object used for Wannier interpolation
 """
-hamiltonian
+Base.parent(::AbstractVelocityInterp)
 
-coefficients(v::AbstractVelocityInterp) = coefficients(hamiltonian(v))
+Base.parent(d::DerivativeSeries{1}) = d.f
+Base.parent(d::DerivativeSeries) = parent(d.f)
+
+function shift!(d::DerivativeSeries, λ)
+    shift!(parent(d), λ)
+    return d
+end
 
 """
     shift!(::AbstractVelocityInterp, λ)
@@ -377,8 +403,6 @@ coefficients(v::AbstractVelocityInterp) = coefficients(hamiltonian(v))
 Offset the zero-point energy in a Hamiltonian system by a constant
 """
 function shift!(v::AbstractVelocityInterp, λ)
-    shift!(hamiltonian(v), λ)
+    shift!(parent(v), λ)
     return v
 end
-
-period(w::AbstractVelocityInterp) = period(hamiltonian(w))

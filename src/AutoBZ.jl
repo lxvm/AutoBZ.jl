@@ -17,7 +17,7 @@ using Reexport
 @reexport using FourierSeriesEvaluators
 @reexport using AutoBZCore
 
-import FourierSeriesEvaluators: allocate, contract!, evaluate, show_dims, show_details
+import FourierSeriesEvaluators: period, frequency, allocate, contract!, evaluate!, nextderivative, show_dims, show_details
 import AutoBZCore: SymRep, symmetrize_, MixedParameters, AutoBZAlgorithm, AbstractBZ
 
 
