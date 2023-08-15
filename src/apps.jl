@@ -388,7 +388,7 @@ end
 
 function (f::KCFrequencyType)(x, ::CanonicalParameters)
     p = canonize(kc_params, MixedParameters(f.p[1]; n=0, β=1.0, Ω=0.0))
-    return ParameterIntegrand(f.f)(x, p)
+    return ParameterIntegrand(f.f)(zero(x), p)
 end
 
 function AutoBZCore.remake_integrand_cache(f::KCFrequencyType, dom, p, alg, cacheval, kwargs)
@@ -497,7 +497,7 @@ end
 
 function set_autoptr_eta(alg::AutoPTR, ::KineticCoefficientIntegrandType, p)
     # (estimated) eta from self energy evaluated at the Fermi energy
-    M = canonize(evalM, MixedParameters(p[1].f.f.p[1]; ω=0.0))[1]
+    M = canonize(evalM, MixedParameters(p[1].f.p[1]; ω=0.0))[1]
     η = im_sigma_to_eta(-imag(M))
     return set_autoptr_eta(alg, η)
 end
@@ -565,7 +565,7 @@ function AutoBZCore.init_solver_cacheval(f::DensityFrequencyType, dom, alg)
 end
 
 function (f::DensityFrequencyType)(x, ::CanonicalParameters)
-    return ParameterIntegrand(f.f)(x, canonize(dens_params, MixedParameters(f.p[1]; β=1.0)))
+    return ParameterIntegrand(f.f)(zero(x), canonize(dens_params, MixedParameters(f.p[1]; β=1.0)))
 end
 
 function AutoBZCore.remake_integrand_cache(f::DensityFrequencyType, dom, p, alg, cacheval, kwargs)
@@ -656,7 +656,7 @@ function set_autoptr_eta(alg::AutoPTR, ::ElectronDensityIntegrandType, p)
     # (estimated) eta from self energy evaluated at the Fermi energy
     # if we knew β then we would pick the larger of η and inv(β) since there are no
     # interband transitions
-    M = canonize(evalM, MixedParameters(p[1].f.f.p[1]; ω=0.0))[1]
+    M = canonize(evalM, MixedParameters(p[1].f.p[1]; ω=0.0))[1]
     η = im_sigma_to_eta(-imag(M))
     return set_autoptr_eta(alg, η)
 end
