@@ -25,7 +25,6 @@ using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
 
-export AbstractBZ, FBZ, IBZ, HBZ, CubicSymIBZ
 export AbstractSelfEnergy
 export AbstractWannierInterp
 export AbstractGauge, Wannier, Hamiltonian
@@ -33,7 +32,7 @@ export AbstractGaugeInterp, gauge
 export AbstractCoordinate, Lattice, Cartesian
 export AbstractCoordInterp, coord
 export AbstractVelocityComponent, Whole, Inter, Intra
-export AbstractVelocityInterp, vcomp, hamiltonian, shift!
+export AbstractVelocityInterp, vcomp, shift!
 include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
