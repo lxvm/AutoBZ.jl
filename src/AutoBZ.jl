@@ -18,9 +18,9 @@ using Reexport
 @reexport using AutoBZCore
 
 import FourierSeriesEvaluators: period, frequency, allocate, contract!, evaluate!, nextderivative, show_dims, show_details
-import AutoBZCore: SymRep, symmetrize_, MixedParameters, AutoBZAlgorithm, AbstractBZ
+import AutoBZCore: SymRep, symmetrize_, MixedParameters, AutoBZAlgorithm, AbstractBZ, interior_point
 
-
+using FourierSeriesEvaluators: FourierWorkspace
 using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
