@@ -93,6 +93,17 @@ end
 @inline LinearAlgebra.inv(a::SOC) = SOC(inv(a.A))
 @inline LinearAlgebra.tr(a::SOC) = 2tr(a.A)
 
+# we overload A * b::SVector{<:SOC} to deal with a constructor error
+# this could be optimized more (should be 2x faster than full matrix) but is already 10% faster than full
+function Base.:*(A::StaticMatrix{N,N,<:Number}, b::SVector{N,<:SOC}) where {N}
+    @assert N > 0
+    vals = ntuple(Val(N)) do n
+        ntuple(m -> A[n,m]*b[m], Val(N))
+    end
+
+    return SVector(ntuple(n -> +(vals[n]...), Val(N)))
+end
+
 
 # based on eq. 3 of https://doi.org/10.1103/PhysRevB.98.205128
 function t2g_coupling(λ::Number=1)
@@ -106,33 +117,42 @@ function t2g_coupling(λ::Number=1)
     return (kron(σˣ, ϵˣ) + kron(σʸ, ϵʸ) + kron(σᶻ, ϵᶻ)) * λ * im // 2
 end
 
-struct WrapperSeries{S,N,iip,C,A,T,F,W} <: AbstractFourierSeries{N,T,iip}
-    s::FourierSeries{S,N,iip,C,A,T,F}
+struct WrapperFourierSeries{W,S,N,iip,C,A,T,F} <: AbstractFourierSeries{N,T,iip}
     w::W
+    s::FourierSeries{S,N,iip,C,A,T,F}
 end
 
-Base.parent(s::WrapperSeries) = s.s
+Base.parent(s::WrapperFourierSeries) = s.s
 
-period(s::WrapperSeries) = period(parent(s))
-frequency(s::WrapperSeries) = frequency(parent(s))
-allocate(s::WrapperSeries, x, dim) = allocate(parent(s), x, dim)
-function contract!(cache, s::WrapperSeries, x, dim)
-    return WrapperSeries(contract!(cache, parent(s), x, dim), s.w)
+period(s::WrapperFourierSeries) = period(parent(s))
+frequency(s::WrapperFourierSeries) = frequency(parent(s))
+allocate(s::WrapperFourierSeries, x, dim) = allocate(parent(s), x, dim)
+function contract!(cache, s::WrapperFourierSeries, x, dim)
+    return WrapperFourierSeries(s.w, contract!(cache, parent(s), x, dim))
 end
-evaluate!(cache, s::WrapperSeries, x) = s.w(evaluate!(cache, parent(s), x))
-nextderivative(s::WrapperSeries, dim) = WrapperSeries(nextderivative(parent(s), dim), s.w)
+evaluate!(cache, s::WrapperFourierSeries, x) = s.w(evaluate!(cache, parent(s), x))
+nextderivative(s::WrapperFourierSeries, dim) = WrapperFourierSeries(s.w, nextderivative(parent(s), dim))
+
+show_dims(s::WrapperFourierSeries) = show_dims(parent(s))
+show_details(s::WrapperFourierSeries) = show_details(parent(s))
+
+function shift!(s::WrapperFourierSeries, λ)
+    shift!(parent(s), λ)
+    return s
+end
+
 
 wrap_soc(A) = SOC(A)
 
-struct SOCHamiltonianInterp{G,S,N,iip,C,A,T,F,L} <: AbstractHamiltonianInterp{G,N,T,iip}
-    s::WrapperSeries{S,N,iip,C,A,T,F,typeof(wrap_soc)}
+struct SOCHamiltonianInterp{G,N,T,iip,S<:Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}},L} <: AbstractHamiltonianInterp{G,N,T,iip}
+    s::S
     λ::L
-    SOCHamiltonianInterp{G}(s::WrapperSeries{S,N,iip,C,A,T,F,typeof(wrap_soc)}, λ::L) where {G,S,N,iip,C,A,T,F,L} =
-        new{G,S,N,iip,C,A,T,F,L}(s,λ)
+    SOCHamiltonianInterp{G}(s::Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}}, λ) where {G,N,T,iip} =
+        new{G,N,T,iip,typeof(s),typeof(λ)}(s,λ)
 end
 
-function SOCHamiltonianInterp(s::FourierSeries, λ::AbstractMatrix; gauge=GaugeDefault(SOCHamiltonianInterp))
-    return SOCHamiltonianInterp{gauge}(WrapperSeries(s, wrap_soc), λ)
+function SOCHamiltonianInterp(s, λ; gauge=GaugeDefault(SOCHamiltonianInterp))
+    return SOCHamiltonianInterp{gauge}(s, λ)
 end
 
 GaugeDefault(::Type{<:SOCHamiltonianInterp}) = Wannier()

@@ -1,13 +1,54 @@
+# this wrapper houses a FourierSeries in radians but evaluates it in the frequency variable
+# i.e. if s is 2π-periodic, then Freq2RadSeries is 1-periodic
+# NOTE that the derivatives of this series are not rescaled by 2π, intentionally!
+# this is needed for evaluating gradients of operators with the appropriate angular convention
+struct Freq2RadSeries{N,T,iip,S<:AbstractFourierSeries{N,T,iip},F} <: AbstractFourierSeries{N,T,iip}
+    s::S
+    t::NTuple{N,T}
+    f::NTuple{N,F}
+end
+
+function Freq2RadSeries(s::AbstractFourierSeries)
+    f = map(freq2rad, frequency(s))
+    t = map(inv, f)
+    return Freq2RadSeries(s, t, f)
+end
+
+Base.parent(s::Freq2RadSeries) = s.s
+
+period(s::Freq2RadSeries) = s.t
+frequency(s::Freq2RadSeries) = s.f
+allocate(s::Freq2RadSeries, x, dim) = allocate(parent(s), freq2rad(x), dim)
+function contract!(cache, s::Freq2RadSeries, x, dim)
+    t = FourierSeriesEvaluators.deleteat_(s.t, dim)
+    f = FourierSeriesEvaluators.deleteat_(s.f, dim)
+    return Freq2RadSeries(contract!(cache, parent(s), freq2rad(x), dim), t, f)
+end
+function evaluate!(cache, s::Freq2RadSeries, x)
+    return evaluate!(cache, parent(s), freq2rad(x))
+end
+function nextderivative(s::Freq2RadSeries, dim)
+    return Freq2RadSeries(nextderivative(parent(s), dim), s.t, s.f)
+end
+
+show_dims(s::Freq2RadSeries) = show_dims(parent(s))
+show_details(s::Freq2RadSeries) = show_details(parent(s))
+
+function shift!(s::Freq2RadSeries, λ)
+    shift!(parent(s), λ)
+    return s
+end
+
 """
     HamiltonianInterp(f::FourierSeries; gauge=:Wannier)
 
 A wrapper for `FourierSeries` with an additional gauge that allows for
 convenient diagonalization of the result. For details see [`to_gauge`](@ref).
 """
-struct HamiltonianInterp{G,S,N,iip,C,A,T,F} <: AbstractHamiltonianInterp{G,N,T,iip}
-    f::FourierSeries{S,N,iip,C,A,T,F}
-    function HamiltonianInterp{G}(f::FourierSeries{S,N,iip,C,A,T,F}) where {G,S,N,iip,C,A,T,F}
-        return new{G,S,N,iip,C,A,T,F}(f)
+struct HamiltonianInterp{G,N,T,iip,F<:Freq2RadSeries{N,T,iip,<:FourierSeries}} <: AbstractHamiltonianInterp{G,N,T,iip}
+    f::F
+    function HamiltonianInterp{G}(f::Freq2RadSeries{N,T,iip,<:FourierSeries}) where {G,N,T,iip}
+        return new{G,N,T,iip,typeof(f)}(f)
     end
 end
 
@@ -58,6 +99,9 @@ function evaluate!(cache, bc::BerryConnectionInterp, x)
 end
 
 # ------------------------------------------------------------------------------
+
+## TODO increase the period of the derivative by 2π because velocity is [R, H]
+## should be equal to dividing vs by 2π
 
 struct GradientVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C,B,G,N,T,iip}
     j::JacobianSeries{N,T,iip,F,DF}
