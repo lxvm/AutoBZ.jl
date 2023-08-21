@@ -244,7 +244,7 @@ function TransportFunctionIntegrand(hv::AbstractVelocityInterp, args...; kwargs.
     return FourierIntegrand(transport_function_integrand, hv, args...; kwargs...)
 end
 
-tf_params(β, μ)   = promote(β, μ)
+tf_params(β, μ) = (β, μ)
 tf_params(β; μ=zero(inv(oneunit(β)))) = tf_params(β, μ)
 tf_params(; β, μ=zero(inv(oneunit(β)))) = tf_params(β, μ)
 
@@ -258,7 +258,7 @@ end
 function (f::TransportFunctionIntegrandType)(x, ::CanonicalParameters)
     ws = f.w
     el = real(eltype(ws(period(ws.series))[1]))
-    return ParameterIntegrand(f.f)(x, canonize(tf_params, MixedParameters(inv(oneunit(el)), zero(el))))
+    return FourierIntegrand(f.f.f, f.w)(x, canonize(tf_params, MixedParameters(inv(oneunit(el)), zero(el))))
 end
 
 function AutoBZCore.remake_integrand_cache(f::TransportFunctionIntegrandType, dom, p, alg, cacheval, kwargs)
@@ -271,7 +271,7 @@ end
 
 function set_autoptr_eta(alg::AutoPTR, f::TransportFunctionIntegrandType, p)
     # T=inv(β) is the localization scale, but until β is provided we guess it is one
-    β = canonize(tf_params, merge(p, (β=inv(oneunit(eltype(f.w(period(f.w.series))))),)))[1]
+    β = canonize(tf_params, merge(p, (β=inv(oneunit(real(eltype(f.w(period(f.w.series))[1])))),)))[1]
     return set_autoptr_eta(alg, inv(β))
 end
 # update the value of eta given the actual parameters

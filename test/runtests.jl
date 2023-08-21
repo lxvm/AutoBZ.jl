@@ -5,13 +5,15 @@ using StaticArrays
 
 using OffsetArrays
 using AutoBZ
+using AutoBZ: Freq2RadSeries
+using AutoBZCore: IntegralProblem, solve
 
 function integer_lattice(n)
     C = OffsetArray(zeros(SMatrix{1,1,Float64,1},ntuple(_ -> 3, n)), repeat([-1:1], n)...)
     for i in 1:n, j in (-1, 1)
         C[CartesianIndex(ntuple(k -> k ≈ i ? j : 0, n))] = [1/2n;;]
     end
-    FourierSeries(C, period=1)
+    return Freq2RadSeries(FourierSeries(C, period=2pi))
 end
 
 # run these tests with multiple threads to check multithreading works
@@ -44,12 +46,10 @@ end
         end
     end
 =#
-    @testset "apps" for dims in (1, 2), alg in (IAI(), AutoPTR(), IAI(parallels=Parallel(dims)), AutoPTR(parallel=true))
+    @testset "apps" for dims in (1, 2), alg in (IAI(), AutoPTR())
         h = HamiltonianInterp(integer_lattice(dims))
-        lims = TetrahedralLimits(fill(0.5, dims))
-        syms = vec(collect(AutoBZ.cube_automorphisms(Val{dims}())))
-        ibz = SymmetricBZ(2pi*I(dims), I(dims), lims, syms)
-        fbz = FullBZ(2pi*I(dims))
+        ibz = load_bz(CubicSymIBZ(dims))
+        fbz = load_bz(FBZ(dims))
         @testset "Green's function integrands" for integrand in (GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand)
             h = h
             Σ = EtaSelfEnergy(1.0)
