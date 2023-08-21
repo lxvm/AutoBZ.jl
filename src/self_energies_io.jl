@@ -14,61 +14,61 @@ get_self_energy_format(filename) = open(filename) do file
     end
 end
 
-parse_self_energy_scalar(filename) = open(filename) do file
+parse_self_energy_scalar(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
     nfpts = parse(Int, readline(file))
-    omegas = Vector{Float64}(undef, nfpts)
-    values = Vector{ComplexF64}(undef, nfpts)
+    omegas = Vector{F}(undef, nfpts)
+    values = Vector{Complex{F}}(undef, nfpts)
     for i in 1:nfpts
         col = split(readline(file))
-        omegas[i] = parse(Float64, col[1])
-        re = parse(Float64, col[2])
-        im = parse(Float64, col[3])
+        omegas[i] = parse(F, col[1])
+        re = parse(F, col[2])
+        im = parse(F, col[3])
         values[i] = complex(re, im)
     end
     return nfpts, omegas, values
 end
 
-parse_self_energy_diagonal(filename) = open(filename) do file
+parse_self_energy_diagonal(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
     nfpts = parse(Int, readline(file))
     num_wann = parse(Int, readline(file))
-    omegas = Vector{Float64}(undef, nfpts)
-    values = Vector{SVector{num_wann,ComplexF64}}(undef, nfpts)
-    omega = Vector{Float64}(undef, num_wann)
-    value = Vector{ComplexF64}(undef, num_wann)
+    omegas = Vector{F}(undef, nfpts)
+    values = Vector{SVector{num_wann,Complex{F}}}(undef, nfpts)
+    omega = Vector{F}(undef, num_wann)
+    value = Vector{Complex{F}}(undef, num_wann)
     for i in 1:nfpts
         for j in 1:num_wann
             col = split(readline(file))
-            omega[j] = parse(Float64, col[1])
+            omega[j] = parse(F, col[1])
             n = parse(Int, col[2])
-            re = parse(Float64, col[3])
-            im = parse(Float64, col[4])
+            re = parse(F, col[3])
+            im = parse(F, col[4])
             value[n] = complex(re, im)
         end
         omegas[i] = only(unique(omega))
-        values[i] = SVector{num_wann,ComplexF64}(value)
+        values[i] = SVector{num_wann,Complex{F}}(value)
     end
     return nfpts, num_wann, omegas, values
 end
 
-parse_self_energy_matrix(filename) = open(filename) do file
+parse_self_energy_matrix(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
     nfpts = parse(Int, readline(file))
     num_wann = parse(Int, readline(file))
-    omegas = Vector{Float64}(undef, nfpts)
-    values = Vector{SMatrix{num_wann,num_wann,ComplexF64,num_wann^2}}(undef, nfpts)
-    omega = Vector{Float64}(undef, num_wann^2)
-    value = Matrix{ComplexF64}(undef, num_wann, num_wann)
+    omegas = Vector{F}(undef, nfpts)
+    values = Vector{SMatrix{num_wann,num_wann,Complex{F},num_wann^2}}(undef, nfpts)
+    omega = Vector{F}(undef, num_wann^2)
+    value = Matrix{Complex{F}}(undef, num_wann, num_wann)
     for i in 1:nfpts
         for j in 1:num_wann^2
             col = split(readline(file))
-            omega[j] = parse(Float64, col[1])
+            omega[j] = parse(F, col[1])
             m = parse(Int, col[2])
             n = parse(Int, col[3])
-            re = parse(Float64, col[4])
-            im = parse(Float64, col[5])
+            re = parse(F, col[4])
+            im = parse(F, col[5])
             value[m,n] = complex(re, im)
         end
         omegas[i] = only(unique(omega))
-        values[i] = SMatrix{num_wann,num_wann,ComplexF64,num_wann^2}(value)
+        values[i] = SMatrix{num_wann,num_wann,Complex{F},num_wann^2}(value)
     end
     return nfpts, num_wann, omegas, values
 end
@@ -97,14 +97,14 @@ whose details depend on the distribution of frequency points:
   in order to obtain a fast-to-evaluate representation of default polynomial
   degree 16.
 """
-function load_self_energy(filename; sigdigits=8, output=:interp, degree=:default)
+function load_self_energy(filename; precision=F, sigdigits=8, output=:interp, degree=:default, tol=1e-13, mmax=100)
     fmt = get_self_energy_format(filename)
     if fmt == :scalar
-        nfpts, omegas, values = parse_self_energy_scalar(filename)
+        nfpts, omegas, values = parse_self_energy_scalar(filename, precision)
     elseif fmt == :diagonal
-        nfpts, num_wann, omegas, values = parse_self_energy_diagonal(filename)
+        nfpts, num_wann, omegas, values = parse_self_energy_diagonal(filename, precision)
     elseif fmt == :matrix
-        nfpts, num_wann, omegas, values = parse_self_energy_matrix(filename)
+        nfpts, num_wann, omegas, values = parse_self_energy_matrix(filename, precision)
     else
         throw(ErrorException("self energy format not implemented"))
     end
@@ -116,7 +116,7 @@ function load_self_energy(filename; sigdigits=8, output=:interp, degree=:default
             construct_lagrange(omegas, values, sigdigits, deg)
         catch
             order = degree == :default ? 16 : degree
-            construct_chebyshev(omegas, values, order)
+            construct_chebyshev(omegas, values, order; tol=tol, mmax=mmax)
         end
         a, b = extrema(omegas)
         return if fmt == :scalar
@@ -133,12 +133,12 @@ function construct_lagrange(omegas, values, sigdigits, degree)
     LocalEquiBaryInterp(round.(omegas; sigdigits=sigdigits), values, degree=degree)
 end
 
-function construct_chebyshev(omegas, values::Vector{<:Number}, order, atol=1e-6)
-    interp = aaa(omegas, values)
+function construct_chebyshev(omegas, values::Vector{<:Number}, order; atol=1e-6, tol=1e-13, mmax=100)
+    interp = aaa(omegas, values; tol=tol, mmax=mmax)
     hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
 end
-function construct_chebyshev(omegas, values::Vector{T}, order, atol=1e-6) where {T<:SArray}
-    interp = ntuple(n -> aaa(omegas, getindex.(values, n)), length(T))
+function construct_chebyshev(omegas, values::Vector{T}, order; atol=1e-6, tol=1e-13, mmax=100) where {T<:SArray}
+    interp = ntuple(n -> aaa(omegas, getindex.(values, n); tol=tol, mmax=mmax), length(T))
     ndims(T) > 1 && @warn """
     Matrix-valued interpolation may not work without the FastChebInterp version at
     `import Pkg; Pkg.add(url="https://github.com/lxvm/FastChebInterp.jl.git#pr_sarray")`

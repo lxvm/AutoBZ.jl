@@ -81,7 +81,7 @@ to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 function to_gauge(::Hamiltonian, H::AbstractMatrix)
     # this test will fail if we do contour deformation. It would be better to check the
     # types of the inputs are real instead, but we don't have access to the FourierValue
-    isapproxhermitian(H, atol=1e-12) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
+    isapproxhermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
     eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
 end
 
@@ -116,6 +116,7 @@ to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
     AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip}
 
 Abstract type representing Hamiltonians, which are matrix-valued Hermitian Fourier series.
+They should also have period 1, but produce derivatives with wavenumber 1.
 """
 abstract type AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip} end
 

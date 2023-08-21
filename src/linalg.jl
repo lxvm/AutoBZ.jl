@@ -121,7 +121,7 @@ end
 
 Return the Hermitian part of the matrix `A`, i.e. `(A+A')/2`.
 """
-@inline herm(A) = 0.5I * (A + A')
+@inline herm(A) = (convert(eltype(A), 1//2)*I) * (A + A')
 
 """
     commutator(A, B)
