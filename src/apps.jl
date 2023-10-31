@@ -95,7 +95,7 @@ function make_fourier_nest_(f, fx, w, x1, x...)
             f1s = ntuple(n -> deepcopy(f), Val(len))
             y1s = typeof(fx)[]
             x1s = eltype(x1)[]
-            return NestedBatchIntegrand(f1s, y1s, x1s, max_batch=10^6)
+            return NestedBatchIntegrand(collect(f1s), y1s, x1s, max_batch=10^6)
         end
     else
         nests = ntuple(n -> make_fourier_nest_(f, fx, w.cache[n], x1, x[begin:end-1]...), Val(len))
@@ -104,7 +104,7 @@ function make_fourier_nest_(f, fx, w, x1, x...)
         else
             ys = typeof(fx*x1*prod(x[begin:end-1]))[]
             xs = eltype(x[end])[]
-            return NestedBatchIntegrand(nests, ys, xs, max_batch=10^6)
+            return NestedBatchIntegrand(collect(nests), ys, xs, max_batch=10^6)
         end
     end
 end
