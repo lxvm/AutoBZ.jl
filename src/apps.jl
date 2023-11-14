@@ -153,7 +153,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
         end
 
         # evaluate the integrand once for the expected return type
-        function (f::FourierIntegrand{typeof($f)})(x, ::CanonicalParameters)
+        function (f::FourierIntegrand{typeof($f)})(x::FourierValue, ::CanonicalParameters)
             return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM, merge(f.f.p, (ω=zero(real(eltype(f.w(period(f.w.series))))),))))
         end
 
@@ -255,7 +255,7 @@ function AutoBZCore.init_solver_cacheval(f::TransportFunctionIntegrandType, dom,
     return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), new_alg)
 end
 
-function (f::TransportFunctionIntegrandType)(x, ::CanonicalParameters)
+function (f::TransportFunctionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
     el = real(eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(tf_params, MixedParameters(inv(oneunit(el)), zero(el))))
@@ -360,7 +360,7 @@ function AutoBZCore.init_solver_cacheval(f::TransportDistributionIntegrandType, 
     return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), new_alg)
 end
 
-function (f::TransportDistributionIntegrandType)(x, ::CanonicalParameters)
+function (f::TransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
     el = real(eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM2, merge(f.f.p, (ω₁=zero(el), ω₂=zero(el)))))
@@ -474,7 +474,7 @@ function kinetic_coefficient_integrand(hv_k::FourierValue, f, n, β, Ω, μ)
     if iszero(Ω) && isinf(β)
         # we pass in β=4 since fermi_window(4,0,0)=1, the weight of the delta
         # function, and also this prevents (0*β)^n from giving NaN when n!=0
-        return f.f(zero(Ω), MixedParameters(n, 4*oneunit(β), Ω, μ, hv_k))
+        return Ω * f.f(Ω, MixedParameters(n, 4*oneunit(β), Ω, μ, hv_k))
     end
     return f(n, β, Ω, μ, hv_k)
 end
@@ -576,10 +576,9 @@ function AutoBZCore.init_solver_cacheval(f::KineticCoefficientIntegrandType, dom
     return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), new_alg)
 end
 
-function (f::KineticCoefficientIntegrandType)(x, ::CanonicalParameters)
-    ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
-    p = MixedParameters(f.f.p[1]; n=0, β=typemax(eltype(inv(oneunit(el)))), Ω=zero(el))
+function (f::KineticCoefficientIntegrandType)(x::FourierValue, ::CanonicalParameters)
+    z = zero(eltype(f.f.p[1]))
+    p = MixedParameters(f.f.p[1]; n=0, β=inv(z), Ω=z)
     return FourierIntegrand(f.f.f, f.w)(x, canonize(kc_inner_params, p))
 end
 
@@ -757,10 +756,8 @@ function AutoBZCore.init_solver_cacheval(f::ElectronDensityIntegrandType, dom, a
     return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), new_alg)
 end
 
-function (f::ElectronDensityIntegrandType)(x, ::CanonicalParameters)
-    ws = f.w
-    el = real(eltype(ws(period(ws.series))))
-    p = MixedParameters(f.f.p[1]; β=typemax(eltype(inv(oneunit(el)))))
+function (f::ElectronDensityIntegrandType)(x::FourierValue, ::CanonicalParameters)
+    p = MixedParameters(f.f.p[1]; β=inv(float(real(zero(eltype(f.f.p[1]))))))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(dens_params_inside, p))
 end
 
@@ -844,7 +841,7 @@ function AutoBZCore.init_solver_cacheval(f::AuxTransportDistributionIntegrandTyp
     return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), new_alg)
 end
 
-function (f::AuxTransportDistributionIntegrandType)(x, ::CanonicalParameters)
+function (f::AuxTransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
     el = real(eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM2, merge(f.f.p, (ω₁=zero(el), ω₂=zero(el)))))

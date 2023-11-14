@@ -7,7 +7,12 @@ Evaluates a Fermi distribution with unitless input
 f(x) = \\frac{1}{e^{x}+1}
 ```
 """
-fermi(β, ω) = isinf(β) ? (ω <= 0 ? one(β) : zero(β)) : fermi(β*ω)
+function fermi(β, ω)
+    x = β*ω
+    isfinite(β)     ? fermi(x)  :
+    isnan(β)        ? x         : # in last case, β is inf
+    ω <= zero(ω)    ? one(x)    : zero(x)   # special case ω=0, since otherwise NaN
+end
 function fermi(x)
     y = exp(x)
     inv(one(y) + y)
@@ -143,7 +148,7 @@ function fermi_window_halfwidth_(x::T, atol::T) where {T<:Union{Float32,Float64}
     ifelse(abs_y > y_large, abs_y, log(2cosh(y))) + log(tanh(y)/(x*atol) - one(T))
     # to be exact, add log1p(exp(-2abs_y)) to abs_y, but this is lost to roundoff
 end
-fermi_window_halfwidth_(x::Float16, atol) = Float16(fermi_window_halfwidth_(Float32(x), Float32(atol)))
+fermi_window_halfwidth_(x::Float16, atol::Float16) = Float16(fermi_window_halfwidth_(Float32(x), Float32(atol)))
 
 function fermi_function_limits(β; atol=zero(one(β)), rtol=iszero(atol) ? eps(one(atol)) : zero(atol))
     tol = max(atol, rtol) # since max of fermi function is always 1
