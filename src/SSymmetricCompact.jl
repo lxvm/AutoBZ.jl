@@ -1,7 +1,7 @@
 """
     SSymmetricCompact{N, T, L} <: StaticMatrix{N, N, T}
 
-A [`StaticArray`](@ref) subtype that represents a Symmetric matrix. Unlike
+A `StaticArray` subtype that represents a Symmetric matrix. Unlike
 `LinearAlgebra.Symmetric`, `SSymmetricCompact` stores only the lower triangle
 of the matrix (as an `SVector`). The lower triangle is stored in column-major order.
 For example, for an `SSymmetricCompact{3}`, the indices of the stored elements

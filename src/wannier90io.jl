@@ -184,23 +184,9 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
 end
 
 """
-    load_gradient_hamiltonian_velocities(seed; period=1, compact=:N,
+    load_interp(::Type{<:GradientVelocityInterp}, seed, A; precision=Float64, period=1, compact=:N, soc=nothing,
     gauge=Wannier(), vcomp=Whole(), coord=Lattice())
 
-Load the Hamiltonian and band velocities, which may later be passed to one of
-the integrand constructors. When called with one filename, that file is parsed
-as a Wannier 90 Hamiltonian and the resulting band velocities are just the
-gradient of the Hamiltonian. The return type is [`HamiltonianVelocity3D`](@ref). When
-called with two filenames, the second is parsed as a position operator from
-Wannier 90 and adds a contribution to band velocities from the Berry connection.
-The return type is [`CovariantVelocityInterp`](@ref).The keywords `period` and
-`compact` set the reciprocal unit cell length and whether the coefficients of
-the Fourier series should be compressed as Hermitian matrices. Typically the
-coefficients cannot be compressed despite the values of the series being
-Hermitian. The keyword `gauge` can take values of `:Wannier` and `:Hamiltonian`
-and the keyword `vcomp` can take values `:whole`, `:inter` and `:intra`. See
-[`AutoBZ.Jobs.to_gauge`](@ref) and [`AutoBZ.Jobs.band_velocities`](@ref) for
-details.
 """
 function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
     precision=Float64, compact=:N, soc=nothing,
@@ -213,7 +199,8 @@ function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
 end
 
 """
-    load_covariant_hamiltonian_velocities(seed; period=1, compact=:N,
+    load_covariant_hamiltonian_velocities(::Type{<:CovariantVelocityInterp}, seed, A;
+    precision=Float64, compact=:N, soc=nothing,
     gauge=Wannier(), vcomp=whole(), coord=Lattice())
 """
 function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
@@ -227,6 +214,11 @@ function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
     return CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
+"""
+    load_interp(::Type{<:MassVelocityInterp}, seed, A;
+    precision=Float64, compact=:N, soc=nothing,
+    gauge=Wannier(), vcomp=whole(), coord=Lattice())
+"""
 function load_interp(::Type{<:MassVelocityInterp}, seed, A;
     precision=Float64, compact=:N, soc=nothing,
     gauge=GaugeDefault(MassVelocityInterp),

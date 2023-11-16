@@ -70,6 +70,13 @@ nextderivative(h::HamiltonianInterp, dim) = nextderivative(parent(h), dim)
 
 # ------------------------------------------------------------------------------
 
+"""
+    BerryConnectionInterp{P}(a::ManyFourierSeries, B; coord)
+
+Interpolate the Berry connection in basis `coord`. `a` must evaluate the components of the
+connection in coordinate basis `P`, and `B` is the coordinate transformation from `P` to
+`coord`.
+"""
 struct BerryConnectionInterp{P,B,G,N,T,iip,S,F,TB} <: AbstractCoordInterp{B,G,N,T,iip}
     a::ManyFourierSeries{N,T,iip,S,F}
     B::TB
@@ -103,6 +110,14 @@ end
 ## TODO increase the period of the derivative by 2π because velocity is [R, H]
 ## should be equal to dividing vs by 2π
 
+"""
+    GradientVelocityInterp(h::AbstractHamiltonianInterp, A; gauge, coord, vcomp)
+
+Evaluate the Hamiltonian and its gradient, which doesn't produce gauge-covariant velocities.
+The Hamiltonian `h` must be in the Wannier gauge, but this will give the result in the
+requested `gauge`. `A` must be the coordinate transformation from the lattice basis to the
+desired `coord` system. `vcomp` selects the contribution to the velocities.
+"""
 struct GradientVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C,B,G,N,T,iip}
     j::JacobianSeries{N,T,iip,F,DF}
     A::TA
@@ -152,7 +167,7 @@ covariant_velocity(H, ∂H_∂α, ∂A_∂α) = ∂H_∂α + (im*I)*commutator(H
 
 
 """
-    CovariantVelocityInterp(hv::GradientVelocityInterp{Val(:Wannier)}, a::ManyFourierSeries)
+    CovariantVelocityInterp(hv::GradientVelocityInterp, a::BerryConnectionInterp)
 
 Uses the Berry connection to return fully gauge-covariant velocities. Returns a
 tuple of the Hamiltonian and the three velocity matrices.
@@ -218,7 +233,12 @@ function Base.zero(::Type{FourierValue{X,T}}) where {X,T<:Tuple}
 end
 # ----------------
 
+"""
+    MassVelocityInterp(h::AbstractHamiltonianInterp, A; gauge, coord, vcomp)
 
+Compute the Hamiltonian, its gradient and Hessian, which are not gauge-covariant. See
+[`GradientVelocityInterp`](@ref) for explanation of the arguments
+"""
 struct MassVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C,B,G,N,T,iip}
     h::HessianSeries{N,T,iip,F,DF}
     A::TA

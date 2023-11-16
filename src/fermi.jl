@@ -62,6 +62,11 @@ function fermi_window(x::T, y::T) where {T<:AbstractFloat}
 end
 fermi_window(args...) = fermi_window(promote(float.(args)...)...)
 
+function fermi_window(β, ω, Ω)
+    uβ = oneunit(β)
+    uω = oneunit(ω)
+    return uβ*fermi_window(β*uω, ω*uβ, Ω*uβ)
+end
 fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
 function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
     half_y = y/2

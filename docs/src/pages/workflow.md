@@ -46,16 +46,15 @@ Updating the repository can now be done with `cd dev/AutoBZ` and `git pull`.
 
 ## Running jobs
 
-Users of `AutoBZ` who would like to use the `AutoBZ.Jobs` module will find
-scripts in the `demos` folder of the repository titled `OC_calculation_...` that
-demonstrate how to use those scripts. From the working directory configured
+Users of `AutoBZ` will find scripts in the `demos` to use as templates for their jobs.
+From the working directory configured
 above, the scripts from the `demos` folder can be copied back, as well any
 coefficient files for the calculations that will be run.
 ```
 julia> ; # enters a shell
-shell> cp -t . dev/AutoBZ/demos/svo_hr.dat dev/AutoBZ/demos/svo_r.dat dev/AutoBZ/demos/OC_berry.jl
+shell> cp -t . dev/AutoBZ/demos/svo_hr.dat dev/AutoBZ/demos/svo_r.dat dev/AutoBZ/demos/kc_benchmark.jl
 ```
-In the lines above, the script `OC_berry.jl` was copied along with its default
+In the lines above, the script `kc_benchmark.jl` was copied along with its default
 data files into the working directory. Note if you have data files with
 different names, the script needs to be edited to load those files instead.
 Moreover, the files in the working directory can be freely edited without
@@ -65,10 +64,10 @@ dependencies other than `AutoBZ` will need to be added to the environment in
 `workdir` (e.g. `pkg> add Plots`).
 
 Finally, to run the script from the Julia session in the `workdir`, simply
-`include("OC_berry.jl")`. If you would like to run a script as a cluster job,
+`include("kc_benchmark.jl")`. If you would like to run a script as a cluster job,
 include the line below in your bash script submitted to the scheduler.
 ```
-julia --project=. OC_berry.jl
+julia --project=. kc_benchmark.jl
 ```
 
 ## Notes

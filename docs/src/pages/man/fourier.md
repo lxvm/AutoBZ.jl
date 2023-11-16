@@ -33,9 +33,7 @@ Without loss of generality, the ``k_j`` can be taken in the domain
 Additionally, any coordinate transformations of ``\bm{k}`` from the
 Cartesian basis to the reciprocal lattice basis only modify Brillouin zone
 integrals by a multiplicative factor of the absolute value of the determinant of
-the basis transformation. To find a non-trivial example of representing a
-Hamiltonian in the reciprocal lattice basis, see the [Graphene example with
-`ManyOffsetsFourierSeries`](@ref).
+the basis transformation.
 
 ### Series coefficients
 Wannier-interpolated Hamiltonians are small matrices obtained by projecting the
@@ -64,28 +62,10 @@ The recipe to write it as a Fourier series has two-steps
 
 ## Interface
 
-```@docs
-AutoBZ.AbstractFourierSeries
-AutoBZ.period
-AutoBZ.contract
-AutoBZ.value
-```
-
-Additonally, concrete subtypes of `AbstractFourierSeries` must have an element
-type, which they can do by extending `Base.eltype` with a method. For example,
-if a type `MyFourierSeries <: AbstractFourierSeries` always returns `ComplexF64`
-outputs, then the correct `eltype` method to define would be:
-```julia
-Base.eltype(::Type{MyFourierSeries}) = ComplexF64
-```
-The type returned should correspond to the vector space ``V`` of the output
-space of the Fourier series, i.e. the output of `value` should be of this
-type. For good performance, the `eltype` should be a concrete type and should be
-inferrable.
-
-With the above implemented, several methods which define functors for
-`AbstractFourierSeries` allow the user (and integration routines) to evaluate
-the type like a function with the `f(x)` syntax.
+See
+[FourierSeriesEvaluators.jl](https://github.com/lxvm/FourierSeriesEvaluators.jl)
+for the `AbstractFourierSeries` interface, which allows evaluation of the series
+with a function-like `f(x)` syntax
 
 ## Types
 
@@ -93,45 +73,16 @@ The concrete types listed below all implement the `AbstractFourierSeries`
 interface and should cover most use cases.
 
 ```@docs
-AutoBZ.FourierSeries
-AutoBZ.FourierSeriesDerivative
-AutoBZ.OffsetFourierSeries
-AutoBZ.ManyFourierSeries
-AutoBZ.ManyOffsetsFourierSeries
-AutoBZ.BandEnergyVelocity
-AutoBZ.BandEnergyBerryVelocity
+AutoBZ.HamiltonianInterp
+AutoBZ.BerryConnectionInterp
+AutoBZ.GradientVelocityInterp
+AutoBZ.CovariantVelocityInterp
+AutoBZ.MassVelocityInterp
 ```
 
-## Methods
-
+The possible velocity components are
 ```@docs
-AutoBZ.contract(::AutoBZ.AbstractFourierSeries)
-```
-
-# Optimized 3D evaluators
-
-For the use-case of Wannier90 calculations, the following Fourier series
-evaluators are optimized to improve performance by reducing allocations.
-
-## Interface
-
-```@docs
-AutoBZ.AbstractFourierSeries3D
-AutoBZ.contract!
-AutoBZ.shift!
-```
-
-## Types
-
-```@docs
-AutoBZ.FourierSeries3D
-AutoBZ.BandEnergyVelocity3D
-AutoBZ.BandEnergyBerryVelocity3D
-```
-
-## Methods
-
-```@docs
-AutoBZ.contract!(::AutoBZ.AbstractFourierSeries3D)
-AutoBZ.fourier_kernel!
+Whole
+Intra
+Inter
 ```

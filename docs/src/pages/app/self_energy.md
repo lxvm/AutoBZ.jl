@@ -6,8 +6,10 @@ energy data are formatted, loaded, and evaluated
 ## IO
 
 For self energy data stored on equispaced frequency grids, the following file
-formats and routines use the [EquiBaryInterp](@ref) module to interpolate the
-data for continuous evaluation.
+formats and routines use the `EquiBaryInterp.jl` package to interpolate the
+data for continuous evaluation. Otherwise, a rational approximation of the self
+energy data is constructed with the AAA algorithm in `BaryRational.jl` and that
+is converted into a piecewise Chebyshev interpolant with `HChebInterp.jl`.
 
 ### File format
 
@@ -70,10 +72,6 @@ index as the faster index than the frequency. For example
 
 ```@docs
 AutoBZ.load_self_energy
-AutoBZ.parse_self_energy_scalar
-AutoBZ.parse_self_energy_diagonal
-AutoBZ.parse_self_energy_matrix
-AutoBZ.get_self_energy_format
 ```
 
 ## Interface

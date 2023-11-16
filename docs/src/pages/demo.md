@@ -50,7 +50,7 @@ C = OffsetArray(zeros(ntuple(_ -> 3, n)), ntuple(_ -> -1:1, n)...)
 for i in 1:n, j in (-1, 1)
     C[CartesianIndex(ntuple(k -> k == i ? j : 0, n))] = -0.5t
 end
-H = FourierSeries(C, 2pi/a)
+H = FourierSeries(C, period = 2pi/a)
 ```
 Then we can define the integration problem to compute DOS, defined by the
 integral
@@ -60,24 +60,28 @@ integral
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
 rate. We implement our own user-defined integrand with the
-[`AutoBZ.WannierIntegrand`](@ref) type:
+`AutoBZCore.FourierIntegrand` type:
 ```julia
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
 dos_integrand(H_k, ω, η) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
-D = WannierIntegrand(dos_integrand, H, (ω, η)) # user-defined integrand
+dos_integrand(H_k::FourierValue, ω, η) = dos_integrand(H_k.s, ω, η) # unwrap the value of the series
+D = FourierIntegrand(dos_integrand, H, ω, η) # user-defined integrand
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
 ```julia
-IBZ = TetrahedralLimits(period(H)) # Irreducible BZ for cubic symmetries is tetrahedron
+using LinearAlgebra
+bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
 
 atol = 1e-3 # absolute error tolerance requests the result to within ±atol
 
-I, E = iterated_integration(D, IBZ; atol=atol)
+prob = AutoBZCore.IntegralProblem(D, bz)
+
+sol = AutoBZCore.solve(prob, IAI(), abstol=atol)
 ```
-The routine returns the estimate of the integral `I` and an error estimate `E`.
+The routine returns the estimate of the integral `sol.u` and an error estimate `sol.resid`.
 
 You will find a working example of this model in the `DOS_example.jl` demo that
 computes DOS over a range of frequencies for this model.
@@ -150,65 +154,8 @@ t = 1.0 # hopping amplitude
 C = OffsetArray(zeros(SMatrix{2,2,ComplexF64,4}, (5,5)), -2:2, -2:2)
 C[1,1]   = C[1,-2] = C[-2,1] = [0 -t; 0 0] # Define C[R] = H_R
 C[-1,-1] = C[-1,2] = C[2,-1] = [0 0; -t 0]
-H = FourierSeries(C, 2*pi/a)
+H = FourierSeries(C, period = 2*pi/a)
 ```
 The DOS integrand can be formulated as before, except it must also compute the
 trace since this Hamiltonian is matrix-valued. Another option would be to use
 the pre-defined [`AutoBZ.DOSIntegrand`](@ref).
-
-## Graphene example with `ManyOffsetsFourierSeries`
-
-Another Fourier series formulated from graphene is 
-```math
-\xi(\bm{k}) = \sum_{n=1}^{6} e^{i\bm{k}\cdot\bm{\delta}_{n}}
-```
-and by choosing a basis ``\bm{a}_1 = \hat{x}, \bm{a}_2 = (\hat{x} +
-\sqrt{3}\hat{y})/2`` we express the displacement vectors as
-```math
-\bm{\delta}_1 = \bm{a}_1 = -\bm{\delta}_4
-\qquad
-\bm{\delta}_2 = \bm{a}_2 = -\bm{\delta}_5
-\qquad
-\bm{\delta}_3 = \bm{a}_2 - \bm{a}_1 = -\bm{\delta}_6
-```
-and we can construct the Fourier series in `AutoBZ` as
-```julia
-using OffsetArrays
-
-using AutoBZ
-
-C = OffsetArray(zeros(3, 3), -1:1, -1:1)
-C[1,0] = C[-1,0] = C[0,1] = C[0,-1] = C[1,-1] = C[-1,1] = 1
-ξ = FourierSeries(C, 2pi)
-```
-Now the new integral we want to calculate is
-```math
-g(\bm{q}) = \int_{\text{BZ}} d\bm{k} \frac{\lambda(\xi(\bm{k})) - \lambda(\xi(\bm{k}-\bm{q}))}{\xi(\bm{k}) - \xi(\bm{k}-\bm{q})}
-```
-where ``\lambda(\omega) = \partial_T f(\omega)`` is the temperature derivative
-of the Fermi distribution. Since the integrand requires evaluation of the
-Hamiltonian at various ``k``-points simultaneously, we can express this with a
-[`AutoBZ.ManyOffsetsFourierSeries`](@ref). Moreover,
-`AutoBZ` has functions to evaluate Fermi functions and their
-derivatives. Putting these pieces together gives the following integrand definition
-```julia
-T = 100.0 # K
-kB = 8.617333262e-5 # eV/K
-q = rand(SVector{2,Float64}) # arbitrary q point to integrate
-f = ManyOffsetsFourierSeries(ξ, q) # makes a new Fourier series from ξ offset by q
-
-# define the function to integrate and wrap it in an integrand type
-lambda(x, T, kB) = -x*fermi′(inv(kB*T)*x)/(kB*T^2)
-function evaluate_integrand(f, T, kB)
-    ξ_k, ξ_q = f
-    if ξ_k == ξ_q
-        # when the integrand is ill defined, return its limiting value ∂λ/∂ξ
-        return lambda(ξ_k, T, kB)*(2*inv(kB*T)*fermi′(ξ_k*inv(kB*T))/fermi(ξ_k, inv(kB*T)) - inv(ξ_k) - inv(kB*T))
-    else
-        return (lambda(ξ_k, T, kB) - lambda(ξ_q, T, kB))/(ξ_k-ξ_q)
-    end
-end
-integrand = WannierIntegrand(evaluate_integrand, f, (T, kB))
-```
-You will find a working example of this code in the `graphene.jl` demo that
-calculates this integral for values of ``\bm{q}`` in the Brillouin zone.

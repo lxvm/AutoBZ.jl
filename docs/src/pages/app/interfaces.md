@@ -4,11 +4,11 @@
 
 ```@docs
 AutoBZ.load_wannier90_data
-AutoBZ.load_hamiltonian
-AutoBZ.load_hamiltonian_velocities
-AutoBZ.load_position_operator
+AutoBZ.load_interp
+AutoBZ.load_autobz
 AutoBZ.parse_hamiltonian
 AutoBZ.parse_position_operator
+AutoBZ.parse_wout
 ```
 
 ## Python
@@ -41,7 +41,7 @@ Pkg.instantiate()
 """)
 
 # capture output of script
-out = jl.eval('include("DOS_test.jl")')
+out = jl.eval('include("dos_test.jl")')
 ```
 The first two lines are adapted for loading PyJulia on Debian systems.
 
@@ -76,8 +76,9 @@ using AutoBZ
 function get_dos(seedname, self_energy_path, ωs, rtol, atol)
     H, FBZ = load_wannier90_data(seedname)
     Σ = load_self_energy(self_energy_path)
-    results = run_dos(H, Σ, ωs, FBZ, rtol, atol)
-    return results.I
+    integrand = DOSIntegrand(H, Σ)
+    dos = IntegralSolver(integrand, FBZ, abstol=atol, reltol=rtol)
+    return batchsolve(dos, ωs)
 end
 ```
 The MATLAB snippet below shows how to setup the Julia server to run a demo

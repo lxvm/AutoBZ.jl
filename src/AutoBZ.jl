@@ -42,10 +42,10 @@ include("SSymmetricCompact.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
-export HamiltonianInterp, InplaceHamiltonianInterp
-export BerryConnectionInterp, InplaceBerryConnectionInterp
-export GradientVelocityInterp, InplaceGradientVelocityInterp
-export CovariantVelocityInterp, InplaceCovariantVelocityInterp
+export HamiltonianInterp
+export BerryConnectionInterp
+export GradientVelocityInterp
+export CovariantVelocityInterp
 export MassVelocityInterp
 include("interp.jl")
 
