@@ -36,7 +36,7 @@ propagator_denominator(h::FourierValue, M) = propagator_denominator(h.s, M)
 
 Returns `inv(M-h)` where `M = ω*I-Σ(ω)`
 """
-gloc_integrand(G) = inv(G)
+gloc_integrand(G) = _inv(G)
 
 """
     diaggloc_integrand(h, M)
@@ -338,6 +338,7 @@ function TransportDistributionIntegrand(w::FourierWorkspace{<:AbstractVelocityIn
 end
 
 # evalM2(Mω₁, Mω₂) = (Mω₁, Mω₂, Mω₁ == Mω₂)
+evalM2(Σ, a, b, c) = evalM2(Σ, promote(a, b, c)...)
 function evalM2(Σ, ω₁::T, ω₂::T, μ::T) where {T}
     M = evalM(Σ, ω₁, μ)[1]
     if ω₁ == ω₂
@@ -880,6 +881,12 @@ function aux_kinetic_coefficient_integrand(ω, Σ, hv_k, n, β, Ω, μ)
     return (ω*β)^n * fermi_window(β, ω, Ω) * Γ
 end
 
+"""
+    AuxKineticCoefficientIntegrand
+
+A kinetic coefficient integrand that is more robust to the peak-missing problem. See
+[`KineticCoefficientIntegrand`](@ref) for arguments.
+"""
 function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, Σ, args...;
     abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...) where {T<:AbstractVelocityInterp}
     # put the frequency integral outside if the provided algorithm is for the BZ

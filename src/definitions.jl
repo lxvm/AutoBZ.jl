@@ -81,8 +81,11 @@ to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 function to_gauge(::Hamiltonian, H::AbstractMatrix)
     # this test will fail if we do contour deformation. It would be better to check the
     # types of the inputs are real instead, but we don't have access to the FourierValue
-    isapproxhermitian(H) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
-    eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
+
+    # It would be better to fix this ambiguity by requiring the series evaluator return a
+    # Hermitian-wrapped array
+    isapproxhermitian(H, atol=real(oneunit(eltype(H)))/10^6) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
+    _eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
 end
 
 
@@ -203,11 +206,11 @@ function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
     r
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
-    B = bz.A'; invB = inv(B)
+    B = bz.A'; invB = _inv(B)
     invB * symmetrize_(LatticeRep(), bz, B * x)
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
-    B = bz.A'; invB = inv(B)
+    B = bz.A'; invB = _inv(B)
     invB * symmetrize_(LatticeRep(), bz, B * x * transpose(B)) * transpose(invB)
 end
 
@@ -304,9 +307,9 @@ end
     to_vcomp_gauge(::Val{C}, ::Val{G}, h, vs...) where {C,G}
 
 Take the velocity components of `vs` in any gauge according to the value of `C`
-- [Whole](@ref): return the whole velocity (sum of interband and intraband components)
-- [Intra](@ref): return the intraband velocity (diagonal in Hamiltonian gauge)
-- [Inter](@ref): return the interband velocity (off-diagonal terms in Hamiltonian gauge)
+- [`Whole`](@ref): return the whole velocity (sum of interband and intraband components)
+- [`Intra`](@ref): return the intraband velocity (diagonal in Hamiltonian gauge)
+- [`Inter`](@ref): return the interband velocity (off-diagonal terms in Hamiltonian gauge)
 
 Transform the velocities into a gauge according to the following values of `G`
 - [`Wannier`](@ref): keeps `H, vs` in the original, orbital basis

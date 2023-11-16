@@ -1,3 +1,7 @@
+# method to intercept for units
+_inv(args...; kws...) = inv(args...; kws...)
+_eigen(args...; kws...) = eigen(args...; kws...)
+
 function LinearAlgebra.inv(A::SHermitianCompact{3,T,6}) where {T<:Real}
     F = Base.promote_op(inv,T)
     SHermitianCompact{3,F,6}(SVector{6,F}(hinv(A)))
@@ -50,7 +54,7 @@ end
 
 Calculate the diagonal entries of the inverse of `A`.
 """
-diag_inv(A) = diag(inv(A)) # fallback method
+diag_inv(A) = diag(_inv(A)) # fallback method
 diag_inv(A::SMatrix{3,3,T}) where T = SVector{3,T}(diag_inv_(A.data...))
 function diag_inv_(A1::T, A2::T, A3::T, A4::T, A5::T, A6::T, A7::T, A8::T, A9::T) where T
     x0 = A5*A9 - A6*A8
@@ -74,7 +78,7 @@ end
 
 Calculate the trace of the inverse of `A`.
 """
-tr_inv(A) = tr(inv(A))
+tr_inv(A) = tr(_inv(A))
 
 tr_inv(A::SMatrix{3,3}) = tr_inv_(A.data...)
 function tr_inv_(A1::T, A2::T, A3::T, A4::T, A5::T, A6::T, A7::T, A8::T, A9::T) where T
