@@ -11,15 +11,15 @@ custom integrands and for more details on the algorithms.
 In many-body Green's function methods, BZ integrands are localized at a scale
 determined by a non-zero, but possibly small, system- and temperature-dependent
 scattering rate. For example, the single-particle retarded Green's function of
-an electronic system for frequency ``\omega`` and reciprocal space vector
-``\bm{k}`` with chemical potential ``\mu``, Hermitian Hamiltonian matrix
-``H(\bm{k})``, and self-energy matrix ``\Sigma(\omega)``, which is given by
+an electronic system for frequency ``\\omega`` and reciprocal space vector
+``\\bm{k}`` with chemical potential ``\\mu``, Hermitian Hamiltonian matrix
+``H(\\bm{k})``, and self-energy matrix ``\\Sigma(\\omega)``, which is given by
 ```math
-G(\omega) = \int_{\text{BZ}} d\bm{k}\ \operatorname{Tr} \left[ (\hbar\omega - H(\bm{k}) - \Sigma(\omega))^{-1} \right]
+G(\\omega) = \\int_{\\text{BZ}} d\\bm{k}\\ \\operatorname{Tr} \\left[ (\\hbar\\omega - H(\\bm{k}) - \\Sigma(\\omega))^{-1} \\right]
 ```
-is localized about the manifold defined by ``\det(\hbar\omega - H(\bm{k}))=0`` (i.e.
-the Fermi surface when ``\hbar\omega=\mu``) by a scattering rate depending on
-``\operatorname{Im}\ \Sigma(\omega)``.
+is localized about the manifold defined by ``\\det(\\hbar\\omega - H(\\bm{k}))=0`` (i.e.
+the Fermi surface when ``\\hbar\\omega=\\mu``) by a scattering rate depending on
+``\\operatorname{Im}\\ \\Sigma(\\omega)``.
 
 ## Package features
 
