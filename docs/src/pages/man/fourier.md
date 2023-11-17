@@ -73,14 +73,33 @@ The concrete types listed below all implement the `AbstractFourierSeries`
 interface and should cover most use cases.
 
 ```@docs
+AutoBZ.AbstractWannierInterp
+AutoBZ.AbstractGaugeInterp
+AutoBZ.AbstractHamiltonianInterp
 AutoBZ.HamiltonianInterp
+AutoBZ.AbstractCoordInterp
 AutoBZ.BerryConnectionInterp
+AutoBZ.AbstractVelocityInterp
 AutoBZ.GradientVelocityInterp
 AutoBZ.CovariantVelocityInterp
 AutoBZ.MassVelocityInterp
 ```
 
-The possible velocity components are
+### Gauges
+```@docs
+AutoBZ.AbstractGauge
+AutoBZ.Wannier
+AutoBZ.Hamiltonian
+```
+
+### Coordinate systems
+```@docs
+AutoBZ.AbstractCoordinate
+AutoBZ.Cartesian
+AutoBZ.Lattice
+```
+
+### Velocity components
 ```@docs
 Whole
 Intra

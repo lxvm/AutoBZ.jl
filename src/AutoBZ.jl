@@ -1,11 +1,52 @@
 """
-An applications package implementing iterated-adaptive integration and equispace
-integration for electronic structure and transport calculations. It excels at
-integrating both localized and also broadened Brillouin-zone integrands, using
-the algorithms described by [Kaye et al.](http://arxiv.org/abs/2211.12959). This
-package also provides multi-threaded routines for parallelized calculations.
-See `AutoBZCore` if you only need the essential functionality of the library to
-define custom BZ integrands.
+This Julia package provides routines for multi-dimensional Brillouin zone (BZ)
+integration for applications of Wannier interpolation to the calculation of density of
+states and optical conductivity with self energies and spin-orbit coupling.
+It uses algorithms which automatically compute BZ integrals to a
+specified error tolerance by resolving smooth yet highly localized integrands.
+
+See [AutoBZCore.jl](https://lxvm.github.io/AutoBZCore.jl/dev/) on how to create
+custom integrands and for more details on the algorithms.
+
+In many-body Green's function methods, BZ integrands are localized at a scale
+determined by a non-zero, but possibly small, system- and temperature-dependent
+scattering rate. For example, the single-particle retarded Green's function of
+an electronic system for frequency ``\omega`` and reciprocal space vector
+``\bm{k}`` with chemical potential ``\mu``, Hermitian Hamiltonian matrix
+``H(\bm{k})``, and self-energy matrix ``\Sigma(\omega)``, which is given by
+```math
+G(\omega) = \int_{\text{BZ}} d\bm{k}\ \operatorname{Tr} \left[ (\hbar\omega - H(\bm{k}) - \Sigma(\omega))^{-1} \right]
+```
+is localized about the manifold defined by ``\det(\hbar\omega - H(\bm{k}))=0`` (i.e.
+the Fermi surface when ``\hbar\omega=\mu``) by a scattering rate depending on
+``\operatorname{Im}\ \Sigma(\omega)``.
+
+## Package features
+
+* Iterated adaptive integration (IAI) with nested calls to
+  [QuadGK.jl](https://github.com/JuliaMath/QuadGK.jl)
+    * Algorithm with logarithmic complexity for increasingly localized integrands
+    * Irreducible Brillouin zone (IBZ) integration for the cubic lattice
+* Equispace integration (PTR) as described by Kaye et al. [^1]
+    * Automatic algorithm that refines ``k``-grid to meet requested error
+* Support for Wannier-interpolated integrands
+    * User-defined integrands based on Bloch Hamiltonians
+    * Density of states (DOS) calculations
+    * Transport calculations based on
+        [TRIQS DFTTools](https://triqs.github.io/dft_tools/latest/guide/transport.html)
+        * Calculation of transport function and kinetic coefficients
+        * Option to separate intra-band and inter-band contributions
+        * Parallelized calculations available through `batchsolve` interface of AutoBZCore.jl
+    * [Wannier90](http://www.wannier.org/)-based parsers Hamiltonians
+      (`*_hr.dat` files) and position operators (`*_r.dat` files)
+    * Automated interpolation for frequency-dependent self-energy data in text files, using
+      [EquiBaryInterp.jl](https://github.com/lxvm/EquiBaryInterp.jl) and
+      [HChebInterp.jl](https://github.com/lxvm/HChebInterp.jl).
+* IBZ integration for arbitrary symmetry groups (via an interface to
+  [SymmetryReduceBZ.jl](https://github.com/jerjorg/SymmetryReduceBZ.jl))
+* Supports systems with spin-orbit coupling expressed in the self-energy
+
+[^1]: [Kaye et al. "Automatic, high-order, and adaptive algorithms for Brillouin zone integration"](http://arxiv.org/abs/2211.12959)
 """
 module AutoBZ
 

@@ -86,6 +86,8 @@ AutoBZ.ub
 
 ```@docs
 AutoBZ.EtaSelfEnergy
+AutoBZ.ConstScalarSelfEnergy
 AutoBZ.ScalarSelfEnergy
+AutoBZ.DiagonalSelfEnergy
 AutoBZ.MatrixSelfEnergy
 ```
