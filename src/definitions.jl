@@ -124,13 +124,13 @@ They should also have period 1, but produce derivatives with wavenumber 1.
 abstract type AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip} end
 
 """
-    parent(::AbstractHamiltonianInterp)::FourierSeries
+    parentseries(::AbstractHamiltonianInterp)::FourierSeries
 
 Return the Fourier series that the Hamiltonian wraps
 """
-Base.parent(::AbstractHamiltonianInterp)
+parentseries(::AbstractHamiltonianInterp)
 
-show_dims(h::AbstractHamiltonianInterp) = show_dims(parent(h))
+show_dims(h::AbstractHamiltonianInterp) = show_dims(parentseries(h))
 
 function shift!(f::FourierSeries, λ_::Number)
     λ = convert(eltype(eltype(f.c)), λ_)
@@ -343,10 +343,10 @@ function to_gauge(g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple
     return (E, ntuple(n -> U' * vws[n] * U, Val(N)), ntuple(n -> U' * mws[n] * U, Val(M)))
 end
 
-to_vcomp(::Whole, vhs::NTuple{N,T}) where {N,T} = vhs
-to_vcomp(::Inter, vhs::NTuple{N,T}) where {N,T} =
+to_vcomp(::Whole, vhs::NTuple{N}) where {N} = vhs
+to_vcomp(::Inter, vhs::NTuple{N}) where {N} =
     ntuple(n -> vhs[n] - Diagonal(vhs[n]), Val(N))
-to_vcomp(::Intra, vhs::NTuple{N,T}) where {N,T} =
+to_vcomp(::Intra, vhs::NTuple{N}) where {N} =
     ntuple(n -> Diagonal(vhs[n]), Val(N))
 
 
@@ -391,13 +391,13 @@ end
 
 Return the Hamiltonian object used for Wannier interpolation
 """
-Base.parent(::AbstractVelocityInterp)
+parentseries(::AbstractVelocityInterp)
 
-Base.parent(d::DerivativeSeries{1}) = d.f
-Base.parent(d::DerivativeSeries) = parent(d.f)
+parentseries(d::DerivativeSeries{1}) = d.f
+parentseries(d::DerivativeSeries) = parentseries(d.f)
 
 function shift!(d::DerivativeSeries, λ)
-    shift!(parent(d), λ)
+    shift!(parentseries(d), λ)
     return d
 end
 
@@ -407,6 +407,6 @@ end
 Offset the zero-point energy in a Hamiltonian system by a constant
 """
 function shift!(v::AbstractVelocityInterp, λ)
-    shift!(parent(v), λ)
+    shift!(parentseries(v), λ)
     return v
 end

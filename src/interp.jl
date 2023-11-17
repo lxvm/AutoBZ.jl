@@ -2,10 +2,10 @@
 # i.e. if s is 2π-periodic, then Freq2RadSeries is 1-periodic
 # NOTE that the derivatives of this series are not rescaled by 2π, intentionally!
 # this is needed for evaluating gradients of operators with the appropriate angular convention
-struct Freq2RadSeries{N,T,iip,S<:AbstractFourierSeries{N,T,iip},F} <: AbstractFourierSeries{N,T,iip}
+struct Freq2RadSeries{N,T,iip,S<:AbstractFourierSeries{N,T,iip},Tt<:NTuple{N,T},Tf<:NTuple{N,Any}} <: AbstractFourierSeries{N,T,iip}
     s::S
-    t::NTuple{N,T}
-    f::NTuple{N,F}
+    t::Tt
+    f::Tf
 end
 
 function Freq2RadSeries(s::AbstractFourierSeries)
@@ -14,28 +14,28 @@ function Freq2RadSeries(s::AbstractFourierSeries)
     return Freq2RadSeries(s, t, f)
 end
 
-Base.parent(s::Freq2RadSeries) = s.s
+parentseries(s::Freq2RadSeries) = s.s
 
 period(s::Freq2RadSeries) = s.t
 frequency(s::Freq2RadSeries) = s.f
-allocate(s::Freq2RadSeries, x, dim) = allocate(parent(s), freq2rad(x), dim)
+allocate(s::Freq2RadSeries, x, dim) = allocate(parentseries(s), freq2rad(x), dim)
 function contract!(cache, s::Freq2RadSeries, x, dim)
     t = FourierSeriesEvaluators.deleteat_(s.t, dim)
     f = FourierSeriesEvaluators.deleteat_(s.f, dim)
-    return Freq2RadSeries(contract!(cache, parent(s), freq2rad(x), dim), t, f)
+    return Freq2RadSeries(contract!(cache, parentseries(s), freq2rad(x), dim), t, f)
 end
 function evaluate!(cache, s::Freq2RadSeries, x)
-    return evaluate!(cache, parent(s), freq2rad(x))
+    return evaluate!(cache, parentseries(s), freq2rad(x))
 end
 function nextderivative(s::Freq2RadSeries, dim)
-    return Freq2RadSeries(nextderivative(parent(s), dim), s.t, s.f)
+    return Freq2RadSeries(nextderivative(parentseries(s), dim), s.t, s.f)
 end
 
-show_dims(s::Freq2RadSeries) = show_dims(parent(s))
-show_details(s::Freq2RadSeries) = show_details(parent(s))
+show_dims(s::Freq2RadSeries) = show_dims(parentseries(s))
+show_details(s::Freq2RadSeries) = show_details(parentseries(s))
 
 function shift!(s::Freq2RadSeries, λ)
-    shift!(parent(s), λ)
+    shift!(parentseries(s), λ)
     return s
 end
 
@@ -55,18 +55,18 @@ end
 HamiltonianInterp(f; gauge=GaugeDefault(HamiltonianInterp)) = HamiltonianInterp{gauge}(f)
 
 GaugeDefault(::Type{<:HamiltonianInterp}) = Wannier()
-Base.parent(h::HamiltonianInterp) = h.f
+parentseries(h::HamiltonianInterp) = h.f
 
-period(h::HamiltonianInterp) = period(parent(h))
-frequency(h::HamiltonianInterp) = frequency(parent(h))
+period(h::HamiltonianInterp) = period(parentseries(h))
+frequency(h::HamiltonianInterp) = frequency(parentseries(h))
 allocate(h::HamiltonianInterp, x, dim) = allocate(h.f, x, dim)
 function contract!(cache, h::HamiltonianInterp, x, dim)
-    return HamiltonianInterp{gauge(h)}(contract!(cache, parent(h), x, dim))
+    return HamiltonianInterp{gauge(h)}(contract!(cache, parentseries(h), x, dim))
 end
 function evaluate!(cache, h::HamiltonianInterp, x)
-    return to_gauge(h, evaluate!(cache, parent(h), x))
+    return to_gauge(h, evaluate!(cache, parentseries(h), x))
 end
-nextderivative(h::HamiltonianInterp, dim) = nextderivative(parent(h), dim)
+nextderivative(h::HamiltonianInterp, dim) = nextderivative(parentseries(h), dim)
 
 # ------------------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ struct GradientVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C
     j::JacobianSeries{N,T,iip,F,DF}
     A::TA
     function GradientVelocityInterp{C,B,G}(j::JacobianSeries{N,T,iip,F,DF}, A::TA) where {C,B,G,N,T,iip,F,DF,TA}
-        @assert gauge(parent(j)) == GaugeDefault(parent(j))
+        @assert gauge(parentseries(j)) == GaugeDefault(parentseries(j))
         return new{C,B,G,N,T,iip,F,DF,TA}(j, A)
     end
 end
@@ -134,19 +134,19 @@ function GradientVelocityInterp(h::AbstractHamiltonianInterp, A;
     return GradientVelocityInterp{vcomp,coord,gauge}(JacobianSeries(h), A)
 end
 
-Base.parent(hv::GradientVelocityInterp) = hv.j
+parentseries(hv::GradientVelocityInterp) = hv.j
 CoordDefault(::Type{<:GradientVelocityInterp}) = Lattice()
 GaugeDefault(::Type{<:GradientVelocityInterp}) = Wannier()
 VcompDefault(::Type{<:GradientVelocityInterp}) = Whole()
 
-period(hv::GradientVelocityInterp) = period(parent(hv))
-frequency(hv::GradientVelocityInterp) = frequency(parent(hv))
-allocate(hv::GradientVelocityInterp, x, dim) = allocate(parent(hv), x, dim)
+period(hv::GradientVelocityInterp) = period(parentseries(hv))
+frequency(hv::GradientVelocityInterp) = frequency(parentseries(hv))
+allocate(hv::GradientVelocityInterp, x, dim) = allocate(parentseries(hv), x, dim)
 function contract!(cache, hv::GradientVelocityInterp{C,B,G}, x, dim) where {C,B,G}
-    return GradientVelocityInterp{C,B,G}(contract!(cache, parent(hv), x, dim), hv.A)
+    return GradientVelocityInterp{C,B,G}(contract!(cache, parentseries(hv), x, dim), hv.A)
 end
 function evaluate!(cache, hv::GradientVelocityInterp, x)
-    h, vs = to_vcomp_gauge(hv, evaluate!(cache, parent(hv), x)...)
+    h, vs = to_vcomp_gauge(hv, evaluate!(cache, parentseries(hv), x)...)
     return (h, to_coord(hv, hv.A, SVector(vs)))
 end
 
@@ -200,9 +200,9 @@ CoordDefault(::Type{<:CovariantVelocityInterp}) = Lattice()
 GaugeDefault(::Type{<:CovariantVelocityInterp}) = Wannier()
 VcompDefault(::Type{<:CovariantVelocityInterp}) = Whole()
 
-Base.parent(chv::CovariantVelocityInterp) = parent(chv.hv)
-period(chv::CovariantVelocityInterp) = period(parent(chv))
-frequency(chv::CovariantVelocityInterp) = frequency(parent(chv))
+parentseries(chv::CovariantVelocityInterp) = parentseries(chv.hv)
+period(chv::CovariantVelocityInterp) = period(parentseries(chv))
+frequency(chv::CovariantVelocityInterp) = frequency(parentseries(chv))
 function allocate(chv::CovariantVelocityInterp, x, dim)
     hv_cache = allocate(chv.hv, x, dim)
     a_cache = allocate(chv.a, x * period(chv.a, dim) / period(chv, dim), dim)
@@ -224,13 +224,13 @@ end
 @inline zero_eig(::Type{<:Eigen{A,B,C}}) where {A,B,C} = eigen(Hermitian(zero(C)))
 
 # for HamiltonianInterp
-function Base.zero(::Type{FourierValue{X,S}}) where {X,S<:Eigen}
-    return FourierValue(zero(X),zero_eig(S))
-end
+# function Base.zero(::Type{FourierValue{X,S}}) where {X,S<:Eigen}
+#     return FourierValue(zero(X),zero_eig(S))
+# end
 # for the velocity interps
-function Base.zero(::Type{FourierValue{X,T}}) where {X,T<:Tuple}
-    return FourierValue(zero(X), ntuple(i -> zero_eig(fieldtype(T,i)),Val(fieldcount(T))))
-end
+# function Base.zero(::Type{FourierValue{X,T}}) where {X,T<:Tuple}
+#     return FourierValue(zero(X), ntuple(i -> zero_eig(fieldtype(T,i)),Val(fieldcount(T))))
+# end
 # ----------------
 
 """
@@ -243,7 +243,7 @@ struct MassVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C,B,G
     h::HessianSeries{N,T,iip,F,DF}
     A::TA
     function MassVelocityInterp{C,B,G}(h::HessianSeries{N,T,iip,F,DF}, A::TA) where {C,B,G,N,T,iip,F,DF,TA}
-        @assert gauge(parent(h)) == GaugeDefault(parent(h))
+        @assert gauge(parentseries(h)) == GaugeDefault(parentseries(h))
         return new{C,B,G,N,T,iip,F,DF,TA}(h, A)
     end
 end
@@ -258,16 +258,16 @@ end
 CoordDefault(::Type{<:MassVelocityInterp}) = Lattice()
 GaugeDefault(::Type{<:MassVelocityInterp}) = Wannier()
 VcompDefault(::Type{<:MassVelocityInterp}) = Whole()
-Base.parent(mv::MassVelocityInterp) = mv.h
-period(mv::MassVelocityInterp) = period(parent(mv))
-frequency(mv::MassVelocityInterp) = frequency(parent(mv))
-allocate(mv::MassVelocityInterp, x, dim) = allocate(parent(mv), x, dim)
+parentseries(mv::MassVelocityInterp) = mv.h
+period(mv::MassVelocityInterp) = period(parentseries(mv))
+frequency(mv::MassVelocityInterp) = frequency(parentseries(mv))
+allocate(mv::MassVelocityInterp, x, dim) = allocate(parentseries(mv), x, dim)
 function contract!(cache, mv::MassVelocityInterp{C,B,G}, x, dim) where {C,B,G}
-    h = contract!(cache, parent(mv), x, dim)
+    h = contract!(cache, parentseries(mv), x, dim)
     return MassVelocityInterp{C,B,G}(h, mv.A)
 end
 function evaluate!(cache, mv::MassVelocityInterp, x)
-    hw, vws, mws = evaluate!(cache, parent(mv), x)
+    hw, vws, mws = evaluate!(cache, parentseries(mv), x)
     h, vs, ms = to_vcomp_gauge_mass(mv, hw, vws, tunroll(mws...))
     # We want a compact representation of the Hessian, which is symmetric, however we can't
     # use LinearAlgebra.Symmetric because it is recursive

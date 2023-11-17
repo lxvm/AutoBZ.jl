@@ -2,12 +2,12 @@
 _inv(args...; kws...) = inv(args...; kws...)
 _eigen(args...; kws...) = eigen(args...; kws...)
 
-function LinearAlgebra.inv(A::SHermitianCompact{3,T,6}) where {T<:Real}
+function _inv(A::SHermitianCompact{3,T,6}) where {T<:Real}
     F = Base.promote_op(inv,T)
     SHermitianCompact{3,F,6}(SVector{6,F}(hinv(A)))
 end
 
-function LinearAlgebra.inv(A::SHermitianCompact{3,T,6}) where T
+function _inv(A::SHermitianCompact{3,T,6}) where T
     SMatrix{3,3,Base.promote_op(inv,T),9}(hinv(A))
 end
 
