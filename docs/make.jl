@@ -22,6 +22,7 @@ makedocs(
             "pages/app/self_energy.md",
             "pages/app/integrands.md",
             "pages/app/interfaces.md",
+            "pages/app/internal.md",
             ],
         "Demos" => "pages/demo.md",
         "Workflow" => "pages/workflow.md",

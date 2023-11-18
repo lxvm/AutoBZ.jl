@@ -16,7 +16,6 @@ AutoBZ.diaggloc_integrand
 AutoBZ.CoordDefault
 AutoBZ.CartesianRep
 AutoBZ.to_coord
-AutoBZ.AbstractVelocityComponent
 AutoBZ.shift!
 AutoBZ.tr_inv
 AutoBZ.to_vcomp_gauge

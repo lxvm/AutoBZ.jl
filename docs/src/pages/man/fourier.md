@@ -101,6 +101,7 @@ AutoBZ.Lattice
 
 ### Velocity components
 ```@docs
+AutoBZ.AbstractVelocityComponent
 Whole
 Intra
 Inter
