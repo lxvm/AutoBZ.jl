@@ -10,7 +10,7 @@ using AutoBZCore: IntegralProblem, solve
 
 using Aqua
 
-Aqua.test_all(AutoBZ, project_toml_formatting=false)
+Aqua.test_all(AutoBZ)
 
 function integer_lattice(n)
     C = OffsetArray(zeros(SMatrix{1,1,Float64,1},ntuple(_ -> 3, n)), repeat([-1:1], n)...)

@@ -14,17 +14,22 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-Aqua = "0.7"
+Aqua = "0.8"
 AutoBZCore = "0.3"
 BaryRational = "0.1,1"
+Brillouin = "0.5"
 EquiBaryInterp = "0.1"
 FourierSeriesEvaluators = "1"
 HChebInterp = "0.1"
 LinearAlgebra = "1.9"
 Makie = "0.19"
+OffsetArrays = "1"
+PlotlyJS = "0.18"
 Reexport = "1"
 StaticArrays = "1"
 WannierIO = "0.2"
+Test = "1.9"
+Unitful = "1"
 julia = "1.9"
 
 [extensions]
