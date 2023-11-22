@@ -16,7 +16,7 @@ hv, bz = load_wannier90_data(seed; gauge=Hamiltonian(), interp=CovariantVelocity
 
 # define problem parameters
 Ωs = pushfirst!(10.0 .^ range(-2.5, 1.0, length=50), 0.0)
-η = 0.005 # eV
+η = 0.5 # eV
 
 shift!(hv, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
@@ -33,15 +33,15 @@ T = sqrt(η/c)
 β = inv(kB*T)
 
 # set error tolerances
-rtol = 1e-2
-atol = 1e-8
+rtol = 1e-3
+atol = 1e-3
 
 falg = QuadGKJL() # adaptive algorithm for frequency integral
 
 # setup algorithm for Brillouin zone integral
 npt = 15
-kalg = PTR(; npt=npt)
-# kalg = AutoPTR()
+# kalg = PTR(; npt=npt)
+kalg = AutoPTR()
 # kalg = IAI()
 #= alternative algorithms that save work for IAI when requesting a reltol
 kalg = AutoPTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
@@ -69,7 +69,7 @@ h5open("sro_tetra_oc_fl_ptr_eta$(η)_atol$(atol)_rtol$(rtol)_k$(npt).h5", "w") d
     batchsolve(kc_1, kc_solver, paramproduct(Ω=0.0, n=1, β=β); nthreads=nthreads)
 end
 # show the number of points used on the ibz
-kalg isa AutoPTR && @show AutoSymPTR.countevals.(kc_integrand.p[1].cacheval.cache)
+kalg isa AutoPTR && @show length.(kc_integrand.p[1].cacheval.cache)
 # show npt/dim
 kalg isa AutoPTR && bz.syms !== nothing && @show getproperty.(kc_integrand.p[1].cacheval.cache, :npt)
 
