@@ -146,7 +146,7 @@ Modifies and returns `h` such that it returns `h - λ*I`. Will throw a
 `BoundsError` if this operation cannot be done on the existing data.
 """
 function shift!(h::AbstractHamiltonianInterp, λ::Number)
-    shift!(parent(h), λ)
+    shift!(parentseries(h), λ)
     return h
 end
 
@@ -387,7 +387,7 @@ function to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::SVector)
 end
 
 """
-    parent(::AbstractVelocityInterp)::DerivativeSeries
+    parentseries(::AbstractVelocityInterp)::DerivativeSeries
 
 Return the Hamiltonian object used for Wannier interpolation
 """
