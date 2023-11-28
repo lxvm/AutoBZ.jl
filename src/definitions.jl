@@ -134,8 +134,8 @@ show_dims(h::AbstractHamiltonianInterp) = show_dims(parentseries(h))
 
 function shift!(f::FourierSeries, λ_::Number)
     λ = convert(eltype(eltype(f.c)), λ_)
-    idx = map((i,o) -> i-o-1, first(CartesianIndices(f.c)).I, f.o)
-    f.c[idx...] -= λ*I
+    # We index into the R=0 coefficient to shift by a constant
+    f.c[-CartesianIndex(f.o)] -= λ*I
     return f
 end
 

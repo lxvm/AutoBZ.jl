@@ -20,6 +20,8 @@ function integer_lattice(n)
     return Freq2RadSeries(FourierSeries(C, period=2pi))
 end
 
+@testset "AutoBZ - utils" include("utils.jl")
+
 # run these tests with multiple threads to check multithreading works
 @testset "AutoBZ" begin
 
