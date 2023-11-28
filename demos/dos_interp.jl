@@ -47,7 +47,7 @@ nodes = Float64[]
 for (i,children) in enumerate(p1.searchtree)
     isempty(children) || continue
     panel = p1.funtree[i]
-    push!(nodes, HChebInterp.chebpoints(order, panel.lb[1], panel.ub[1])...)
+    push!(nodes, HChebInterp.chebpoints(order, ω_lo + (1+panel.lb[1])*(ω_hi-ω_lo)/2, ω_lo + (1+panel.ub[1])*(ω_hi-ω_lo)/2)...)
 end
 # unique!(nodes)
 
@@ -55,7 +55,7 @@ fast_nodes = Float64[]
 for (i,children) in enumerate(p2.searchtree)
     isempty(children) || continue
     panel = p2.funtree[i]
-    push!(fast_nodes, HChebInterp.chebpoints(fast_order, panel.lb[1], panel.ub[1])...)
+    push!(fast_nodes, HChebInterp.chebpoints(fast_order, ω_lo + (1+panel.lb[1])*(ω_hi-ω_lo)/2, ω_lo + (1+panel.ub[1])*(ω_hi-ω_lo)/2)...)
 end
 # unique!(fast_nodes)
 
