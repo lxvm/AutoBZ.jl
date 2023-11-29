@@ -13,9 +13,10 @@ function _inv(x::StaticMatrix{N,M,T}) where {N,M,T <: Unitful.AbstractQuantity}
     map(Quantity{iq, inv(dimension(T)), typeof(inv(unit(T)))}, m)
 end
 
-function _eigen(x::Hermitian{<:Quantity,<:StaticMatrix})
+function _eigen(x::Hermitian{T,<:StaticMatrix}) where {T<:Quantity}
     y = Hermitian(map(ustrip, x.data))
     e = _eigen(y)
-    return Eigen(map(eltype(x), e.values), e.vectors)
+    iq = eltype(e.values)
+    return Eigen(map(Quantity{iq, dimension(T), typeof(unit(T))}, e.values), e.vectors)
 end
 end
