@@ -428,14 +428,25 @@ The argument `alg` determines what the order of integration is. Given a BZ
 algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
 integral.
 """
-function KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...) where {T<:AbstractVelocityInterp}
+function KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, Σ, args...; kwargs...) where {T<:AbstractVelocityInterp}
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv, Σ)
-    transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    transport_solver = IntegralSolver(transport_integrand, bz, alg; solver_kws...)
     # transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)), 0) # precompile the solver
-    return ParameterIntegrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
+    return ParameterIntegrand(transport_fermi_integrand, transport_solver, args...; kws...)
 end
+
+function nested_solver_kwargs(___kws::NamedTuple)
+    akw, __kws = _peel_abstol(; ___kws...)
+    rkw, _kws = _peel_reltol(; __kws...)
+    mkw, kws = _peel_maxiters(; _kws...)
+    return merge(akw, rkw, mkw), kws
+end
+_peel_abstol(; abstol=nothing, kws...) = (isnothing(abstol) ? NamedTuple() : (; abstol=abstol)), NamedTuple(kws)
+_peel_reltol(; reltol=nothing, kws...) = (isnothing(reltol) ? NamedTuple() : (; reltol=reltol)), NamedTuple(kws)
+_peel_maxiters(; maxiters=nothing, kws...) = (isnothing(maxiters) ? NamedTuple() : (; maxiters=maxiters)), NamedTuple(kws)
+
 
 function kc_params(solver, n, β, Ω, μ)
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, change order of integration or evaluate a TransportDistributionIntegrand at ω₁=ω₂=0"))
@@ -489,26 +500,26 @@ function (kc::KCFrequencyIntegral)(hv_k, dom, n, β, Ω, μ)
     return kinetic_coefficient_integrand(hv_k, solver, n, β, Ω, μ)
 end
 
-function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside, Σ, hv(period(hv)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; solver_kws...)
     # frequency_solver(0, 1e100, 0.0, 0.0, hv(period(hv)))) # precompile the solver
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kwargs...)
+    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kws...)
 end
 
-function KineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function KineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, Σ, args...; kwargs...)
     # put the frequency integral inside otherwise
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside, Σ, w(period(w.series)))
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; solver_kws...)
     # frequency_solver(0, 1e100, 0.0, 0.0, hv(period(hv)))) # precompile the solver
     # return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, args...; kwargs...)
     int = KCFrequencyIntegral(frequency_solver)
-    p = ParameterIntegrand(int, dom, args...; kwargs...)
+    p = ParameterIntegrand(int, dom, args...; kws...)
     nest = make_fourier_nest(p, ParameterIntegrand(int), w)
     return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
 end
@@ -642,12 +653,12 @@ integral.
 
 To get the density/number of electrons, multiply the result of this integral by `n_sp/det(bz.B)`
 """
-function ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::Union{T,FourierWorkspace{<:T}}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...) where {T<:AbstractHamiltonianInterp}
+function ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::Union{T,FourierWorkspace{<:T}}, Σ, args...; kwargs...) where {T<:AbstractHamiltonianInterp}
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     dos_int = DOSIntegrand(h, Σ)
-    dos_solver = IntegralSolver(dos_int, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    dos_solver = IntegralSolver(dos_int, bz, alg; solver_kws...)
     # dos_solver(0.0, 0) # precompile the solver
-    return ParameterIntegrand(dos_fermi_integrand, dos_solver, args...; kwargs...)
+    return ParameterIntegrand(dos_fermi_integrand, dos_solver, args...; kws...)
 end
 
 dens_params(solver, β, μ)     = (solver, β, μ)
@@ -688,23 +699,23 @@ function (n::DensityFrequencyIntegral)(h_k, dom, β, μ)
     return solver(h_k, β, μ)
 end
 
-function ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp, Σ, args...; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside, Σ, h(period(h)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
     # frequency_solver(h(period(h))), 1.0, 0) # precompile the solver
     dom = AutoBZCore.PuncturedInterval((lb, ub))
-    return FourierIntegrand(DensityFrequencyIntegral(frequency_solver), h, dom, args...; kwargs...)
+    return FourierIntegrand(DensityFrequencyIntegral(frequency_solver), h, dom, args...; kws...)
 end
 
-function ElectronDensityIntegrand(lb, ub, alg, w::FourierWorkspace{<:AbstractHamiltonianInterp}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function ElectronDensityIntegrand(lb, ub, alg, w::FourierWorkspace{<:AbstractHamiltonianInterp}, Σ, args...; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside, Σ, w(period(w.series)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
     # frequency_solver(h(period(h))), 1.0, 0) # precompile the solver
     dom = AutoBZCore.PuncturedInterval((lb, ub))
     int = DensityFrequencyIntegral(frequency_solver)
-    p = ParameterIntegrand(int, dom, args...; kwargs...)
+    p = ParameterIntegrand(int, dom, args...; kws...)
     nest = make_fourier_nest(p, ParameterIntegrand(int), w)
     return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
 end
@@ -887,13 +898,13 @@ end
 A kinetic coefficient integrand that is more robust to the peak-missing problem. See
 [`KineticCoefficientIntegrand`](@ref) for arguments.
 """
-function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...) where {T<:AbstractVelocityInterp}
+function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, Σ, args...; kwargs...) where {T<:AbstractVelocityInterp}
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = AuxTransportDistributionIntegrand(hv, Σ)
-    transport_solver = IntegralSolver(transport_integrand, bz, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    transport_solver = IntegralSolver(transport_integrand, bz, alg; solver_kws...)
     # transport_solver(max(-10.0, lb(Σ)), min(10.0, ub(Σ)), 0) # precompile the solver
-    return ParameterIntegrand(transport_fermi_integrand, transport_solver, args...; kwargs...)
+    return ParameterIntegrand(transport_fermi_integrand, transport_solver, args...; kws...)
 end
 
 function aux_transport_fermi_integrand_inside(ω, Σ, _, n, β, Ω, μ, hv_k)
@@ -901,25 +912,25 @@ function aux_transport_fermi_integrand_inside(ω, Σ, _, n, β, Ω, μ, hv_k)
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
 end
 
-function AuxKineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function AuxKineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, Σ, args...; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, Σ, hv(period(hv)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; solver_kws...)
     # frequency_solver(hv(period(hv))), 0, 1e100, 0.0, 0) # precompile the solver
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kwargs...)
+    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kws...)
 end
-function AuxKineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, Σ, args...;
-    abstol=0.0, reltol=iszero(abstol) ? sqrt(eps()) : zero(abstol), maxiters=typemax(Int), kwargs...)
+function AuxKineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, Σ, args...; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, Σ, w(period(w.series)))
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; abstol=abstol, reltol=reltol, maxiters=maxiters)
+    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; solver_kws...)
     # frequency_solver(0, 1e100, 0.0, 0.0, hv(period(hv)))) # precompile the solver
     # return FourierIntegrand(kinetic_coefficient_integrand, hv, frequency_solver, args...; kwargs...)
     int = KCFrequencyIntegral(frequency_solver)
-    p = ParameterIntegrand(int, dom, args...; kwargs...)
+    p = ParameterIntegrand(int, dom, args...; kws...)
     nest = make_fourier_nest(p, ParameterIntegrand(int), w)
     return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
 end
