@@ -296,7 +296,7 @@ end
 
 function spectral_function(G::AbstractMatrix)
     T = real(eltype(G)) # get floating point type from input
-    imtwo = complex(zero(T), oneunit(T)+oneunit(T))
+    imtwo = complex(zero(one(T)), one(T)+one(T))
     return (G - G')/(-imtwo*pi)   # skew-Hermitian part
 end
 spectral_function(G::Union{Number,Diagonal}) = -imag(G)/pi # optimization
