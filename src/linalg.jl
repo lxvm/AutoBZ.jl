@@ -1,4 +1,10 @@
 # method to intercept for units
+
+# some of the factorizations are not unit-aware
+_eltype(x::Type) = eltype(x)
+_eltype(x) = _eltype(typeof(x))
+_eltype(::Type{<:Eigen{T,V}}) where {T,V} = typeof(zero(T)*zero(V))
+
 _inv(args...; kws...) = inv(args...; kws...)
 _eigen(args...; kws...) = eigen(args...; kws...)
 

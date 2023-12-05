@@ -257,7 +257,7 @@ end
 
 function (f::TransportFunctionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(tf_params, MixedParameters(inv(oneunit(el)), zero(el))))
 end
 
@@ -363,7 +363,7 @@ end
 
 function (f::TransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM2, merge(f.f.p, (ω₁=zero(el), ω₂=zero(el)))))
 end
 
@@ -380,7 +380,7 @@ function set_autoptr_eta(alg::AutoPTR, f::TransportDistributionIntegrandType, p)
     # (estimated) eta from self energy evaluated at the Fermi energy
     # TODO use Σ limits to get the frequency type
     ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     new_p = canonize(evalM2, merge(p, (ω₁=zero(el), ω₂=zero(el))))
     η₁ = im_sigma_to_eta(-imag(new_p[1]))
     η₂ = im_sigma_to_eta(-imag(new_p[2]))
@@ -465,7 +465,7 @@ end
 
 function (f::KCFrequencyType)(x, ::CanonicalParameters)
     ws = f.p[1].f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     p = canonize(kc_params, MixedParameters(f.p[1]; n=0, β=inv(oneunit(el)), Ω=zero(el)))
     return ParameterIntegrand(f.f)(zero(x), p)
 end
@@ -606,7 +606,7 @@ end
 function set_autoptr_eta(alg::AutoPTR, kc::KineticCoefficientIntegrandType, p)
     # (estimated) eta from self energy evaluated at the Fermi energy
     ws = kc.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     M = canonize(evalM, MixedParameters(kc.f.f.solver.f.p[1]; ω=zero(el)))[1]
     η = im_sigma_to_eta(-imag(M))
     return set_autoptr_eta(alg, η)
@@ -673,7 +673,7 @@ end
 
 function (f::DensityFrequencyType)(x, ::CanonicalParameters)
     ws = f.p[1].f.w
-    el = real(eltype(ws(period(ws.series))))
+    el = real(_eltype(ws(period(ws.series))))
     return ParameterIntegrand(f.f)(zero(x), canonize(dens_params, MixedParameters(f.p[1]; β=inv(oneunit(el)))))
 end
 
@@ -787,7 +787,7 @@ function set_autoptr_eta(alg::AutoPTR, n::ElectronDensityIntegrandType, p)
     # if we knew β then we would pick the larger of η and inv(β) since there are no
     # interband transitions
     ws = n.w
-    el = real(eltype(ws(period(ws.series))))
+    el = real(_eltype(ws(period(ws.series))))
     M = canonize(evalM, MixedParameters(n.f.f.solver.f.p[1]; ω=zero(el)))[1]
     η = im_sigma_to_eta(-imag(M))
     return set_autoptr_eta(alg, η)
@@ -855,7 +855,7 @@ end
 
 function (f::AuxTransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
     ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM2, merge(f.f.p, (ω₁=zero(el), ω₂=zero(el)))))
 end
 
@@ -869,7 +869,7 @@ end
 
 function set_autoptr_eta(alg::AutoPTR, f::AuxTransportDistributionIntegrandType, p)
     ws = f.w
-    el = real(eltype(ws(period(ws.series))[1]))
+    el = real(_eltype(ws(period(ws.series))[1]))
     # (estimated) eta from self energy evaluated at the Fermi energy
     new_p = canonize(evalM2, merge(p, (ω₁=zero(el), ω₂=zero(el))))
     η₁ = im_sigma_to_eta(-imag(new_p[1]))
