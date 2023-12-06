@@ -2,6 +2,12 @@
 # arguments, except that we typically don't want to provide defaults in order to require
 # that the user provide the necessary data for the problem
 
+# The precedence of parameters is:
+# canonical parameters < parameters passed to integrand constructor < parameters passed to solver
+# in particular, canonical parameters are only used to initialize the solver, never to solve
+# We are able to provide this precedence of parameters by making all parameters keyword
+# arguments. Moreover, positional arguments are reserved for internal use.
+
 # Typically we also want to transform the problem based on the parameters, e.g.
 # - precompute some function that only depends on parameters, not variables
 # - truncate the limits of frequency integration
