@@ -509,16 +509,10 @@ function get_safe_fermi_window_limits(Ω, β, dom; kwargs...)
     return AutoBZCore.PuncturedInterval(int)
 end
 
-function kc_inner_params(dom, Σ, n, β, Ω, μ; kws...)
+function kc_inner_params(dom; Σ, n, β, Ω, μ=zero(Ω))
     new_dom = get_safe_fermi_window_limits(Ω, β, dom)
     return (new_dom, Σ, n, β, Ω, μ)
 end
-
-kc_inner_params(dom, Σ, n, β, Ω; μ=zero(Ω)) = kc_inner_params(dom, Σ, n, β, Ω, μ)
-kc_inner_params(dom, Σ, n, β; Ω, μ=zero(Ω)) = kc_inner_params(dom, Σ, n, β, Ω, μ)
-kc_inner_params(dom, Σ, n; β, Ω, μ=zero(Ω)) = kc_inner_params(dom, Σ, n, β, Ω, μ)
-kc_inner_params(dom, Σ; n, β, Ω, μ=zero(Ω)) = kc_inner_params(dom, Σ, n, β, Ω, μ)
-kc_inner_params(dom; Σ, n, β, Ω, μ=zero(Ω)) = kc_inner_params(dom, Σ, n, β, Ω, μ)
 
 const KineticCoefficientIntegrandType = FourierIntegrand{<:KCFrequencyIntegral}
 
