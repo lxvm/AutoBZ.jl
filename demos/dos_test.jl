@@ -23,7 +23,7 @@ atol = 1e-3
 rtol = 0.0
 npt = 100
 
-integrand = DOSIntegrand(h, Σ; μ=0)
+integrand = DOSIntegrand(h; Σ, μ=0)
 
 algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
 

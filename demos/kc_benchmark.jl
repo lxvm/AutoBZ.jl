@@ -40,16 +40,16 @@ falg = QuadGKJL() # adaptive algorithm for frequency integral
 
 # setup algorithm for Brillouin zone integral
 npt = 15
-# kalg = PTR(; npt=npt)
-kalg = AutoPTR()
+kalg = PTR(; npt=npt)
+# kalg = AutoPTR()
 # kalg = IAI()
 #= alternative algorithms that save work for IAI when requesting a reltol
-kalg = AutoPTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
+kalg = PTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
 kalg = AutoPTR_IAI(; ptr=AutoPTR(), iai=IAI())
 =#
 
 # create frequency integrand, which evaluates a bz integral at each frequency
-kc_integrand = KineticCoefficientIntegrand(bz, kalg, hv, Σ; abstol=atol/nsyms(bz), reltol=rtol)
+kc_integrand = KineticCoefficientIntegrand(bz, kalg, hv; Σ, abstol=atol/nsyms(bz), reltol=rtol)
 # construct solver
 kc_solver = IntegralSolver(kc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
 

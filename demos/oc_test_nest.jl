@@ -38,19 +38,17 @@ kalgs = (IAI(), PTR(; npt=npt),)# AutoPTR()) # BZ algorithms
 w = FourierSeriesEvaluators.workspace_allocate(hv, FourierSeriesEvaluators.period(hv), (1,1,4))
 
 # loop to test various routines with the frequency integral on the inside
-integrand = OpticalConductivityIntegrand(falg, w, Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
+integrand = OpticalConductivityIntegrand(falg, w; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
-    @btime $solver(Ω=$Ω, μ=$μ)
-    # @time @show solver(Ω=Ω, μ=μ)
+    @time @show solver(; Ω, μ)
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
-    local integrand = OpticalConductivityIntegrand(bz, kalg, w, Σ, β, abstol=atol, reltol=rtol)
+    local integrand = OpticalConductivityIntegrand(bz, kalg, w; Σ, β, abstol=atol, reltol=rtol)
     @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
-    @btime $solver(Ω=$Ω, μ=$μ)
-    # @time @show solver(Ω=Ω, μ=μ)
+    @time @show solver(; Ω, μ)
 end

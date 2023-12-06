@@ -25,13 +25,13 @@ rtol = 0.0
 npt = 100
 
 w = FourierSeriesEvaluators.workspace_allocate(h, FourierSeriesEvaluators.period(h), (1,1,4))
-integrand = DOSIntegrand(w, Σ)
+integrand = DOSIntegrand(w; Σ)
 
 algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
 
 for alg in algs
     @show nameof(typeof(alg))
     solver = IntegralSolver(integrand, bz, alg; abstol=atol, reltol=rtol)
-    @time @show solver(ω=ω)
+    @time @show solver(; ω)
     println()
 end
