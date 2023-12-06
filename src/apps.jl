@@ -447,7 +447,7 @@ function (kc::KCFrequencyIntegral)(hv_k, dom, Σ, n, β, Ω, μ)
     return kinetic_coefficient_integrand(hv_k, solver, Σ, n, β, Ω, μ)
 end
 
-function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, args...; kwargs...)
+function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, hv::AbstractVelocityInterp, args...; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=hv(period(hv)))
@@ -456,7 +456,7 @@ function KineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, 
     return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kws...)
 end
 
-function KineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, args...; kwargs...)
+function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractVelocityInterp}, args...; kwargs...)
     # put the frequency integral inside otherwise
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=w(period(w.series)))
@@ -620,7 +620,7 @@ function (n::DensityFrequencyIntegral)(h_k, dom, Σ, β, μ)
     return solver(; h_k, Σ, β, μ)
 end
 
-function ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp; kwargs...)
+function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, h::AbstractHamiltonianInterp; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=h(period(h)))
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
@@ -628,7 +628,7 @@ function ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp; kwa
     return FourierIntegrand(DensityFrequencyIntegral(frequency_solver), h, dom; kws...)
 end
 
-function ElectronDensityIntegrand(lb, ub, alg, w::FourierWorkspace{<:AbstractHamiltonianInterp}; kwargs...)
+function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractHamiltonianInterp}; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=w(period(w.series)))
     frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
@@ -801,7 +801,7 @@ function aux_transport_fermi_integrand_inside(ω, auxfun; Σ, n, β, Ω, μ, hv_
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
 end
 
-function AuxKineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; kwargs...)
+function AuxKineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=hv(period(hv)))
@@ -809,7 +809,7 @@ function AuxKineticCoefficientIntegrand(lb_, ub_, alg, hv::AbstractVelocityInter
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
     return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom; kws...)
 end
-function AuxKineticCoefficientIntegrand(lb_, ub_, alg, w::FourierWorkspace{<:AbstractVelocityInterp}, auxfun=default_transport_auxfun; kwargs...)
+function AuxKineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractVelocityInterp}, auxfun=default_transport_auxfun; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
     frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=w(period(w.series)))
