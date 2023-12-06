@@ -58,16 +58,12 @@ end
         fbz = load_bz(FBZ(dims))
         @testset "Green's function integrands" for integrand in (GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand)
             h = h
-            Σ = EtaSelfEnergy(1.0)
-            f = integrand(h, Σ)
+            f = integrand(h)
             r = map((fbz, ibz)) do bz
                 prob = IntegralProblem(f, bz)
                 gint = IntegralSolver(prob, alg; abstol=1e-1)
-                # compare the various interfaces
-                ω = 1.0; μ = 0.1
-                ans = @inferred(gint(ω, μ))
-                @test ans ≈ gint(ω, μ=μ) ≈ gint(ω=ω, μ=μ)
-                return ans
+                Σ = EtaSelfEnergy(1.0); ω = 1.0; μ = 0.1
+                return @inferred(gint(; Σ, ω, μ))
             end
             # the Green's function integrands have unknown symmetry
             # representations but we are only integrating a scalar Hamiltonian
@@ -86,48 +82,39 @@ end
                 tfun = IntegralSolver(prob, alg; abstol=1e-1)
                 # compare the various interfaces
                 β = 1.0; μ = 0.1
-                ans = @inferred(tfun(β, μ))
-                @test ans ≈ tfun(β, μ=μ) ≈ tfun(β=β, μ=μ)
-                return ans
+                return @inferred(tfun(; β, μ))
             end
             @test r[1] ≈ r[2] atol=1e-1
         end
         @testset "TransportDistributionIntegrand" begin
             hv = GradientVelocityInterp(h, I, gauge=Hamiltonian())
-            Σ = EtaSelfEnergy(1.0)
-            f = TransportDistributionIntegrand(hv, Σ)
+            f = TransportDistributionIntegrand(hv)
             r = map((fbz, ibz)) do bz
                 prob = IntegralProblem(f, bz)
                 tdis = IntegralSolver(prob, alg; abstol=1e-1)
                 # compare the various interfaces
-                ω₁ = 1.0; ω₂ = 2.0; μ = 0.1
-                ans = @inferred(tdis(ω₁, ω₂, μ))
-                @test ans ≈ tdis(ω₁, ω₂, μ=μ) ≈ tdis(ω₁=ω₁, ω₂=ω₂, μ=μ)
-                return ans
+                Σ = EtaSelfEnergy(1.0); ω₁ = 1.0; ω₂ = 2.0; μ = 0.1
+                return @inferred(tdis(; Σ, ω₁, ω₂, μ))
             end
             @test r[1] ≈ r[2] atol=1e-1
         end
         @testset "KineticCoefficientIntegrand" for Ω in (0.0, 2.0)
-            β = 1.0; μ = 0.1
+            β = 1.0; μ = 0.1; n = 0
             hv = GradientVelocityInterp(h, I, gauge=Hamiltonian())
             Σ = EtaSelfEnergy(1.0)
             falg = QuadGKJL()
             r = map((fbz, ibz)) do bz
                 # test both orders of integration
                 # 1. bz integral inside
-                f = KineticCoefficientIntegrand(bz, alg, hv, Σ, 0; abstol=1e-2)
+                f = KineticCoefficientIntegrand(bz, alg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, AutoBZ.lb(Σ), AutoBZ.ub(Σ))
                 kcof = IntegralSolver(prob, falg; abstol=1e-1)
-                anskw = @inferred(kcof(β, Ω, μ))
-                # compare the various interfaces
-                @test anskw ≈ kcof(β, Ω, μ=μ) ≈ kcof(β, Ω=Ω, μ=μ) ≈ kcof(β=β, Ω=Ω, μ=μ)
+                anskw = @inferred(kcof(; Σ, n, β, Ω, μ))
                 # 2. frequency integral inside
-                f = KineticCoefficientIntegrand(falg, hv, Σ, 0; abstol=1e-2)
+                f = KineticCoefficientIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, bz)
                 kcof = IntegralSolver(prob, alg; abstol=1e-1)
-                answk = @inferred(kcof(β, Ω, μ))
-                # compare the various interfaces
-                @test answk ≈ kcof(β, Ω, μ=μ) ≈ kcof(β, Ω=Ω, μ=μ) ≈ kcof(β=β, Ω=Ω, μ=μ)
+                answk = @inferred(kcof(; Σ, n, β, Ω, μ))
                 return anskw, answk
             end
             @test r[1][1] ≈ r[1][2] atol=1e-1
@@ -142,19 +129,15 @@ end
             r = map((fbz, ibz)) do bz
                 # test both orders of integration
                 # 1. bz integral inside
-                f = ElectronDensityIntegrand(bz, alg, hv, Σ; abstol=1e-2)
+                f = ElectronDensityIntegrand(bz, alg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, AutoBZ.lb(Σ), AutoBZ.ub(Σ))
                 dens = IntegralSolver(prob, falg; abstol=1e-1)
-                anskw = @inferred(dens(β, μ))
-                # compare the various interfaces
-                @test anskw ≈ dens(β, μ=μ) ≈ dens(β=β, μ=μ)
+                anskw = @inferred(dens(; Σ, β, μ))
                 # 2. frequency integral inside
-                f = ElectronDensityIntegrand(falg, hv, Σ; abstol=1e-2)
+                f = ElectronDensityIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, bz)
                 kcof = IntegralSolver(prob, alg; abstol=1e-1)
-                answk = @inferred(dens(β, μ))
-                # compare the various interfaces
-                @test answk ≈ dens(β, μ=μ) ≈ dens(β=β, μ=μ)
+                answk = @inferred(dens(; Σ, β, μ))
                 return anskw, answk
             end
             @test r[1][1] ≈ r[1][2] atol=1e-1
@@ -165,38 +148,31 @@ end
             hv = GradientVelocityInterp(h, I, gauge=Hamiltonian())
             Σ = EtaSelfEnergy(1.0)
             ω₁ = 1.0; ω₂ = 2.0; μ = 0.1
-            f = AuxTransportDistributionIntegrand(hv, Σ)
+            f = AuxTransportDistributionIntegrand(hv)
             r = map((fbz, ibz)) do bz
                 prob = IntegralProblem(f, bz)
                 tdis = IntegralSolver(prob, alg; abstol=1e-1)
-                ans = @inferred(tdis(ω₁, ω₂, μ))
-                # compare the various interfaces
-                @test ans ≈ tdis(ω₁, ω₂, μ=μ) ≈ tdis(ω₁=ω₁, ω₂=ω₂, μ=μ)
-                return ans
+                return @inferred(tdis(; Σ, ω₁, ω₂, μ))
             end
             @test r[1] ≈ r[2] atol=1e-1
         end
         @testset "AuxKineticCoefficientIntegrand" for Ω in (0.0, 2.0)
             hv = GradientVelocityInterp(h, I, gauge=Hamiltonian())
             Σ = EtaSelfEnergy(1.0)
-            β = 1.0; μ = 0.1
+            β = 1.0; μ = 0.1; n = 0
             falg = QuadGKJL()
             r = map((fbz, ibz)) do bz
                 # test both orders of integration
                 # 1. bz integral inside
-                f = AuxKineticCoefficientIntegrand(bz, alg, hv, Σ, 0; abstol=1e-2)
+                f = AuxKineticCoefficientIntegrand(bz, alg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, AutoBZ.lb(Σ), AutoBZ.ub(Σ))
                 kcof = IntegralSolver(prob, falg; abstol=1e-1)
-                anskw = @inferred(kcof(β, Ω, μ))
-                # compare the various interfaces
-                @test anskw ≈ kcof(β, Ω, μ=μ) ≈ kcof(β, Ω=Ω, μ=μ) ≈ kcof(β=β, Ω=Ω, μ=μ)
+                anskw = @inferred(kcof(; Σ, n, β, Ω, μ))
                 # 2. frequency integral inside
-                f = AuxKineticCoefficientIntegrand(falg, hv, Σ, 0; abstol=1e-2)
+                f = AuxKineticCoefficientIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; abstol=1e-2)
                 prob = IntegralProblem(f, bz)
                 kcof = IntegralSolver(prob, alg; abstol=1e-1)
-                answk = @inferred(kcof(β, Ω, μ))
-                # compare the various interfaces
-                @test answk ≈ kcof(β, Ω, μ=μ) ≈ kcof(β, Ω=Ω, μ=μ) ≈ kcof(β=β, Ω=Ω, μ=μ)
+                answk = @inferred(kcof(; Σ, n, β, Ω, μ))
                 return anskw, answk
             end
             @test r[1][1] ≈ r[1][2] atol=1e-1
