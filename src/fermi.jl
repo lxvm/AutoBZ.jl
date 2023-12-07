@@ -156,7 +156,7 @@ function fermi_window_halfwidth_(x::T, atol::T) where {T<:Union{Float32,Float64}
 end
 fermi_window_halfwidth_(x::Float16, atol::Float16) = Float16(fermi_window_halfwidth_(Float32(x), Float32(atol)))
 
-fermi_window_maximum(β, Ω) = tanh(β*Ω/4)/Ω # == fermi_window(β, -Ω/2, Ω)
+fermi_window_maximum(β, Ω) = iszero(Ω) ? oftype(1/Ω, β/4) : tanh(β*Ω/4)/Ω # == fermi_window(β, -Ω/2, Ω)
 
 function fermi_function_limits(β; atol=zero(one(β)), rtol=iszero(atol) ? eps(one(atol)) : zero(atol))
     tol = max(atol, rtol) # since max of fermi function is always 1

@@ -781,12 +781,12 @@ end
 A kinetic coefficient integrand that is more robust to the peak-missing problem. See
 [`KineticCoefficientIntegrand`](@ref) for arguments.
 """
-function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, auxfun=default_transport_auxfun; kwargs...) where {T<:AbstractVelocityInterp}
+function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, auxfun=default_transport_auxfun; abstol=nothing, kwargs...) where {T<:AbstractVelocityInterp}
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = AuxTransportDistributionIntegrand(hv, auxfun)
-    transport_solver = IntegralSolver(transport_integrand, bz, alg; solver_kws...)
-    return ParameterIntegrand(transport_fermi_integrand, transport_solver; kws...)
+    cacheval = AutoBZCore.init_solver_cacheval(transport_integrand, bz, alg)
+    return ParameterIntegrand(transport_fermi_integrand, transport_integrand, bz, alg, cacheval, abstol, solver_kws; kws...)
 end
 
 function aux_transport_fermi_integrand_inside(ω, auxfun; Σ, n, β, Ω, μ, hv_k)
