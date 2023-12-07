@@ -165,7 +165,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
             new_p = canonize(evalM, p)
             # Define default equispace grid stepping for AutoPTR
             new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
-            new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+            new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
             return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
         end
     end
@@ -255,7 +255,7 @@ function AutoBZCore.remake_integrand_cache(f::TransportFunctionIntegrandType, do
     new_p = canonize(tf_params, p)
     # Define default equispace grid stepping from the localization scale T=inv(β)
     new_alg = choose_autoptr_step(alg, inv(new_p[1]), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
     return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
 end
 
@@ -322,7 +322,7 @@ function _evalM2(Σ, ω₁::T, ω₂::T, μ::T) where {T}
         (M, _evalM(Σ, ω₂, μ)[1], true)
     end
 end
-evalM2(; Σ, ω₁, ω₂, μ=zero(ω₁), kws...) = _evalM2(Σ, promote(ω₁, ω₂, μ)...)
+evalM2(; Σ, ω₁, ω₂, μ=zero(ω₁)) = _evalM2(Σ, promote(ω₁, ω₂, μ)...)
 
 const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
 
@@ -343,7 +343,7 @@ function AutoBZCore.remake_integrand_cache(f::TransportDistributionIntegrandType
     new_p = canonize(evalM2, p)
     # Define default equispace grid stepping
     new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
     return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
 end
 
@@ -382,12 +382,12 @@ The argument `alg` determines what the order of integration is. Given a BZ
 algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
 integral.
 """
-function KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}; kwargs...) where {T<:AbstractVelocityInterp}
+function KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}; abstol=nothing, kwargs...) where {T<:AbstractVelocityInterp}
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv)
-    transport_solver = IntegralSolver(transport_integrand, bz, alg; solver_kws...)
-    return ParameterIntegrand(transport_fermi_integrand, transport_solver; kws...)
+    cacheval = AutoBZCore.init_solver_cacheval(transport_integrand, bz, alg)
+    return ParameterIntegrand(transport_fermi_integrand, transport_integrand, bz, alg, cacheval, abstol, solver_kws; kws...)
 end
 
 function nested_solver_kwargs(___kws::NamedTuple)
@@ -401,8 +401,10 @@ _peel_reltol(; reltol=nothing, kws...) = (isnothing(reltol) ? NamedTuple() : (; 
 _peel_maxiters(; maxiters=nothing, kws...) = (isnothing(maxiters) ? NamedTuple() : (; maxiters=maxiters)), NamedTuple(kws)
 
 
-function kc_params(solver; Σ, n, β, Ω, μ=zero(Ω), kws...)
+function kc_params(transport_integrand, bz, alg, cacheval, abstol, solver_kws; Σ, n, β, Ω, μ=zero(Ω))
     iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, change order of integration or evaluate a TransportDistributionIntegrand at ω₁=ω₂=0"))
+    kws = merge(solver_kws, isnothing(abstol) ? (;) : (; abstol=abstol/fermi_window_maximum(β, Ω)))
+    solver = IntegralSolver(transport_integrand, bz, alg, cacheval, kws)
     return (solver, Σ, n, β, Ω, μ)
 end
 
@@ -419,8 +421,7 @@ end
 
 function AutoBZCore.remake_integrand_cache(f::KCFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(kc_params, p)
-    Ω = new_p[5]; β = new_p[4]
-    new_dom = get_safe_fermi_window_limits(Ω, β, dom)
+    new_dom = get_safe_fermi_window_limits(p.Ω, p.β, dom)
     return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
@@ -531,10 +532,9 @@ end
 function AutoBZCore.remake_integrand_cache(f::KineticCoefficientIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
     new_p = canonize(kc_inner_params, p)
-    Σ = new_p[2]
     # Define default equispace grid stepping
-    new_alg = choose_autoptr_step(alg, sigma_to_eta(Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
+    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
     return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
 end
 
@@ -594,8 +594,7 @@ end
 
 function AutoBZCore.remake_integrand_cache(f::DensityFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(dens_params, p)
-    β = new_p[3]
-    new_dom = get_safe_fermi_function_limits(β, dom)
+    new_dom = get_safe_fermi_function_limits(p.β, dom)
     return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
@@ -686,7 +685,7 @@ function AutoBZCore.remake_integrand_cache(f::ElectronDensityIntegrandType, dom,
     new_p = canonize(dens_params_inside, p)
     # Define default equispace grid stepping
     new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
     return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
 end
 
@@ -764,7 +763,7 @@ function AutoBZCore.remake_integrand_cache(f::AuxTransportDistributionIntegrandT
     new_p = canonize(auxevalM2, p)
     # Define default equispace grid stepping
     new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, p, new_alg)
+    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
     return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
 end
 

@@ -17,11 +17,11 @@ lb(Σ::ConstScalarSelfEnergy) = Σ.lb
 ub(Σ::ConstScalarSelfEnergy) = Σ.ub
 
 """
-    EtaSelfEnergy(η::Real)
+    EtaSelfEnergy(η::Number)
 
 Construct a [`ConstScalarSelfEnergy`](@ref) with value `-im*η`.
 """
-EtaSelfEnergy(η::Real) = ConstScalarSelfEnergy(-im*η)
+EtaSelfEnergy(η::Number) = ConstScalarSelfEnergy(-im*η)
 
 """
     ScalarSelfEnergy(interpolant, lb, ub)
