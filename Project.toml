@@ -1,7 +1,7 @@
 name = "AutoBZ"
 uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
 authors = ["lxvm <lorenzo@vanmunoz.com> and contributors"]
-version = "0.3.2"
+version = "0.4.0"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"

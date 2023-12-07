@@ -122,24 +122,17 @@ struct WrapperFourierSeries{W,S,N,iip,C,A,T,F} <: AbstractFourierSeries{N,T,iip}
     s::FourierSeries{S,N,iip,C,A,T,F}
 end
 
-Base.parent(s::WrapperFourierSeries) = s.s
-
-period(s::WrapperFourierSeries) = period(parent(s))
-frequency(s::WrapperFourierSeries) = frequency(parent(s))
-allocate(s::WrapperFourierSeries, x, dim) = allocate(parent(s), x, dim)
+period(s::WrapperFourierSeries) = period(s.s)
+frequency(s::WrapperFourierSeries) = frequency(s.s)
+allocate(s::WrapperFourierSeries, x, dim) = allocate(s.s, x, dim)
 function contract!(cache, s::WrapperFourierSeries, x, dim)
-    return WrapperFourierSeries(s.w, contract!(cache, parent(s), x, dim))
+    return WrapperFourierSeries(s.w, contract!(cache, s.s, x, dim))
 end
-evaluate!(cache, s::WrapperFourierSeries, x) = s.w(evaluate!(cache, parent(s), x))
-nextderivative(s::WrapperFourierSeries, dim) = WrapperFourierSeries(s.w, nextderivative(parent(s), dim))
+evaluate!(cache, s::WrapperFourierSeries, x) = s.w(evaluate!(cache, s.s, x))
+nextderivative(s::WrapperFourierSeries, dim) = WrapperFourierSeries(s.w, nextderivative(s.s, dim))
 
-show_dims(s::WrapperFourierSeries) = show_dims(parent(s))
-show_details(s::WrapperFourierSeries) = show_details(parent(s))
-
-function shift!(s::WrapperFourierSeries, λ)
-    shift!(parent(s), λ)
-    return s
-end
+show_dims(s::WrapperFourierSeries) = show_dims(s.s)
+show_details(s::WrapperFourierSeries) = show_details(s.s)
 
 
 wrap_soc(A) = SOC(A)
@@ -156,13 +149,13 @@ function SOCHamiltonianInterp(s, λ; gauge=GaugeDefault(SOCHamiltonianInterp))
 end
 
 GaugeDefault(::Type{<:SOCHamiltonianInterp}) = Wannier()
-parentseries(h::SOCHamiltonianInterp) = h.s
+parentseries(h::SOCHamiltonianInterp) = h.s.s
 
-period(h::SOCHamiltonianInterp) = period(parent(h))
-frequency(h::SOCHamiltonianInterp) = frequency(parent(h))
-allocate(h::SOCHamiltonianInterp, x, dim) = allocate(parent(h), x, dim)
+period(h::SOCHamiltonianInterp) = period(h.s)
+frequency(h::SOCHamiltonianInterp) = frequency(h.s)
+allocate(h::SOCHamiltonianInterp, x, dim) = allocate(h.s, x, dim)
 function contract!(cache, h::SOCHamiltonianInterp, x, dim)
-    return SOCHamiltonianInterp{gauge(h)}(contract!(cache, parent(h), x, dim), h.λ)
+    return SOCHamiltonianInterp{gauge(h)}(contract!(cache, h.s, x, dim), h.λ)
 end
-evaluate!(cache, h::SOCHamiltonianInterp, x) = to_gauge(h, evaluate!(cache, parent(h), x) + h.λ)
-nextderivative(h::SOCHamiltonianInterp, dim) = nextderivative(parent(h), dim)
+evaluate!(cache, h::SOCHamiltonianInterp, x) = to_gauge(h, evaluate!(cache, h.s, x) + h.λ)
+nextderivative(h::SOCHamiltonianInterp, dim) = nextderivative(h.s, dim)

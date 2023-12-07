@@ -34,17 +34,17 @@ falg = QuadGKJL()
 
 
 # loop to test various routines with the frequency integral on the inside
-integrand = ElectronDensityIntegrand(falg, h, Σ; β=β, abstol=atol/nsyms(bz), reltol=rtol)
+integrand = ElectronDensityIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, h; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
-    @time @show solver(μ=μ)
+    @time @show solver(; μ)
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
-    local integrand = ElectronDensityIntegrand(bz, kalg, h, Σ; β=β, abstol=atol/nsyms(bz), reltol=rtol)
+    local integrand = ElectronDensityIntegrand(bz, kalg, h; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
     @show nameof(typeof(kalg))
     solver = IntegralSolver(integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
-    @time @show solver(μ=μ)
+    @time @show solver(; μ)
 end

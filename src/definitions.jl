@@ -387,19 +387,12 @@ function to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::SVector)
 end
 
 """
-    parentseries(::AbstractVelocityInterp)::DerivativeSeries
+    parentseries(::AbstractVelocityInterp)::AbstractHamiltonianInterp
 
 Return the Hamiltonian object used for Wannier interpolation
 """
 parentseries(::AbstractVelocityInterp)
 
-parentseries(d::DerivativeSeries{1}) = d.f
-parentseries(d::DerivativeSeries) = parentseries(d.f)
-
-function shift!(d::DerivativeSeries, λ)
-    shift!(parentseries(d), λ)
-    return d
-end
 
 """
     shift!(::AbstractVelocityInterp, λ)

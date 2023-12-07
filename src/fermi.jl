@@ -43,6 +43,8 @@ Fermi distribution ``f`` and defined by
 \\chi(x, y) = \\frac{f(x) - f(x+y)}{y}
 ```
 In the case `y==0` then this simplifies to the derivative of the Fermi distribution.
+
+See also [`fermi`](@ref) and [`fermi′`](@ref).
 """
 function fermi_window(β::T, ω::T, Ω::T) where {T<:AbstractFloat}
     if isinf(β)
@@ -60,12 +62,11 @@ end
 function fermi_window(x::T, y::T) where {T<:AbstractFloat}
     return iszero(y) ? -fermi′(x) : fermi_window_(x, y)
 end
-fermi_window(args...) = fermi_window(promote(float.(args)...)...)
+fermi_window(args...) = fermi_window(promote(map(float, args)...)...)
 
 function fermi_window(β, ω, Ω)
-    uβ = oneunit(β)
-    uω = oneunit(ω)
-    return uβ*fermi_window(β*uω, ω*uβ, Ω*uβ)
+    uβ = float(oneunit(β))
+    return uβ*fermi_window(β/uβ, ω*uβ, Ω*uβ)
 end
 fermi_window_(x, y) = fermi_window_(promote(float(x), float(y))...)
 function fermi_window_(x::T, y::T) where {T<:AbstractFloat}
@@ -154,6 +155,8 @@ function fermi_window_halfwidth_(x::T, atol::T) where {T<:Union{Float32,Float64}
     # to be exact, add log1p(exp(-2abs_y)) to abs_y, but this is lost to roundoff
 end
 fermi_window_halfwidth_(x::Float16, atol::Float16) = Float16(fermi_window_halfwidth_(Float32(x), Float32(atol)))
+
+fermi_window_maximum(β, Ω) = iszero(Ω) ? oftype(1/Ω, β/4) : tanh(β*Ω/4)/Ω # == fermi_window(β, -Ω/2, Ω)
 
 function fermi_function_limits(β; atol=zero(one(β)), rtol=iszero(atol) ? eps(one(atol)) : zero(atol))
     tol = max(atol, rtol) # since max of fermi function is always 1

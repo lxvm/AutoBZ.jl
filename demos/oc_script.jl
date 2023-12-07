@@ -48,16 +48,16 @@ falg = QuadGKJL() # adaptive algorithm for frequency integral
 # setup algorithm for Brillouin zone integral
 npt = 15
 kalg = PTR(; npt=npt)
-kalg = AutoPTR()
+# kalg = AutoPTR()
 # kalg = IAI()
 #= alternative algorithms that save work for IAI when requesting a reltol
-kalg = AutoPTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
+kalg = PTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
 kalg = AutoPTR_IAI(; ptr=AutoPTR(), iai=IAI())
 =#
 
 
 # create integrand with bz integral on the inside
-oc_integrand = OpticalConductivityIntegrand(bz, kalg, hv, Σ, β; abstol=atol, reltol=rtol)
+oc_integrand = OpticalConductivityIntegrand(bz, kalg, hv; Σ, β, abstol=atol, reltol=rtol)
 oc_solver = IntegralSolver(oc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
 
 # create integrand with frequency integral on the inside
@@ -68,7 +68,7 @@ oc_solver = IntegralSolver(oc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abs
 nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
 
 results = h5open("oc.h5", "w") do h5
-    batchsolve(h5, oc_solver, Ωs; nthreads=nthreads)
+    batchsolve(h5, oc_solver, paramzip(Ω=Ωs); nthreads=nthreads)
 end
 
 # show the number of points used on the ibz

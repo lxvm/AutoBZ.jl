@@ -30,16 +30,16 @@ interp_atol=1e-3
 order = 4
 fast_order = 15
 
-D = IntegralSolver(DOSIntegrand(h, Σ), bz, IAI(); abstol=atol, reltol=rtol)
-
-hchebinterp(D, ω_lo, ω_hi; criterion=HAdaptError(), atol=1.0, order=order)
+D = IntegralSolver(DOSIntegrand(h; Σ), bz, IAI(); abstol=atol, reltol=rtol)
+DOS = ω -> D(; ω)
+hchebinterp(DOS, ω_lo, ω_hi; criterion=HAdaptError(), atol=1.0, order=order)
 t_ = time()
-p1 = hchebinterp(D, ω_lo, ω_hi; criterion=HAdaptError(), atol=interp_atol, order=order)
+p1 = hchebinterp(DOS, ω_lo, ω_hi; criterion=HAdaptError(), atol=interp_atol, order=order)
 @info "rigorous interpolation took $(time()-t_) s"
 
-hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=1.0, order=fast_order)
+hchebinterp(DOS, ω_lo, ω_hi; criterion=SpectralError(), atol=1.0, order=fast_order)
 t_ = time()
-p2 = hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
+p2 = hchebinterp(DOS, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
 # p2 = hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
 @info "fast interpolation took $(time()-t_) s"
 
