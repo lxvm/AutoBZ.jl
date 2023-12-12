@@ -1,10 +1,11 @@
 # The integrands here all define a set of canonical parameters. Think of these as default
 # arguments, except that we typically don't want to provide defaults in order to require
 # that the user provide the necessary data for the problem
+# in particular, canonical parameters are only used to initialize the solver, often for an
+# easy set of parameters that won't take long to compute in the case it needs to be evaluated
 
-# The precedence of parameters is:
-# canonical parameters < parameters passed to integrand constructor < parameters passed to solver
-# in particular, canonical parameters are only used to initialize the solver, never to solve
+# At solve time, the precedence of parameters is:
+# parameters passed to integrand constructor < parameters passed to solver
 # We are able to provide this precedence of parameters by making all parameters keyword
 # arguments. Moreover, positional arguments are reserved for internal use.
 
@@ -76,7 +77,7 @@ evalM(; Σ, ω, μ=zero(ω)) = _evalM(Σ, ω, μ)
 
 # given mixed parameters and a function that maps them to a tuple of a canonical
 # form for the integrand, return new mixed parameters
-function canonize(f, p::MixedParameters)
+function canonize(f::F, p::MixedParameters) where {F}
     params = f(getfield(p, :args)...; getfield(p, :kwargs)...)
     return MixedParameters(params, NamedTuple())
 end
@@ -120,6 +121,42 @@ function alloc_nest_buffers(nest, x)
     return NestedBatchIntegrand(workers, nest.y, xs, max_batch = nest.max_batch)
 end
 
+# to implement AutoPTR correctly we need a mutable cache, which IntegralSolver does not
+# provide due to potential type changes when transforming parameters
+mutable struct AutoPTRState{A<:AutoPTR,R,C,B}
+    alg::A
+    rule::R
+    cache::C
+    buffer::B
+end
+AutoPTRState(; alg, rule, cache, buffer) = AutoPTRState(alg, rule, cache, buffer)
+
+# helper functions for cache initialization and updating that take care of autoptr
+function _init_solver_cacheval(f, dom, alg)
+    new_f = if f isa FourierIntegrand
+        nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
+        nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
+    else
+        f
+    end
+    cacheval = AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
+    return alg isa AutoPTR ? AutoPTRState(; alg, cacheval...) : cacheval
+end
+
+function _remake_integrand_cache(f, dom, p, alg, cacheval, kwargs)
+    new_cacheval = if alg isa AutoPTR && alg != cacheval.alg
+        next_cacheval = AutoBZCore.init_cacheval(f, dom, p, alg)
+        cacheval.alg = alg
+        cacheval.cache = next_cacheval.cache
+        cacheval.rule = next_cacheval.rule
+        cacheval.buffer = next_cacheval.buffer
+        next_cacheval
+    else
+        cacheval
+    end
+    return AutoBZCore.IntegralCache(f, dom, p, alg, new_cacheval, kwargs)
+end
+
 # Generic behavior for single Green's function integrands (methods and types)
 for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     # create and export symbols
@@ -129,6 +166,14 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     @eval begin
         # define a method to evaluate the Green's function
         $f(h, M) = $f(propagator_denominator(h, M))
+        # We don't want to evalM at every k-point and instead will use
+        # AutoBZCore.remake_cache below to evalM once per integral
+        # However,these methods are useful for initialization/plotting
+        $f(h::FourierValue; kws...) = $f(h, evalM(; kws...)...)
+        function $f(x::FourierValue, ::CanonicalParameters; kws...)
+            el = real(_eltype(x.s))
+            return $f(x; Σ=EtaSelfEnergy(oneunit(el)), ω=zero(el))
+        end
 
         # Define the type alias to have the same behavior as the function
         """
@@ -148,16 +193,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
 
         # We provide the following functions to build a cache during construction of IntegralSolvers
         function AutoBZCore.init_solver_cacheval(f::FourierIntegrand{typeof($f)}, dom, alg)
-            nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-            new_f = nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-            return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-        end
-
-        # evaluate the integrand once for the expected return type
-        function (f::FourierIntegrand{typeof($f)})(x::FourierValue, ::CanonicalParameters)
-            el = real(_eltype(x.s))
-            canonical_p = (Σ=EtaSelfEnergy(oneunit(el)), ω=zero(el))
-            return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM, merge(canonical_p, f.f.p)))
+            return _init_solver_cacheval(f, dom, alg)
         end
 
         function AutoBZCore.remake_integrand_cache(f::FourierIntegrand{typeof($f)}, dom, p, alg, cacheval, kwargs)
@@ -165,8 +201,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
             new_p = canonize(evalM, p)
             # Define default equispace grid stepping for AutoPTR
             new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
-            new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-            return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+            return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
         end
     end
 end
@@ -183,6 +218,9 @@ function choose_autoptr_step(alg::AutoPTR, η::Number, h::AbstractHamiltonianInt
     vT = velocity_bound(h)
     a = freq2rad(η/vT) # 2pi*a′/T as in eqn. 3.24 of Trefethen's "The Exponentially Convergent Trapezoidal rule"
     return choose_autoptr_step(alg, a)
+end
+function choose_autoptr_step(alg::AutoPTR, η::Number, hv::AbstractVelocityInterp)
+    return choose_autoptr_step(alg, η, parentseries(hv))
 end
 # heuristic helper functions for equispace updates
 
@@ -218,8 +256,18 @@ function transport_function_integrand((h, vs)::Tuple{Eigen,SVector{N,T}}, β, μ
     f′vs = map(v -> f′*v, vs)
     return tr_kron(vs, f′vs)
 end
-function transport_function_integrand(v::FourierValue, args...)
-    return transport_function_integrand(v.s, args...)
+function transport_function_integrand(v::FourierValue, β, μ)
+    return transport_function_integrand(v.s, β, μ)
+end
+
+tf_params(; β, μ=zero(inv(oneunit(β)))) = (β, μ)
+
+function transport_function_integrand(x::FourierValue; kws...)
+    return transport_function_integrand(x, tf_params(; kws...)...)
+end
+function transport_function_integrand(x::FourierValue, ::CanonicalParameters; kws...)
+    el = real(_eltype(x.s[1]))
+    return transport_function_integrand(x; β=inv(oneunit(el)), μ=zero(el))
 end
 
 """
@@ -236,27 +284,19 @@ function TransportFunctionIntegrand(hv::AbstractVelocityInterp; kwargs...)
     return FourierIntegrand(transport_function_integrand, hv; kwargs...)
 end
 
-tf_params(; β, μ=zero(inv(oneunit(β)))) = (β, μ)
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
 
 function AutoBZCore.init_solver_cacheval(f::TransportFunctionIntegrandType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::TransportFunctionIntegrandType)(x::FourierValue, ::CanonicalParameters)
-    el = real(_eltype(x.s[1]))
-    canonical_p = (β=inv(oneunit(el)), μ=zero(el))
-    return FourierIntegrand(f.f.f, f.w)(x, canonize(tf_params, merge(canonical_p, f.f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::TransportFunctionIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
     new_p = canonize(tf_params, p)
     # Define default equispace grid stepping from the localization scale T=inv(β)
-    new_alg = choose_autoptr_step(alg, inv(new_p[1]), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-    return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+    new_alg = choose_autoptr_step(alg, inv(p.β), f.w.series)
+    return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
 end
 
 SymRep(D::TransportFunctionIntegrandType) = coord_to_rep(D.w.series)
@@ -281,7 +321,8 @@ end
 spectral_function(G::Union{Number,Diagonal}) = -imag(G)/pi # optimization
 spectral_function(h, M) = spectral_function(gloc_integrand(h, M))
 
-function transport_distribution_integrand((h, vs), Mω₁, Mω₂, isdistinct)
+function transport_distribution_integrand(v::FourierValue, Mω₁, Mω₂, isdistinct)
+    h, vs = v.s
     if isdistinct
         Aω₁ = spectral_function(h, Mω₁)
         Aω₂ = spectral_function(h, Mω₂)
@@ -291,8 +332,23 @@ function transport_distribution_integrand((h, vs), Mω₁, Mω₂, isdistinct)
         return transport_distribution_integrand_(vs, Aω)
     end
 end
-function transport_distribution_integrand(v::FourierValue, args...)
-    return transport_distribution_integrand(v.s, args...)
+
+function _evalM2(Σ, ω₁::T, ω₂::T, μ::T) where {T}
+    M = _evalM(Σ, ω₁, μ)[1]
+    if ω₁ == ω₂
+        (M, M, false)
+    else
+        (M, _evalM(Σ, ω₂, μ)[1], true)
+    end
+end
+evalM2(; Σ, ω₁, ω₂, μ=zero(ω₁)) = _evalM2(Σ, promote(ω₁, ω₂, μ)...)
+
+function transport_distribution_integrand(v::FourierValue; kws...)
+    return transport_distribution_integrand(v, evalM2(; kws...)...)
+end
+function transport_distribution_integrand(v::FourierValue, ::CanonicalParameters; kws...)
+    el = real(_eltype(v.s[1]))
+    return transport_distribution_integrand(v; Σ=EtaSelfEnergy(oneunit(el)), ω₁=zero(el), ω₂=zero(el))
 end
 
 """
@@ -314,37 +370,18 @@ function TransportDistributionIntegrand(w::FourierWorkspace{<:AbstractVelocityIn
     return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
 end
 
-function _evalM2(Σ, ω₁::T, ω₂::T, μ::T) where {T}
-    M = _evalM(Σ, ω₁, μ)[1]
-    if ω₁ == ω₂
-        (M, M, false)
-    else
-        (M, _evalM(Σ, ω₂, μ)[1], true)
-    end
-end
-evalM2(; Σ, ω₁, ω₂, μ=zero(ω₁)) = _evalM2(Σ, promote(ω₁, ω₂, μ)...)
-
 const TransportDistributionIntegrandType = FourierIntegrand{typeof(transport_distribution_integrand)}
 
 function AutoBZCore.init_solver_cacheval(f::TransportDistributionIntegrandType, dom, alg)
-    nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-    new_f = nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-    return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-end
-
-function (f::TransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
-    el = real(_eltype(x.s[1]))
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(el)), ω₁=zero(el), ω₂=zero(el))
-    return FourierIntegrand(f.f.f, f.w)(x, canonize(evalM2, merge(canonical_p, f.f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::TransportDistributionIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
     new_p = canonize(evalM2, p)
     # Define default equispace grid stepping
-    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-    return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
+    return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
 end
 
 SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.w.series)
@@ -363,8 +400,23 @@ SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.w.series)
 function transport_fermi_integrand_(ω, Γ, n, β, Ω)
     return (ω*β)^n * fermi_window(β, ω, Ω) * Γ
 end
-function transport_fermi_integrand(ω, Γ, Σ, n, β, Ω, μ)
+function transport_fermi_integrand(ω, Γ::IntegralSolver, Σ, n, β, Ω, μ)
     return transport_fermi_integrand_(ω, Γ(; Σ, ω₁=ω, ω₂=ω+Ω, μ), n, β, Ω)
+end
+
+function kc_params(transport_integrand, bz, alg, cacheval, abstol, solver_kws; Σ, n, β, Ω, μ=zero(Ω))
+    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, change order of integration or evaluate a TransportDistributionIntegrand at ω₁=ω₂=0"))
+    kws = merge(solver_kws, isnothing(abstol) ? (;) : (; abstol=abstol/fermi_window_maximum(β, Ω)))
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(Σ), transport_integrand.w.series)
+    solver = IntegralSolver(transport_integrand, bz, new_alg, cacheval, kws)
+    return (solver, Σ, n, β, Ω, μ)
+end
+
+function transport_fermi_integrand(ω, transport_integrand::FourierIntegrand, bz, alg, cacheval, abstol, solver_kws; kws...)
+    return transport_fermi_integrand(ω, kc_params(transport_integrand, bz, alg, cacheval, abstol, solver_kws; kws...)...)
+end
+function transport_fermi_integrand(ω, transport_integrand::FourierIntegrand, bz, alg, cacheval, abstol, solver_kws, ::CanonicalParameters; kws...)
+    return transport_fermi_integrand(ω, transport_integrand, bz, alg, cacheval, abstol, solver_kws; Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω))
 end
 
 """
@@ -386,7 +438,7 @@ function KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,Fouri
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = TransportDistributionIntegrand(hv)
-    cacheval = AutoBZCore.init_solver_cacheval(transport_integrand, bz, alg)
+    cacheval = _init_solver_cacheval(transport_integrand, bz, alg)
     return ParameterIntegrand(transport_fermi_integrand, transport_integrand, bz, alg, cacheval, abstol, solver_kws; kws...)
 end
 
@@ -400,36 +452,27 @@ _peel_abstol(; abstol=nothing, kws...) = (isnothing(abstol) ? NamedTuple() : (; 
 _peel_reltol(; reltol=nothing, kws...) = (isnothing(reltol) ? NamedTuple() : (; reltol=reltol)), NamedTuple(kws)
 _peel_maxiters(; maxiters=nothing, kws...) = (isnothing(maxiters) ? NamedTuple() : (; maxiters=maxiters)), NamedTuple(kws)
 
-
-function kc_params(transport_integrand, bz, alg, cacheval, abstol, solver_kws; Σ, n, β, Ω, μ=zero(Ω))
-    iszero(Ω) && isinf(β) && throw(ArgumentError("Ω=0, T=0 not yet implemented. As a workaround, change order of integration or evaluate a TransportDistributionIntegrand at ω₁=ω₂=0"))
-    kws = merge(solver_kws, isnothing(abstol) ? (;) : (; abstol=abstol/fermi_window_maximum(β, Ω)))
-    solver = IntegralSolver(transport_integrand, bz, alg, cacheval, kws)
-    return (solver, Σ, n, β, Ω, μ)
-end
-
 const KCFrequencyType = ParameterIntegrand{typeof(transport_fermi_integrand)}
 
 function AutoBZCore.init_solver_cacheval(f::KCFrequencyType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::KCFrequencyType)(ω, ::CanonicalParameters)
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω))
-    return ParameterIntegrand(f.f)(ω, canonize(kc_params, merge(canonical_p, f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::KCFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(kc_params, p)
     new_dom = get_safe_fermi_window_limits(p.Ω, p.β, dom)
-    return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
+    return _remake_integrand_cache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
 
 function transport_fermi_integrand_inside(ω; Σ, n, β, Ω, μ, hv_k)
-    Γ = transport_distribution_integrand(hv_k, evalM2(; Σ, ω₁=ω, ω₂=ω+Ω, μ)...)
+    Γ = transport_distribution_integrand(hv_k; Σ, ω₁=ω, ω₂=ω+Ω, μ)
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
 end
+function transport_fermi_integrand_inside(ω, ::CanonicalParameters; hv_k, kws...)
+    return transport_fermi_integrand_inside(ω; hv_k, Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω), μ=zero(ω))
+end
+
 function kinetic_coefficient_integrand(hv_k::FourierValue, f, Σ, n, β, Ω, μ)
     if iszero(Ω) && isinf(β)
         # we pass in β=4 since fermi_window(4,0,0)=1, the weight of the delta
@@ -447,39 +490,6 @@ function (kc::KCFrequencyIntegral)(hv_k, dom, Σ, n, β, Ω, μ)
     solver = IntegralSolver(kc.solver.f, dom, kc.solver.alg, kc.solver.cacheval, kc.solver.kwargs)
     return kinetic_coefficient_integrand(hv_k, solver, Σ, n, β, Ω, μ)
 end
-
-function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, hv::AbstractVelocityInterp, args...; kwargs...)
-    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
-    # put the frequency integral inside otherwise
-    frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=hv(period(hv)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; solver_kws...)
-    dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom, args...; kws...)
-end
-
-function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractVelocityInterp}, args...; kwargs...)
-    # put the frequency integral inside otherwise
-    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
-    frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=w(period(w.series)))
-    dom = AutoBZCore.PuncturedInterval((lb_, ub_))
-    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; solver_kws...)
-    int = KCFrequencyIntegral(frequency_solver)
-    p = ParameterIntegrand(int, dom, args...; kws...)
-    nest = make_fourier_nest(p, ParameterIntegrand(int), w)
-    return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
-end
-
-const KCFrequencyInsideType = ParameterIntegrand{typeof(transport_fermi_integrand_inside)}
-
-function AutoBZCore.init_solver_cacheval(f::KCFrequencyInsideType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::KCFrequencyInsideType)(ω, ::CanonicalParameters)
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω), μ=zero(ω))
-    return ParameterIntegrand(f.f)(ω, merge(canonical_p, f.p))
-end
-
 
 """
     get_safe_fermi_window_limits(Ω, β, lb, ub)
@@ -509,33 +519,58 @@ function get_safe_fermi_window_limits(Ω, β, dom; kwargs...)
     int = get_safe_fermi_window_limits(Ω, β, AutoBZCore.endpoints(dom)...; kwargs...)
     return AutoBZCore.PuncturedInterval(int)
 end
-
 function kc_inner_params(dom; Σ, n, β, Ω, μ=zero(Ω))
     new_dom = get_safe_fermi_window_limits(Ω, β, dom)
     return (new_dom, Σ, n, β, Ω, μ)
 end
 
+function (kc::KCFrequencyIntegral)(hv_k, dom; kws...)
+    return kc(hv_k, kc_inner_params(dom; kws...)...)
+end
+function (kc::KCFrequencyIntegral)(x, dom, ::CanonicalParameters; kws...)
+    el = real(_eltype(x.s[1]))
+    return kc(x, dom; Σ=EtaSelfEnergy(oneunit(el)), n=0, β=inv(oneunit(el)), Ω=zero(el))
+end
+
+function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, hv::AbstractVelocityInterp; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
+    # put the frequency integral inside otherwise
+    frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=FourierValue(period(hv), hv(period(hv))))
+    frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; solver_kws...)
+    dom = AutoBZCore.PuncturedInterval((lb_, ub_))
+    return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom; kws...)
+end
+
+function KineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractVelocityInterp}; kwargs...)
+    # put the frequency integral inside otherwise
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
+    frequency_integrand = ParameterIntegrand(transport_fermi_integrand_inside; hv_k=FourierValue(period(w.series), w(period(w.series))))
+    dom = AutoBZCore.PuncturedInterval((lb_, ub_))
+    frequency_solver = IntegralSolver(frequency_integrand, dom, alg; solver_kws...)
+    int = KCFrequencyIntegral(frequency_solver)
+    p = ParameterIntegrand(int, dom; kws...)
+    nest = make_fourier_nest(p, ParameterIntegrand(int), w)
+    return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
+end
+
+const KCFrequencyInsideType = ParameterIntegrand{typeof(transport_fermi_integrand_inside)}
+
+function AutoBZCore.init_solver_cacheval(f::KCFrequencyInsideType, dom, alg)
+    return _init_solver_cacheval(f, dom, alg)
+end
+
 const KineticCoefficientIntegrandType = FourierIntegrand{<:KCFrequencyIntegral}
 
 function AutoBZCore.init_solver_cacheval(f::KineticCoefficientIntegrandType, dom, alg)
-    nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-    new_f = nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-    return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-end
-
-function (f::KineticCoefficientIntegrandType)(x::FourierValue, ::CanonicalParameters)
-    el = real(_eltype(x.s[1]))
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(el)), n=0, β=inv(oneunit(el)), Ω=zero(el))
-    return FourierIntegrand(f.f.f, f.w)(x, canonize(kc_inner_params, merge(canonical_p, f.f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::KineticCoefficientIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
     new_p = canonize(kc_inner_params, p)
     # Define default equispace grid stepping
-    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-    return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
+    return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
 end
 
 
@@ -556,6 +591,19 @@ function dos_fermi_integrand(ω, dos, Σ, β, μ)
     return dos_fermi_integrand_(ω, dos(; Σ, ω, μ), β)
 end
 
+function dens_params(dos_integrand, bz, alg, cacheval, kws; Σ, β, μ=zero(inv(oneunit(β))))
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(Σ), dos_integrand.w.series)
+    solver = IntegralSolver(dos_integrand, bz, new_alg, cacheval, kws)
+    return (solver, Σ, β, μ)
+end
+
+function dos_fermi_integrand(ω, dos_integrand, bz, alg, cacheval, solver_kws; kws...)
+    return dos_fermi_integrand(ω, dens_params(dos_integrand, bz, alg, cacheval, solver_kws; kws...)...)
+end
+function dos_fermi_integrand(ω, dos_integrand, bz, alg, cacheval, solver_kws, ::CanonicalParameters; kws...)
+    return dos_fermi_integrand(ω, dos_integrand, bz, alg, cacheval, solver_kws; Σ=EtaSelfEnergy(oneunit(ω)), β=inv(oneunit(ω)))
+end
+
 """
     ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::AbstractHamiltonianInterp; Σ, β, [μ=0])
     ElectronDensityIntegrand(lb, ub, alg, h::AbstractHamiltonianInterp; Σ, β, [μ=0])
@@ -574,35 +622,30 @@ To get the density/number of electrons, multiply the result of this integral by 
 """
 function ElectronDensityIntegrand(bz, alg::AutoBZAlgorithm, h::Union{T,FourierWorkspace{<:T}}; kwargs...) where {T<:AbstractHamiltonianInterp}
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
-    dos_int = DOSIntegrand(h)
-    dos_solver = IntegralSolver(dos_int, bz, alg; solver_kws...)
-    return ParameterIntegrand(dos_fermi_integrand, dos_solver; kws...)
+    dos_integrand = DOSIntegrand(h)
+    cacheval = _init_solver_cacheval(dos_integrand, bz, alg)
+    return ParameterIntegrand(dos_fermi_integrand, dos_integrand, bz, alg, cacheval, solver_kws; kws...)
 end
-
-dens_params(solver; Σ, β, μ=zero(inv(oneunit(β)))) = (solver, Σ, β, μ)
 
 const DensityFrequencyType = ParameterIntegrand{typeof(dos_fermi_integrand)}
 
 function AutoBZCore.init_solver_cacheval(f::DensityFrequencyType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::DensityFrequencyType)(ω, ::CanonicalParameters)
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(ω)), β=inv(oneunit(ω)))
-    return ParameterIntegrand(f.f)(ω, canonize(dens_params, merge(canonical_p, f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::DensityFrequencyType, dom, p, alg, cacheval, kwargs)
     new_p = canonize(dens_params, p)
     new_dom = get_safe_fermi_function_limits(p.β, dom)
-    return AutoBZCore.IntegralCache(f, new_dom, new_p, alg, cacheval, kwargs)
+    return _remake_integrand_cache(f, new_dom, new_p, alg, cacheval, kwargs)
 end
 
 
 function dos_fermi_integrand_inside(ω; Σ, h_k, β, μ)
     return dos_fermi_integrand_(ω, dos_integrand(h_k, _evalM(Σ, ω, μ)...), β)
 end
-
+function dos_fermi_integrand_inside(ω, ::CanonicalParameters; h_k, kws...)
+    return dos_fermi_integrand_inside(ω; h_k, Σ=EtaSelfEnergy(oneunit(ω)), β=inv(oneunit(ω)), μ=zero(ω))
+end
 
 struct DensityFrequencyIntegral{T}
     solver::T
@@ -611,37 +654,6 @@ end
 function (n::DensityFrequencyIntegral)(h_k, dom, Σ, β, μ)
     solver = IntegralSolver(n.solver.f, dom, n.solver.alg, n.solver.cacheval, n.solver.kwargs)
     return solver(; h_k, Σ, β, μ)
-end
-
-function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, h::AbstractHamiltonianInterp; kwargs...)
-    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
-    frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=h(period(h)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
-    dom = AutoBZCore.PuncturedInterval((lb, ub))
-    return FourierIntegrand(DensityFrequencyIntegral(frequency_solver), h, dom; kws...)
-end
-
-function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractHamiltonianInterp}; kwargs...)
-    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
-    frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=w(period(w.series)))
-    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
-    dom = AutoBZCore.PuncturedInterval((lb, ub))
-    int = DensityFrequencyIntegral(frequency_solver)
-    p = ParameterIntegrand(int, dom; kws...)
-    nest = make_fourier_nest(p, ParameterIntegrand(int), w)
-    return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
-end
-
-
-const DensityFrequencyInsideType = ParameterIntegrand{typeof(dos_fermi_integrand_inside)}
-
-function AutoBZCore.init_solver_cacheval(f::DensityFrequencyInsideType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::DensityFrequencyInsideType)(ω, ::CanonicalParameters)
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(ω)), β=inv(oneunit(ω)), μ=zero(ω))
-    return ParameterIntegrand(f.f)(ω, merge(canonical_p, f.p))
 end
 
 function get_safe_fermi_function_limits(β, lb, ub; kwargs...)
@@ -666,30 +678,55 @@ function dens_params_inside(dom; Σ, β, μ=zero(inv(oneunit(β))))
     return (new_dom, Σ, β, μ)
 end
 
+function (n::DensityFrequencyIntegral)(h_k, dom; kws...)
+    return n(h_k, dens_params_inside(dom; kws...)...)
+end
+function (n::DensityFrequencyIntegral)(x, dom, ::CanonicalParameters; kws...)
+    el = real(_eltype(x.s))
+    return n(x, dom; Σ=EtaSelfEnergy(oneunit(el)), β=inv(oneunit(el)))
+end
+
+function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, h::AbstractHamiltonianInterp; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
+    frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=FourierValue(period(h), h(period(h))))
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
+    dom = AutoBZCore.PuncturedInterval((lb, ub))
+    return FourierIntegrand(DensityFrequencyIntegral(frequency_solver), h, dom; kws...)
+end
+
+function ElectronDensityIntegrand(lb, ub, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractHamiltonianInterp}; kwargs...)
+    solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
+    frequency_integrand = ParameterIntegrand(dos_fermi_integrand_inside; h_k=FourierValue(period(w.series), w(period(w.series))))
+    frequency_solver = IntegralSolver(frequency_integrand, lb, ub, alg; solver_kws...)
+    dom = AutoBZCore.PuncturedInterval((lb, ub))
+    int = DensityFrequencyIntegral(frequency_solver)
+    p = ParameterIntegrand(int, dom; kws...)
+    nest = make_fourier_nest(p, ParameterIntegrand(int), w)
+    return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
+end
+
+
+const DensityFrequencyInsideType = ParameterIntegrand{typeof(dos_fermi_integrand_inside)}
+
+function AutoBZCore.init_solver_cacheval(f::DensityFrequencyInsideType, dom, alg)
+    return _init_solver_cacheval(f, dom, alg)
+end
+
 const ElectronDensityIntegrandType = FourierIntegrand{<:DensityFrequencyIntegral}
 
 function AutoBZCore.init_solver_cacheval(f::ElectronDensityIntegrandType, dom, alg)
-    nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-    new_f = nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-    return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-end
-
-function (f::ElectronDensityIntegrandType)(x::FourierValue, ::CanonicalParameters)
-    el = real(_eltype(x.s))
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(el)), β=inv(oneunit(el)))
-    return FourierIntegrand(f.f.f, f.w)(x, canonize(dens_params_inside, merge(canonical_p, f.f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::ElectronDensityIntegrandType, dom, p, alg, cacheval, kwargs)
     # pre-evaluate the self energy when remaking the cache
     new_p = canonize(dens_params_inside, p)
     # Define default equispace grid stepping
-    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), parentseries(f.w.series))
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-    return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+    new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
+    return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
 end
 
-function aux_transport_distribution_integrand_(auxfun, vs::SVector{N,V}, Gω₁::G, Gω₂::G) where {N,V,G}
+function aux_transport_distribution_integrand_(auxfun::F, vs::SVector{N,V}, Gω₁::G, Gω₂::G) where {F,N,V,G}
     Aω₁ = spectral_function(Gω₁)
     Aω₂ = spectral_function(Gω₂)
     vsAω₁ = map(v -> v * Aω₁, vs)
@@ -703,13 +740,14 @@ function default_transport_auxfun(vs, Gω₁, Gω₂)
     return tr_kron(vsGω₁, vsGω₂)
 end
 
-function aux_transport_distribution_integrand_(auxfun, vs::SVector{N,V}, Gω::G) where {N,V,G}
+function aux_transport_distribution_integrand_(auxfun::F, vs::SVector{N,V}, Gω::G) where {F,N,V,G}
     Aω = spectral_function(Gω)
     vsAω = map(v -> v * Aω, vs)
     return AuxValue(tr_kron(vsAω, vsAω), auxfun(vs, Gω, Gω))
 end
 
-function aux_transport_distribution_integrand((h, vs), auxfun, Mω₁, Mω₂, isdistinct)
+function aux_transport_distribution_integrand(v::FourierValue, auxfun::F, Mω₁, Mω₂, isdistinct) where {F}
+    h, vs = v.s
     if isdistinct
         Gω₁ = gloc_integrand(h, Mω₁)
         Gω₂ = gloc_integrand(h, Mω₂)
@@ -719,8 +757,15 @@ function aux_transport_distribution_integrand((h, vs), auxfun, Mω₁, Mω₂, i
         return aux_transport_distribution_integrand_(auxfun, vs, Gω)
     end
 end
-function aux_transport_distribution_integrand(x::FourierValue, args...)
-    return aux_transport_distribution_integrand(x.s, args...)
+
+auxevalM2(auxfun::F; kws...) where {F} = (auxfun, evalM2(; kws...)...)
+
+function aux_transport_distribution_integrand(x::FourierValue, auxfun::F; kws...) where {F}
+    return aux_transport_distribution_integrand(x, auxevalM2(auxfun; kws...)...)
+end
+function aux_transport_distribution_integrand(x::FourierValue, auxfun::F, ::CanonicalParameters; kws...) where {F}
+    el = real(_eltype(x.s[1]))
+    return aux_transport_distribution_integrand(x, auxfun; Σ=EtaSelfEnergy(oneunit(el)), ω₁=zero(el), ω₂=zero(el))
 end
 
 """
@@ -745,17 +790,7 @@ end
 const AuxTransportDistributionIntegrandType = FourierIntegrand{typeof(aux_transport_distribution_integrand)}
 
 function AutoBZCore.init_solver_cacheval(f::AuxTransportDistributionIntegrandType, dom, alg)
-    nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-    new_f = nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-    return AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-end
-
-auxevalM2(auxfun; kws...) = (auxfun, evalM2(; kws...)...)
-
-function (f::AuxTransportDistributionIntegrandType)(x::FourierValue, ::CanonicalParameters)
-    el = real(_eltype(x.s[1]))
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(el)), ω₁=zero(el), ω₂=zero(el))
-    return FourierIntegrand(f.f.f, f.w)(x, canonize(auxevalM2, merge(canonical_p, f.f.p)))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 function AutoBZCore.remake_integrand_cache(f::AuxTransportDistributionIntegrandType, dom, p, alg, cacheval, kwargs)
@@ -763,14 +798,13 @@ function AutoBZCore.remake_integrand_cache(f::AuxTransportDistributionIntegrandT
     new_p = canonize(auxevalM2, p)
     # Define default equispace grid stepping
     new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
-    new_cacheval = alg == new_alg ? cacheval : AutoBZCore.init_cacheval(f, dom, new_p, new_alg)
-    return AutoBZCore.IntegralCache(f, dom, new_p, new_alg, new_cacheval, kwargs)
+    return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
 end
 
 SymRep(Γ::AuxTransportDistributionIntegrandType) = coord_to_rep(Γ.w.series)
 
 
-function aux_kinetic_coefficient_integrand(ω, auxfun, Σ, hv_k, n, β, Ω, μ)
+function aux_kinetic_coefficient_integrand(ω, auxfun::F, Σ, hv_k, n, β, Ω, μ) where {F}
     Γ = aux_transport_distribution_integrand(hv_k, auxevalM2(auxfun; Σ, ω₁=ω, ω₂=ω+Ω, μ)...)
     return (ω*β)^n * fermi_window(β, ω, Ω) * Γ
 end
@@ -785,19 +819,22 @@ function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,Fo
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral outside if the provided algorithm is for the BZ
     transport_integrand = AuxTransportDistributionIntegrand(hv, auxfun)
-    cacheval = AutoBZCore.init_solver_cacheval(transport_integrand, bz, alg)
+    cacheval = _init_solver_cacheval(transport_integrand, bz, alg)
     return ParameterIntegrand(transport_fermi_integrand, transport_integrand, bz, alg, cacheval, abstol, solver_kws; kws...)
 end
 
-function aux_transport_fermi_integrand_inside(ω, auxfun; Σ, n, β, Ω, μ, hv_k)
-    Γ = aux_transport_distribution_integrand(hv_k, auxevalM2(auxfun; Σ, ω₁=ω, ω₂=ω+Ω, μ)...)
+function aux_transport_fermi_integrand_inside(ω, auxfun::F; Σ, n, β, Ω, μ, hv_k) where {F}
+    Γ = aux_transport_distribution_integrand(hv_k, auxfun; Σ, ω₁=ω, ω₂=ω+Ω, μ)
     return transport_fermi_integrand_(ω, Γ, n, β, Ω)
+end
+function aux_transport_fermi_integrand_inside(ω, auxfun::F, ::CanonicalParameters; hv_k, kws...) where {F}
+    return aux_transport_fermi_integrand_inside(ω, auxfun; hv_k, Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω), μ=zero(ω))
 end
 
 function AuxKineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
-    frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=hv(period(hv)))
+    frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=FourierValue(period(hv), hv(period(hv))))
     frequency_solver = IntegralSolver(frequency_integrand, lb_, ub_, alg; solver_kws...)
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
     return FourierIntegrand(KCFrequencyIntegral(frequency_solver), hv, dom; kws...)
@@ -805,7 +842,7 @@ end
 function AuxKineticCoefficientIntegrand(lb_, ub_, alg::IntegralAlgorithm, w::FourierWorkspace{<:AbstractVelocityInterp}, auxfun=default_transport_auxfun; kwargs...)
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))
     # put the frequency integral inside otherwise
-    frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=w(period(w.series)))
+    frequency_integrand = ParameterIntegrand(aux_transport_fermi_integrand_inside, auxfun; hv_k=FourierValue(period(w.series), w(period(w.series))))
     dom = AutoBZCore.PuncturedInterval((lb_, ub_))
     frequency_solver = IntegralSolver(frequency_integrand, dom, alg; solver_kws...)
     int = KCFrequencyIntegral(frequency_solver)
@@ -817,12 +854,7 @@ end
 const AuxKCFrequencyInsideType = ParameterIntegrand{typeof(aux_transport_fermi_integrand_inside)}
 
 function AutoBZCore.init_solver_cacheval(f::AuxKCFrequencyInsideType, dom, alg)
-    return AutoBZCore.init_cacheval(f, dom, CanonicalParameters(), alg)
-end
-
-function (f::AuxKCFrequencyInsideType)(ω, ::CanonicalParameters)
-    canonical_p = (Σ=EtaSelfEnergy(oneunit(ω)), n=0, β=inv(oneunit(ω)), Ω=zero(ω), μ=zero(ω))
-    return ParameterIntegrand(f.f)(ω, merge(canonical_p, f.p))
+    return _init_solver_cacheval(f, dom, alg)
 end
 
 """
