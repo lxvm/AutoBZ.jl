@@ -201,7 +201,7 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     rot, irot = pick_rot(coord, A, invA)
     (; degen) = parse_hamiltonian(seed * "_hr.dat", precision)
     check_degen(degen, nkpt)
-    (; num_wann, degen, As) = parse_position_operator(seed * "_r.dat", precision, rot)
+    (; num_wann, irvec, As) = parse_position_operator(seed * "_r.dat", precision, rot)
     (A1,o1), (A2,o2), (A3,o3) = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, As...)
     F1_ = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
     F1  = soc === nothing ? F1_ : WrapperFourierSeries(wrap_soc, F1_)
