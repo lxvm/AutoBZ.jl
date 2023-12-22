@@ -54,13 +54,12 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing)
+function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision))
     (; nkpt) = parse_wout(seed * ".wout", precision)
     (; num_wann, degen, irvec, C) = parse_hamiltonian(seed * "_hr.dat", precision)
     check_degen(degen, nkpt)
-    C_ = load_coefficients(Val{compact}(), num_wann, irvec, degen, C)[1]
-    offset = map(s -> -div(s,2)-1, size(C_))
-    f = FourierSeries(C_; period=freq2rad(one(precision)), offset=offset)
+    (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, C)
+    f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
     else
@@ -76,29 +75,59 @@ load_coeff(T, ::Val{:L}, c) = T(c)
 load_coeff(T, ::Val{:U}, c) = T(c')
 load_coeff(T, ::Val{:S}, c) = T(0.5*(c+c'))
 
-function load_coefficients(compact, num_wann, irvec, degen, cs...)
-    return load_coefficients(compact, num_wann, irvec, degen, cs)
+function load_coefficients(compact, droptol, num_wann, irvec, degen, cs...)
+    return load_coefficients(compact, droptol, num_wann, irvec, degen, cs)
 end
-function load_coefficients(compact, num_wann, irvec, degen, cs::NTuple{N}) where N
+function load_coefficients(compact, reltol, num_wann, irvec, degen, cs::NTuple{N}) where N
     T = load_coeff_type(eltype(eltype(eltype(cs))), compact, num_wann)
-    nmodes = zeros(Int, 3)
-    for idx in irvec
-        @inbounds for i in 1:3
-            if (n = abs(idx[i])) > nmodes[i]
-                nmodes[i] = n
-            end
-        end
-    end
-    Cs = ntuple(_ -> zeros(T, (2nmodes .+ 1)...), Val(N))
+    bounds = ntuple(n -> extrema(idx -> idx[n], irvec), Val(3))
+    lbounds = map(first, bounds)
+    ubounds = map(last,  bounds)
+    nmodes = map((lb, ub) -> ub-lb+1, lbounds, ubounds)
+    Cs = ntuple(_ -> zeros(T, nmodes), Val(N))
+    origins = map(C -> CartesianIndex(ntuple(n -> firstindex(C,n)-lbounds[n], Val(3))), Cs)
     for (i,idx) in enumerate(irvec)
-        idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
-        for (j,c) in enumerate(cs)
-            Cs[j][idx_] = load_coeff(T, compact, c[i])/degen[i]
+        _idx_ = CartesianIndex(idx...)
+        for (c,C,o) in zip(cs, Cs, origins)
+            C[_idx_+o] = load_coeff(T, compact, c[i])/degen[i]
         end
     end
-    return Cs
+    return map((C, origin) -> droptol(C, origin, reltol), Cs, origins)
 end
 
+infnorm(x::Number) = abs(x)
+infnorm(x::AbstractArray) = maximum(infnorm, x)
+
+# based on FastChebInterp.jl and helpful for truncating zero-padded coefficients
+function droptol(C::AbstractArray, origin::CartesianIndex, reltol)
+    abstol = infnorm(C) * reltol
+    norm_geq_tol = >=(abstol)∘infnorm
+    all(norm_geq_tol, C) && return (C, origin)
+
+    # compute the new size, dropping values below tol at both ends of axes
+    N = ndims(C)
+    newlb = ntuple(Val(N)) do dim
+        n = firstindex(C, dim)
+        while n < lastindex(C, dim)
+            r = ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], Val(N))
+            any(norm_geq_tol, @view C[CartesianIndices(r)]) && break
+            n += 1
+        end
+        n
+    end
+    newub = ntuple(Val(N)) do dim
+        n = lastindex(C, dim)
+        while n > firstindex(C, dim)
+            r = ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], Val(N))
+            any(norm_geq_tol, @view C[CartesianIndices(r)]) && break
+            n -= 1
+        end
+        n
+    end
+    newC = C[CartesianIndices(map(:, newlb, newub))]
+    neworigin = origin + CartesianIndex(ntuple(n -> firstindex(newC,n)-newlb[n], Val(N)))
+    return (newC, neworigin)
+end
 
 """
     parse_position_operator(filename, rot=I)
@@ -166,19 +195,19 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing)
+function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing, droptol=eps(precision))
     (; A, nkpt) = parse_wout(seed * ".wout", precision)
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
     rot, irot = pick_rot(coord, A, invA)
     (; degen) = parse_hamiltonian(seed * "_hr.dat", precision)
     check_degen(degen, nkpt)
-    (; num_wann, irvec, As) = parse_position_operator(seed * "_r.dat", precision, rot)
-    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, As...)
-    F1_ = FourierSeries(A1; period=one(precision), offset=map(s -> -div(s,2)-1, size(A1)))
+    (; num_wann, degen, As) = parse_position_operator(seed * "_r.dat", precision, rot)
+    (A1,o1), (A2,o2), (A3,o3) = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, As...)
+    F1_ = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
     F1  = soc === nothing ? F1_ : WrapperFourierSeries(wrap_soc, F1_)
-    F2_ = FourierSeries(A2; period=one(precision), offset=map(s -> -div(s,2)-1, size(A2)))
+    F2_ = FourierSeries(A2; period=one(precision), offset=Tuple(-o2))
     F2  = soc === nothing ? F2_ : WrapperFourierSeries(wrap_soc, F2_)
-    F3_ = FourierSeries(A3; period=one(precision), offset=map(s -> -div(s,2)-1, size(A3)))
+    F3_ = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
     F3  = soc === nothing ? F3_ : WrapperFourierSeries(wrap_soc, F3_)
     BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3; period=period), irot; coord=coord)
 end
