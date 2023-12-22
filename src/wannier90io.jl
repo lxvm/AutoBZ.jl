@@ -54,13 +54,13 @@ keyword `compact` to specify:
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing)
+function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision))
     (; nkpt) = parse_wout(seed * ".wout", precision)
     (; num_wann, degen, irvec, C) = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, nkpt)
-    C_ = load_coefficients(Val{compact}(), num_wann, irvec, degen, C)[1]
+    check_degen(degen, kpts.nkpt)
+    (C_, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, C)
     offset = map(s -> -div(s,2)-1, size(C_))
-    f = FourierSeries(C_; period=freq2rad(one(precision)), offset=offset)
+    f = FourierSeries(C_; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
     else
@@ -196,15 +196,15 @@ Fourier coefficients in compact form, use the keyword `compact` to specify:
 Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
-function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing)
+function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing, droptol=eps(precision))
     (; A, nkpt) = parse_wout(seed * ".wout", precision)
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
     rot, irot = pick_rot(coord, A, invA)
     (; degen) = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, nkpt)
+    check_degen(degen, kpts.nkpt)
     (; num_wann, irvec, As) = parse_position_operator(seed * "_r.dat", precision, rot)
-    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, As...)
-    F1_ = FourierSeries(A1; period=one(precision), offset=map(s -> -div(s,2)-1, size(A1)))
+    (A1,o1), (A2,o2), (A3,o3) = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, As)
+    F1_ = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
     F1  = soc === nothing ? F1_ : WrapperFourierSeries(wrap_soc, F1_)
     F2_ = FourierSeries(A2; period=one(precision), offset=Tuple(-o2))
     F2  = soc === nothing ? F2_ : WrapperFourierSeries(wrap_soc, F2_)
