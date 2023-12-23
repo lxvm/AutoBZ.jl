@@ -139,9 +139,5 @@ function construct_chebyshev(omegas, values::Vector{<:Number}, order; atol=1e-6,
 end
 function construct_chebyshev(omegas, values::Vector{T}, order; atol=1e-6, tol=1e-13, mmax=100) where {T<:SArray}
     interp = ntuple(n -> aaa(omegas, getindex.(values, n); tol=tol, mmax=mmax), length(T))
-    ndims(T) > 1 && @warn """
-    Matrix-valued interpolation may not work without the FastChebInterp version at
-    `import Pkg; Pkg.add(url="https://github.com/lxvm/FastChebInterp.jl.git#pr_sarray")`
-    """
     hchebinterp(x -> T(map(f -> f(x), interp)), extrema(omegas)...; order=order, atol=atol)
 end
