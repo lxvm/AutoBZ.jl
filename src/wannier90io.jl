@@ -415,6 +415,11 @@ function load_autobz(bz::IBZ, seedname::String; precision=Float64, kws...)
     return load_bz(convert(AbstractBZ{3}, bz), a, b, species, frac_lat; kws..., coordinates="lattice")
 end
 
+struct CompactDisplay{T}
+    obj::T
+end
+Base.show(io::IO, a::CompactDisplay) = show(io, a.obj)
+
 """
     load_wannier90_data(seedname::String; bz::AbstractBZ=FBZ(), interp::AbstractWannierInterp=HamiltonianInterp, kwargs...)
 
@@ -440,13 +445,10 @@ function load_wannier90_data(seedname::String; precision=Float64, load_interp=lo
             val = wi(S*k)
             return calc_interp_error(wi, val, ref)
         end
-        msg = """
-        Testing that the interpolant's Hamiltonian satisfies the symmetries at random k-point
-            k = $(k)
-        and found a maximum error $(err) for symmetry
-            bz.syms[$(idx)] = $(bz.syms[idx])
-        """
-        err > sqrt(eps(one(err)))*oneunit(err) ? @warn(msg) : @info(msg)
+        sym = CompactDisplay(bz.syms[idx])
+        kpt = CompactDisplay(k)
+        msg = "Symmetry test of the interpolant's Hamiltonian at a random k-point"
+        @logmsg (err > sqrt(eps(one(err)))*oneunit(err) ? Warn : Info) msg seedname kpt sym err
     end
     return (wi, bz)
 end
