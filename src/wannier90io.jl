@@ -37,7 +37,7 @@ function parse_hamiltonian(file::IO, ::Type{F}) where {F<:AbstractFloat}
         end
         C[k] = SMatrix{num_wann,num_wann,Complex{F},num_wann^2}(c)
     end
-    return (; date_time, num_wann, nrpts, degen, irvec, C)
+    return (; date_time, num_wann, nrpts, degen, irvec, H=C)
 end
 
 """
@@ -56,11 +56,10 @@ keyword `compact` to specify:
 """
 function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision))
     (; nkpt) = parse_wout(seed * ".wout", precision)
-    (; num_wann, degen, irvec, C) = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, kpts.nkpt)
-    (C_, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, C)
-    offset = map(s -> -div(s,2)-1, size(C_))
-    f = FourierSeries(C_; period=freq2rad(one(precision)), offset=Tuple(-origin))
+    (; num_wann, degen, irvec, H) = parse_hamiltonian(seed * "_hr.dat", precision)
+    check_degen(degen, nkpt)
+    (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, H)
+    f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
     else
@@ -201,16 +200,15 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
     rot, irot = pick_rot(coord, A, invA)
     (; degen) = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, kpts.nkpt)
+    check_degen(degen, nkpt)
     (; num_wann, irvec, As) = parse_position_operator(seed * "_r.dat", precision, rot)
     (A1,o1), (A2,o2), (A3,o3) = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, As)
-    F1_ = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
-    F1  = soc === nothing ? F1_ : WrapperFourierSeries(wrap_soc, F1_)
-    F2_ = FourierSeries(A2; period=one(precision), offset=Tuple(-o2))
-    F2  = soc === nothing ? F2_ : WrapperFourierSeries(wrap_soc, F2_)
-    F3_ = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
-    F3  = soc === nothing ? F3_ : WrapperFourierSeries(wrap_soc, F3_)
-    BerryConnectionInterp{coord}(ManyFourierSeries(F1, F2, F3; period=period), irot; coord=coord)
+    F1 = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
+    F2 = FourierSeries(A2; period=one(precision), offset=Tuple(-o2))
+    F3 = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
+    Fs = (F1, F2, F3)
+    Ms = soc === nothing ? Fs : map(f -> WrapperFourierSeries(wrap_soc, f), Fs)
+    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period=period), irot; coord=coord)
 end
 
 """
