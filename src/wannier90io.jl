@@ -37,7 +37,7 @@ function parse_hamiltonian(file::IO, ::Type{F}) where {F<:AbstractFloat}
         end
         C[k] = SMatrix{num_wann,num_wann,Complex{F},num_wann^2}(c)
     end
-    return date_time, num_wann, nrpts, degen, irvec, C
+    return (; date_time, num_wann, nrpts, degen, irvec, C)
 end
 
 """
@@ -55,12 +55,12 @@ keyword `compact` to specify:
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
 function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing)
-    A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout", precision)
-    date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, kpts.nkpt)
-    C = load_coefficients(Val{compact}(), num_wann, irvec, degen, C_)[1]
-    offset = map(s -> -div(s,2)-1, size(C))
-    f = FourierSeries(C; period=freq2rad(one(precision)), offset=offset)
+    (; nkpt) = parse_wout(seed * ".wout", precision)
+    (; num_wann, degen, irvec, C) = parse_hamiltonian(seed * "_hr.dat", precision)
+    check_degen(degen, nkpt)
+    C_ = load_coefficients(Val{compact}(), num_wann, irvec, degen, C)[1]
+    offset = map(s -> -div(s,2)-1, size(C_))
+    f = FourierSeries(C_; period=freq2rad(one(precision)), offset=offset)
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
     else
@@ -144,7 +144,7 @@ function parse_position_operator(file::IO, ::Type{F}, rot=I) where {F<:AbstractF
         A2[k] = T(a2)
         A3[k] = T(a3)
     end
-    return date_time, num_wann, nrpts, irvec, A1, A2, A3
+    return (; date_time, num_wann, nrpts, irvec, As=(A1, A2, A3))
 end
 
 pick_rot(::Cartesian, A, invA) = (I, invA)
@@ -167,13 +167,13 @@ Note that in some cases the coefficients are not Hermitian even though the
 values of the series are.
 """
 function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing)
-    A, B, species, site, frac_lat, cart_lat, proj, kpts = parse_wout(seed * ".wout", precision)
+    (; A, nkpt) = parse_wout(seed * ".wout", precision)
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
     rot, irot = pick_rot(coord, A, invA)
-    date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(seed * "_hr.dat", precision)
-    check_degen(degen, kpts.nkpt)
-    date_time, num_wann, nrpts, irvec, A1_, A2_, A3_ = parse_position_operator(seed * "_r.dat", precision, rot)
-    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, A1_, A2_, A3_)
+    (; degen) = parse_hamiltonian(seed * "_hr.dat", precision)
+    check_degen(degen, nkpt)
+    (; num_wann, irvec, As) = parse_position_operator(seed * "_r.dat", precision, rot)
+    A1, A2, A3 = load_coefficients(Val{compact}(), num_wann, irvec, degen, As...)
     F1_ = FourierSeries(A1; period=one(precision), offset=map(s -> -div(s,2)-1, size(A1)))
     F1  = soc === nothing ? F1_ : WrapperFourierSeries(wrap_soc, F1_)
     F2_ = FourierSeries(A2; period=one(precision), offset=map(s -> -div(s,2)-1, size(A2)))
@@ -229,6 +229,11 @@ function load_interp(::Type{<:MassVelocityInterp}, seed, A;
     return MassVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
 end
 
+function _split!(c, s, args...; kws...)
+    empty!(c)
+    append!(c, eachsplit(s, args...; kws...))
+end
+
 """
     parse_wout(filename; iprint=1)
 
@@ -236,118 +241,75 @@ returns the lattice vectors `a` and reciprocal lattice vectors `b`
 """
 function parse_wout(file::IO, ::Type{F}) where {F<:AbstractFloat}
 
-    # header
-    while (l = strip(readline(file))) != "SYSTEM"
-        continue
-    end
+    cols = SubString{String}[]
+    c = zero(MMatrix{3,3,F,9})
+    A = SMatrix(c)
+    vol = zero(F)
+    B = SMatrix(c)
 
-    # system
-    readline(file)
-    readline(file)
-    readline(file)
-    ## lattice vectors
-    c = Matrix{F}(undef, 3, 3)
-    for i in 1:3
-        col = split(readline(file))
-        popfirst!(col)
-        @. c[:,i] = parse(F, col)
-    end
-    A = SMatrix{3,3,F,9}(c)
-
-    readline(file)
-    readline(file)
-    readline(file)
-    readline(file)
-    ## reciprocal lattice vectors
-    for i in 1:3
-        col = split(readline(file))
-        popfirst!(col)
-        @. c[:,i] = parse(F, col)
-    end
-    B = SMatrix{3,3,F,9}(c)
-
-
-    readline(file)
-    readline(file)
-    readline(file) # site fractional coordinate cartesian coordinate (unit)
-    readline(file)
-    # lattice
     species = String[]
     site = Int[]
-    frac_lat_ = SVector{3,F}[]
-    cart_lat_ = SVector{3,F}[]
-    while true
-        col = split(readline(file))
-        length(col) == 11 || break
-        push!(species, col[2])
-        push!(site, parse(Int, col[3]))
-        push!(frac_lat_, parse.(F, col[4:6]))
-        push!(cart_lat_, parse.(F, col[8:10]))
+    frac_lat = SVector{3,F}[]
+    cart_lat = SVector{3,F}[]
+
+    nk1 = nk2 = nk3 = nkpt = 0
+
+    # skip header
+    while !eof(file)
+        line = readline(file)
+        if occursin("Lattice Vectors", line)
+            occursin("Ang", line) || @warn "Length unit other than Angstrom detected"
+            _split!(cols, line)
+            for i in 1:3
+                line = readline(file)
+                _split!(cols, line)
+                @assert popfirst!(cols) == "a_$i"
+                @. c[:,i] = parse(F, cols)
+            end
+            A = SMatrix(c)
+            continue
+        end
+
+        if occursin("Unit Cell Volume:", line)
+            _split!(cols, line)
+            vol = parse(F, cols[4])
+            continue
+        end
+
+        if occursin("Reciprocal-Space Vectors", line)
+            for i in 1:3
+                line = readline(file)
+                _split!(cols, line)
+                @assert popfirst!(cols) == "b_$i"
+                @. c[:,i] = parse(F, cols)
+            end
+            B = SMatrix(c)
+            continue
+        end
+
+        if occursin("Site", line)
+            readline(file)
+            while true
+                line = readline(file)
+                _split!(cols, line)
+                length(cols) == 11 || break
+                push!(species, cols[2])
+                push!(site, parse(Int, cols[3]))
+                push!(frac_lat, parse.(F, cols[4:6]))
+                push!(cart_lat, parse.(F, cols[8:10]))
+            end
+            continue
+        end
+
+        if occursin("Grid size", line)
+            _split!(cols, line)
+            nk1 = parse(Int, cols[4])
+            nk2 = parse(Int, cols[6])
+            nk3 = parse(Int, cols[8])
+            nkpt = parse(Int, cols[12])
+        end
     end
-    frac_lat = Matrix(reshape(reinterpret(F, frac_lat_), 3, :))
-    cart_lat = Matrix(reshape(reinterpret(F, cart_lat_), 3, :))
-
-    readline(file)
-    readline(file) # projections
-    readline(file)
-    readline(file)
-    readline(file)
-    readline(file) # Frac. coord, l, mr, r, z-axis, x-axis, Z/a
-    readline(file)
-
-    pfrac = SVector{3,F}[]
-    l = Int[]
-    mr = Int[]
-    r = Int[]
-    zax = SVector{3,F}[]
-    xax = SVector{3,F}[]
-    za = F[]
-    while true
-        col = split(readline(file))
-        length(col) == 15 || break
-        push!(pfrac, SVector{3,F}(parse.(F, col[2:4])))
-        push!(l, parse(Int, col[5]))
-        push!(mr, parse(Int, col[6]))
-        push!(r, parse(Int, col[7]))
-        push!(zax, SVector{3,F}(parse.(F, col[8:10])))
-        push!(xax, SVector{3,F}(parse.(F, col[11:13])))
-        push!(za, parse(F, col[14]))
-    end
-    proj = (; frac=pfrac, l=l, mr=mr, r=r, zax=zax, xax=xax, za=za)
-
-    # k-point grid
-    readline(file)
-    readline(file)
-    readline(file) # k-point grid
-    readline(file)
-    readline(file)
-
-    kpt_header = split(readline(file))
-    sizes = (parse(Int, kpt_header[4]), parse(Int, kpt_header[6]), parse(Int, kpt_header[8]))
-    nkpt = parse(Int, kpt_header[12])
-    readline(file)
-    readline(file)
-    readline(file)  # k-point, fractional coordinate, Cartesian coordinate (Ang^-1)
-    readline(file)
-    ikvec = Vector{Int}(undef, nkpt)
-    kfrac = Vector{SVector{3,F}}(undef, nkpt)
-    kcart = Vector{SVector{3,F}}(undef, nkpt)
-    for i in 1:nkpt
-        col = split(readline(file))
-        ikvec[i] = parse(Int, col[2])
-        kfrac[i] = parse.(F, col[3:5])
-        kcart[i] = parse.(F, col[7:9])
-    end
-    kpts = (; sizes=sizes, nkpt=nkpt, ikvec=ikvec, cart=kcart, frac=kfrac)
-
-    # main
-    # wannierise
-    # disentangle
-    # plotting
-    # k-mesh
-    # etc...
-
-    return A, B, species, site, frac_lat, cart_lat, proj, kpts
+    return (; A, B, vol, species, site, frac_lat, cart_lat, nkpt, dims=(nk1,nk2,nk3))
 end
 
 function parse_sym(file::IO, ::Type{F}) where {F<:AbstractFloat}
@@ -365,7 +327,7 @@ function parse_sym(file::IO, ::Type{F}) where {F<:AbstractFloat}
         translate[i] = S[:,4]
         readline(file)
     end
-    return nsymmetry, point_sym, translate
+    return (; nsymmetry, point_sym, translate)
 end
 
 load_interp(seedname::String; kwargs...) =
@@ -378,12 +340,12 @@ Automatically load a BZ using data from a "seedname.wout" file with the `load_bz
 from AutoBZCore.
 """
 function load_autobz(bz::AbstractBZ, seedname::String; precision=Float64, atol=1e-5)
-    A, B, = parse_wout(seedname * ".wout", precision)
+    (; A, B) = parse_wout(seedname * ".wout", precision)
     return load_bz(bz, A, B; atol=atol)
 end
 function load_autobz(bz::IBZ, seedname::String; precision=Float64, kws...)
-    a, b, species, site, frac_lat, cart_lat = parse_wout(seedname * ".wout", precision)
-    return load_bz(convert(AbstractBZ{3}, bz), a, b, species, frac_lat; kws..., coordinates="lattice")
+    (; A, B, species, frac_lat) = parse_wout(seedname * ".wout", precision)
+    return load_bz(convert(AbstractBZ{3}, bz), A, B, species, reduce(hcat, frac_lat); kws..., coordinates="lattice")
 end
 
 """
