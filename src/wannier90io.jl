@@ -61,9 +61,9 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge
     (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, H)
     f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
-        return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
+        return HamiltonianInterp(Freq2RadSeries(f); gauge)
     else
-        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc, gauge=gauge)
+        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
     end
 end
 
@@ -206,7 +206,7 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     F3 = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
     Fs = (F1, F2, F3)
     Ms = soc === nothing ? Fs : map(f -> WrapperFourierSeries(wrap_soc, f), Fs)
-    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period=period), irot; coord=coord)
+    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period), irot; coord)
 end
 
 """
@@ -220,8 +220,8 @@ function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
     coord=CoordDefault(GradientVelocityInterp),
     vcomp=VcompDefault(GradientVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision=precision, compact=compact, soc=soc)
-    return GradientVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc)
+    return GradientVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
 """
@@ -235,9 +235,9 @@ function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
     coord=CoordDefault(CovariantVelocityInterp),
     vcomp=VcompDefault(CovariantVelocityInterp))
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed, A; precision=precision, coord=coord, compact=compact, soc=soc)
-    a = load_interp(BerryConnectionInterp, seed; precision=precision, coord=coord, compact=compact, soc=soc)
-    return CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
+    hv = load_interp(GradientVelocityInterp, seed, A; precision, coord, compact, soc)
+    a = load_interp(BerryConnectionInterp, seed; precision, coord, compact, soc)
+    return CovariantVelocityInterp(hv, a; coord, vcomp, gauge)
 end
 
 """
@@ -251,8 +251,8 @@ function load_interp(::Type{<:MassVelocityInterp}, seed, A;
     coord=CoordDefault(MassVelocityInterp),
     vcomp=VcompDefault(MassVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision=precision, compact=compact, soc=soc)
-    return MassVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc)
+    return MassVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
 function _split!(c, s, args...; kws...)
@@ -367,7 +367,7 @@ from AutoBZCore.
 """
 function load_autobz(bz::AbstractBZ, seedname::String; precision=Float64, atol=1e-5)
     (; A, B) = parse_wout(seedname * ".wout", precision)
-    return load_bz(bz, A, B; atol=atol)
+    return load_bz(bz, A, B; atol)
 end
 function load_autobz(bz::IBZ, seedname::String; precision=Float64, kws...)
     (; A, B, species, frac_lat) = parse_wout(seedname * ".wout", precision)
@@ -390,11 +390,11 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 `subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
 """
 function load_wannier90_data(seedname::String; precision=Float64, load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
-    bz = load_autobz(bz, seedname; precision=precision)
+    bz = load_autobz(bz, seedname; precision)
     wi = if interp <: AbstractVelocityInterp
-        load_interp(interp, seedname, bz.A; precision=precision, kwargs...)
+        load_interp(interp, seedname, bz.A; precision, kwargs...)
     else
-        load_interp(interp, seedname; precision=precision, kwargs...)
+        load_interp(interp, seedname; precision, kwargs...)
     end
 
     if bz.syms !== nothing
