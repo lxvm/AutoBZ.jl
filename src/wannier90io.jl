@@ -102,30 +102,28 @@ infnorm(x::AbstractArray) = maximum(infnorm, x)
 function droptol(C::AbstractArray, origin::CartesianIndex, reltol)
     abstol = infnorm(C) * reltol
     norm_geq_tol = >=(abstol)∘infnorm
-    all(norm_geq_tol, C) && return (C, origin)
-
+    # https://juliaarrays.github.io/OffsetArrays.jl/stable/internals/#Caveats
     # compute the new size, dropping values below tol at both ends of axes
-    N = ndims(C)
-    newlb = ntuple(Val(N)) do dim
+    newlb = ntuple(ndims(C)) do dim
         n = firstindex(C, dim)
         while n < lastindex(C, dim)
-            r = ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], Val(N))
+            r = let n=n; ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], ndims(C)); end
             any(norm_geq_tol, @view C[CartesianIndices(r)]) && break
             n += 1
         end
         n
     end
-    newub = ntuple(Val(N)) do dim
+    newub = ntuple(ndims(C)) do dim
         n = lastindex(C, dim)
         while n > firstindex(C, dim)
-            r = ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], Val(N))
+            r = let n=n; ntuple(i -> axes(C,i)[i == dim ? (n:n) : (begin:end)], ndims(C)); end
             any(norm_geq_tol, @view C[CartesianIndices(r)]) && break
             n -= 1
         end
         n
     end
     newC = C[CartesianIndices(map(:, newlb, newub))]
-    neworigin = origin + CartesianIndex(ntuple(n -> firstindex(newC,n)-newlb[n], Val(N)))
+    neworigin = origin + CartesianIndex(ntuple(n -> firstindex(newC,n)-newlb[n], ndims(C)))
     return (newC, neworigin)
 end
 

@@ -30,3 +30,37 @@ using Test, AutoBZ, OffsetArrays
     end
 
 end
+
+@testset "droptol" begin
+
+    Cpad = [
+        0.0 0.0 0.0 0.0
+        0.0 0.1 0.0 0.0
+        0.2 0.4 0.2 0.0
+        0.3 0.5 0.3 0.0
+        0.2 0.4 0.2 0.0
+        0.0 0.1 0.0 0.0
+    ]
+    OCpad = OffsetMatrix(Array(Cpad), -3:2, -1:2)
+    C = Cpad[begin+1:end, begin:end-1]
+    OC = OffsetMatrix(C, -2:2, -1:1)
+
+    @test @inferred(AutoBZ.droptol(Cpad,  CartesianIndex(4,2), eps())) == (C, CartesianIndex(3,2))
+    @test @inferred(AutoBZ.droptol(OCpad, CartesianIndex(0,0), eps())) == (C, CartesianIndex(3,2))
+    @test @inferred(AutoBZ.droptol(C,  CartesianIndex(3,2), eps())) == (C, CartesianIndex(3,2))
+    @test @inferred(AutoBZ.droptol(OC, CartesianIndex(0,0), eps())) == (C, CartesianIndex(3,2))
+
+
+    Cpad2 = [
+        0.0 0.0 0.0 0.0
+        0.0 0.0 0.0 0.0
+        0.0 0.1 0.0 0.0
+        0.2 0.4 0.2 0.0
+        0.3 0.5 0.3 0.0
+        0.2 0.4 0.2 0.0
+        0.0 0.1 0.0 0.0
+    ]
+    OCpad2 = OffsetMatrix(Array(Cpad2), -4:2, -1:2)
+    @test @inferred(AutoBZ.droptol(Cpad2,  CartesianIndex(5,2), eps())) == (C, CartesianIndex(3,2))
+    @test @inferred(AutoBZ.droptol(OCpad2, CartesianIndex(0,0), eps())) == (C, CartesianIndex(3,2))
+end
