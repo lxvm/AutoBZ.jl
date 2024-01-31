@@ -237,7 +237,7 @@ struct MassVelocityInterp{C,B,G,N,T,iip,F,DF,TA} <: AbstractVelocityInterp{C,B,G
     h::HessianSeries{N,T,iip,F,DF}
     A::TA
     function MassVelocityInterp{C,B,G}(h::HessianSeries{N,T,iip,F,DF}, A::TA) where {C,B,G,N,T,iip,F,DF,TA}
-        @assert gauge(parentseries(h)) == GaugeDefault(parentseries(h))
+        @assert gauge(_parentseries(h)) == GaugeDefault(_parentseries(h))
         return new{C,B,G,N,T,iip,F,DF,TA}(h, A)
     end
 end

@@ -52,6 +52,7 @@ module AutoBZ
 
 using LinearAlgebra
 using LinearAlgebra: checksquare
+using Logging
 
 using StaticArrays
 using Reexport
