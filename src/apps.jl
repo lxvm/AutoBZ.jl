@@ -283,7 +283,13 @@ function TransportFunctionIntegrand(hv::AbstractVelocityInterp; kwargs...)
     # TODO change to the Hamiltonian gauge automatically
     return FourierIntegrand(transport_function_integrand, hv; kwargs...)
 end
-
+function TransportFunctionIntegrand(w::FourierWorkspace{<:AbstractVelocityInterp}; kwargs...)
+    @assert gauge(w.series) isa Hamiltonian
+    # TODO change to the Hamiltonian gauge automatically
+    p = ParameterIntegrand(transport_function_integrand; kwargs...)
+    nest = make_fourier_nest(p, ParameterIntegrand(transport_function_integrand), w)
+    return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
+end
 
 const TransportFunctionIntegrandType = FourierIntegrand{typeof(transport_function_integrand)}
 
