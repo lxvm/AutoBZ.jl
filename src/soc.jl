@@ -140,6 +140,12 @@ show_details(s::WrapperFourierSeries) = show_details(s.s)
 
 wrap_soc(A) = SOCMatrix(A)
 
+"""
+    SOCHamiltonianInterp(f::Freq2RadSeries, λ; gauge=Wannier())
+
+A wrapper for a Fourier series in a given gauge that has spin-orbit coupling represented by
+the matrix `λ`. In particular, this interpolates `[f(k) 0; 0 f(k)] + λ`.
+"""
 struct SOCHamiltonianInterp{G,N,T,iip,S<:Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}},L} <: AbstractHamiltonianInterp{G,N,T,iip}
     s::S
     λ::L

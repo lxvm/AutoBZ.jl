@@ -6,9 +6,6 @@
 AutoBZ.load_wannier90_data
 AutoBZ.load_interp
 AutoBZ.load_autobz
-AutoBZ.parse_hamiltonian
-AutoBZ.parse_position_operator
-AutoBZ.parse_wout
 ```
 
 ## Python

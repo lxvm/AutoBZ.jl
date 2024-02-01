@@ -77,6 +77,7 @@ AutoBZ.AbstractWannierInterp
 AutoBZ.AbstractGaugeInterp
 AutoBZ.AbstractHamiltonianInterp
 AutoBZ.HamiltonianInterp
+AutoBZ.SOCHamiltonianInterp
 AutoBZ.AbstractCoordInterp
 AutoBZ.BerryConnectionInterp
 AutoBZ.AbstractVelocityInterp
@@ -105,4 +106,10 @@ AutoBZ.AbstractVelocityComponent
 Whole
 Intra
 Inter
+```
+
+### Special matrix types
+```@docs
+AutoBZ.SOCMatrix
+AutoBZ.SSymmetricCompact
 ```
