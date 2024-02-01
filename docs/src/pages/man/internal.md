@@ -3,7 +3,6 @@
 The following symbols used by AutoBZ may change in future versions
 
 ```@docs
-AutoBZ.SSymmetricCompact
 AutoBZ.hinv
 AutoBZ.dos_integrand
 AutoBZ.tr_kron
@@ -26,7 +25,6 @@ AutoBZ.trgloc_integrand
 AutoBZ.covariant_velocity
 AutoBZ.coord
 AutoBZ.LatticeRep
-AutoBZ.SOC
 AutoBZ.GaugeDefault
 AutoBZ.VcompDefault
 AutoBZ.herm

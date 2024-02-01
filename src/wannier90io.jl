@@ -1,11 +1,5 @@
 check_degen(r_degen, nkpt) = @assert Int(sum(m -> 1//m, r_degen)) == nkpt
 
-"""
-    parse_hamiltonian(filename)
-
-Parse an ab-initio Hamiltonian output from Wannier90 into `filename`, extracting
-the fields `(date_time, num_wann, nrpts, degen, irvec, C)`
-"""
 function parse_hamiltonian(file::IO, ::Type{F}) where {F<:AbstractFloat}
     date_time = readline(file)
 
@@ -41,14 +35,23 @@ function parse_hamiltonian(file::IO, ::Type{F}) where {F<:AbstractFloat}
 end
 
 """
-    load_hamiltonian(seed; period=1, compact=:N)
+    load_interp(::Type{<:HamiltonianInterp}, seed;
+        gauge=Wannier(), soc=nothing,
+        compact=:N, precision=Float64, droptol=eps(precision))
 
-Load an ab-initio Hamiltonian output from Wannier90 into `filename` as an
-evaluatable `FourierSeries` whose periodicity can be set by the keyword argument
-`period` which defaults to setting the period along each dimension to `1.0`. To
-define different periods for different dimensions, pass an `SVector` as the
-`period`. To store Hermitian Fourier coefficients in compact form, use the
-keyword `compact` to specify:
+Load Hamiltonian coefficients from Wannier90 output `"seed_hr.dat"` into an
+[`AbstractHamiltonianInterp`](@ref) that interpolates `h` with unit period. The
+`gauge` keyword can be [`Wannier`](@ref) or [`Hamiltonian`](@ref) to set whether
+the coefficients are interpolated in the orbital basis, i.e. as is, or rotated
+into the band basis, i.e. the Hamiltonian eigenbasis. Additionally, the `soc`
+keyword can specify a `SMatrix` (from StaticArrays.jl) of twice the size of the
+coefficients in the `seed` file that is added to the Hamiltonian in orbital
+basis. For more details see [`SOCMatrix`](@ref).
+
+There are also several keywords to control the memory usage of the array:
+`compact` which may indicate the coefficient matrices are Hermitian, `precision`
+which sets the floating-point precision of the array, and `droptol` which skips
+coefficients under the given relative tolerance. Possible values of `compact` are:
 - `:N`: do not store the coefficients in compact form
 - `:L`: store the lower triangle of the coefficients
 - `:U`: store the upper triangle of the coefficients
@@ -61,9 +64,9 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge
     (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, H)
     f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
-        return HamiltonianInterp(Freq2RadSeries(f), gauge=gauge)
+        return HamiltonianInterp(Freq2RadSeries(f); gauge)
     else
-        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc, gauge=gauge)
+        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
     end
 end
 
@@ -127,15 +130,6 @@ function droptol(C::AbstractArray, origin::CartesianIndex, reltol)
     return (newC, neworigin)
 end
 
-"""
-    parse_position_operator(filename, rot=I)
-
-Parse a position operator output from Wannier90 into `filename`, extracting the
-fields `(date_time, num_wann, nrpts, irvec, A1, A2, A3)`. By default, `A1, A2,
-A3` are in the Cartesian basis (i.e. `X, Y, Z` because the Wannier90
-`seedname_r.dat` file is), however a rotation matrix `rot` can be applied to
-change the basis of the input to other coordinates.
-"""
 function parse_position_operator(file::IO, ::Type{F}, rot=I) where {F<:AbstractFloat}
     date_time = readline(file)
 
@@ -178,22 +172,16 @@ pick_rot(::Cartesian, A, invA) = (I, invA)
 pick_rot(::Lattice, A, invA) = (invA, A)
 
 """
-    load_position_operator(seed; period=1, compact=nothing)
+    load_interp(::Type{<:BerryConnectionInterp}, seed;
+        coord=Lattice(), soc=nothing,
+        precision=Float64, compact=:N, droptol=eps(precision))
 
-Load a position operator Hamiltonian output from Wannier90 into `filename` as an
-evaluatable `ManyFourierSeries` with separate x, y, and z components whose
-periodicity can be set by the keyword argument `period` which defaults to
-setting the period along each dimension to `1.0`. To define different periods
-for different dimensions, pass an `SVector` as the `period`. To store Hermitian
-Fourier coefficients in compact form, use the keyword `compact` to specify:
-- `:N`: do not store the coefficients in compact form
-- `:L`: store the lower triangle of the coefficients
-- `:U`: store the upper triangle of the coefficients
-- `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
-Note that in some cases the coefficients are not Hermitian even though the
-values of the series are.
+Load position operator coefficients from Wannier90 output `"seed_r.dat"` into a
+[`BerryConnectionInterp`](@ref) that interpolates `(A1, A2, A3)`. Specify
+`coord` as [`Lattice`](@ref) or [`Cartesian`](@ref) to have the position
+operator interpolated in those coordinates.
 """
-function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), period=one(precision), compact=:N, soc=nothing, droptol=eps(precision))
+function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, coord=CoordDefault(BerryConnectionInterp), compact=:N, soc=nothing, droptol=eps(precision))
     (; A, nkpt) = parse_wout(seed * ".wout", precision)
     invA = inv(A) # compute inv(A) for map from Cartesian to lattice coordinates
     rot, irot = pick_rot(coord, A, invA)
@@ -206,53 +194,68 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     F3 = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
     Fs = (F1, F2, F3)
     Ms = soc === nothing ? Fs : map(f -> WrapperFourierSeries(wrap_soc, f), Fs)
-    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period=period), irot; coord=coord)
+    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period), irot; coord)
 end
 
 """
-    load_interp(::Type{<:GradientVelocityInterp}, seed, A; precision=Float64, period=1, compact=:N, soc=nothing,
-    gauge=Wannier(), vcomp=Whole(), coord=Lattice())
+    load_interp(::Type{<:GradientVelocityInterp}, seed, A;
+        gauge=Wannier(), vcomp=Whole(), coord=Lattice(), soc=nothing,
+        precision=Float64, compact=:N, droptol=eps(precision))
 
+Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
+`"seed_hr.dat"` into a [`GradientVelocityInterp`](@ref) that interpolates `(h, v)`.
+Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
+certain transitions. Note these velocities are not gauge-covariant.
 """
 function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing,
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
     gauge=GaugeDefault(GradientVelocityInterp),
     coord=CoordDefault(GradientVelocityInterp),
     vcomp=VcompDefault(GradientVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision=precision, compact=compact, soc=soc)
-    return GradientVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc)
+    return GradientVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
 """
-    load_covariant_hamiltonian_velocities(::Type{<:CovariantVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing,
-    gauge=Wannier(), vcomp=whole(), coord=Lattice())
+    load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
+        gauge=Wannier(), vcomp=whole(), coord=Lattice(), soc=nothing,
+        precision=Float64, compact=:N, droptol=eps(precision))
+
+Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
+`"seed_hr.dat"` and `"seed_r.dat"` into a [`CovariantVelocityInterp`](@ref) that
+interpolates `(h, v)`. Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or
+[`Inter`](@ref) to use certain transitions. These velocities are gauge-covariant.
 """
 function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing,
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
     gauge=GaugeDefault(CovariantVelocityInterp),
     coord=CoordDefault(CovariantVelocityInterp),
     vcomp=VcompDefault(CovariantVelocityInterp))
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed, A; precision=precision, coord=coord, compact=compact, soc=soc)
-    a = load_interp(BerryConnectionInterp, seed; precision=precision, coord=coord, compact=compact, soc=soc)
-    return CovariantVelocityInterp(hv, a; coord=coord, vcomp=vcomp, gauge=gauge)
+    hv = load_interp(GradientVelocityInterp, seed, A; precision, coord, compact, soc)
+    a = load_interp(BerryConnectionInterp, seed; precision, coord, compact, soc)
+    return CovariantVelocityInterp(hv, a; coord, vcomp, gauge)
 end
 
 """
     load_interp(::Type{<:MassVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing,
-    gauge=Wannier(), vcomp=whole(), coord=Lattice())
+        gauge=Wannier(), vcomp=Whole(), coord=Lattice(), soc=nothing,
+        precision=Float64, compact=:N, droptol=eps(precision))
+
+Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
+`"seed_hr.dat"` into a [`MassVelocityInterp`](@ref) that interpolates `(h, v, μ)`.
+Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
+certain transitions. Note these operators are not gauge-covariant.
 """
 function load_interp(::Type{<:MassVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing,
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
     gauge=GaugeDefault(MassVelocityInterp),
     coord=CoordDefault(MassVelocityInterp),
     vcomp=VcompDefault(MassVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision=precision, compact=compact, soc=soc)
-    return MassVelocityInterp(h, A; coord=coord, vcomp=vcomp, gauge=gauge)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc, droptol)
+    return MassVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
 function _split!(c, s, args...; kws...)
@@ -260,11 +263,6 @@ function _split!(c, s, args...; kws...)
     append!(c, eachsplit(s, args...; kws...))
 end
 
-"""
-    parse_wout(filename; iprint=1)
-
-returns the lattice vectors `a` and reciprocal lattice vectors `b`
-"""
 function parse_wout(file::IO, ::Type{F}) where {F<:AbstractFloat}
 
     cols = SubString{String}[]
@@ -367,7 +365,7 @@ from AutoBZCore.
 """
 function load_autobz(bz::AbstractBZ, seedname::String; precision=Float64, atol=1e-5)
     (; A, B) = parse_wout(seedname * ".wout", precision)
-    return load_bz(bz, A, B; atol=atol)
+    return load_bz(bz, A, B; atol)
 end
 function load_autobz(bz::IBZ, seedname::String; precision=Float64, kws...)
     (; A, B, species, frac_lat) = parse_wout(seedname * ".wout", precision)
@@ -390,11 +388,11 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 `subtypes(AbstractBZ)` and `using TypeTree; tt(AbstractWannierInterp)`.
 """
 function load_wannier90_data(seedname::String; precision=Float64, load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
-    bz = load_autobz(bz, seedname; precision=precision)
+    bz = load_autobz(bz, seedname; precision)
     wi = if interp <: AbstractVelocityInterp
-        load_interp(interp, seedname, bz.A; precision=precision, kwargs...)
+        load_interp(interp, seedname, bz.A; precision, kwargs...)
     else
-        load_interp(interp, seedname; precision=precision, kwargs...)
+        load_interp(interp, seedname; precision, kwargs...)
     end
 
     if bz.syms !== nothing

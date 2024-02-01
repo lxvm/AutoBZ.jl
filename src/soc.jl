@@ -1,14 +1,14 @@
 
 """
-    SOC(A)
+    SOCMatrix(A)
 Wrapper for a matrix A that should be used as a block-diagonal matrix
     [A 0
      0 A]
 as when dealing with spin-orbit coupling
 """
-struct SOC{N,T,M} <: StaticMatrix{N,N,T}
+struct SOCMatrix{N,T,M} <: StaticMatrix{N,N,T}
     A::M
-    SOC(A::M) where {N,T,M<:StaticMatrix{N,N,T}} = new{2*N,T,M}(A)
+    SOCMatrix(A::M) where {N,T,M<:StaticMatrix{N,N,T}} = new{2*N,T,M}(A)
 end
 
 function _check_square_parameters(::Val{N}) where N
@@ -17,7 +17,7 @@ function _check_square_parameters(::Val{N}) where N
     d
 end
 
-@generated function SOC{N_,T}(data::Tuple) where {N_,T}
+@generated function SOCMatrix{N_,T}(data::Tuple) where {N_,T}
     N = _check_square_parameters(Val(N_))
     expr = Vector{Expr}(undef, N^2)
     m = 0
@@ -27,11 +27,11 @@ end
     end
     quote
         Base.@_inline_meta
-        @inbounds return SOC(SMatrix{$N,$N,T,$(N^2)}(tuple($(expr...))))
+        @inbounds return SOCMatrix(SMatrix{$N,$N,T,$(N^2)}(tuple($(expr...))))
     end
 end
 
-@generated function Base.Tuple(a::SOC{N_,T}) where {N_,T}
+@generated function Base.Tuple(a::SOCMatrix{N_,T}) where {N_,T}
     z = zero(T)
     N = div(N_, 2)
     exprs = [ i == j ? :(a.A[$n,$m]) : :($z) for n in 1:N, i in 1:2, m in 1:N, j in 1:2 ]
@@ -66,36 +66,36 @@ end
     end
 end
 
-Base.@propagate_inbounds function Base.getindex(a::SOC{N_,T}, i::Int) where {N_,T}
+Base.@propagate_inbounds function Base.getindex(a::SOCMatrix{N_,T}, i::Int) where {N_,T}
     idx = _soc_indices(Val(N_))
     j, isdiag = idx[i]
     isdiag ? @inbounds(a.A[j]) : zero(T)
 end
 
-@inline Base.:+(a::SOC{N}, b::SOC{N}) where N = SOC(a.A + b.A)
-@inline Base.:-(a::SOC{N}, b::SOC{N}) where N = SOC(a.A - b.A)
-@inline Base.:*(a::SOC{N}, b::SOC{N}) where N = SOC(a.A * b.A)
+@inline Base.:+(a::SOCMatrix{N}, b::SOCMatrix{N}) where N = SOCMatrix(a.A + b.A)
+@inline Base.:-(a::SOCMatrix{N}, b::SOCMatrix{N}) where N = SOCMatrix(a.A - b.A)
+@inline Base.:*(a::SOCMatrix{N}, b::SOCMatrix{N}) where N = SOCMatrix(a.A * b.A)
 
 for op in (:*, :/)
-    @eval @inline Base.$op(a::SOC, b::Number) = SOC($op(a.A, b))
-    @eval @inline Base.$op(a::Number, b::SOC) = SOC($op(a, b.A))
+    @eval @inline Base.$op(a::SOCMatrix, b::Number) = SOCMatrix($op(a.A, b))
+    @eval @inline Base.$op(a::Number, b::SOCMatrix) = SOCMatrix($op(a, b.A))
 end
 
 for op in (:+, :-)
-    @eval @inline Base.$op(a::SOC, b::UniformScaling) = SOC($op(a.A, b))
-    @eval @inline Base.$op(a::UniformScaling, b::SOC) = SOC($op(a, b.A))
+    @eval @inline Base.$op(a::SOCMatrix, b::UniformScaling) = SOCMatrix($op(a.A, b))
+    @eval @inline Base.$op(a::UniformScaling, b::SOCMatrix) = SOCMatrix($op(a, b.A))
 end
 
 for op in (:zero, :one, :oneunit)
-    @eval Base.$op(::Type{T}) where {T<:SOC} = SOC($op(fieldtype(T, :A)))
+    @eval Base.$op(::Type{T}) where {T<:SOCMatrix} = SOCMatrix($op(fieldtype(T, :A)))
 end
 
-@inline LinearAlgebra.inv(a::SOC) = SOC(inv(a.A))
-@inline LinearAlgebra.tr(a::SOC) = 2tr(a.A)
+@inline LinearAlgebra.inv(a::SOCMatrix) = SOCMatrix(inv(a.A))
+@inline LinearAlgebra.tr(a::SOCMatrix) = 2tr(a.A)
 
 # we overload A * b::SVector{<:SOC} to deal with a constructor error
 # this could be optimized more (should be 2x faster than full matrix) but is already 10% faster than full
-function Base.:*(A::StaticMatrix{N,N,<:Number}, b::SVector{N,<:SOC}) where {N}
+function Base.:*(A::StaticMatrix{N,N,<:Number}, b::SVector{N,<:SOCMatrix}) where {N}
     @assert N > 0
     vals = ntuple(Val(N)) do n
         ntuple(m -> A[n,m]*b[m], Val(N))
@@ -117,9 +117,12 @@ function t2g_coupling(λ::Number=1)
     return (kron(σˣ, ϵˣ) + kron(σʸ, ϵʸ) + kron(σᶻ, ϵᶻ)) * λ * im // 2
 end
 
-struct WrapperFourierSeries{W,S,N,iip,C,A,T,F} <: AbstractFourierSeries{N,T,iip}
+struct WrapperFourierSeries{W,N,T,iip,S<:FourierSeries} <: AbstractFourierSeries{N,T,iip}
     w::W
-    s::FourierSeries{S,N,iip,C,A,T,F}
+    s::S
+    function WrapperFourierSeries(w, s::FourierSeries)
+        return new{typeof(w),ndims(s),eltype(s),FourierSeriesEvaluators.isinplace(s),typeof(s)}(w, s)
+    end
 end
 
 period(s::WrapperFourierSeries) = period(s.s)
@@ -135,8 +138,14 @@ show_dims(s::WrapperFourierSeries) = show_dims(s.s)
 show_details(s::WrapperFourierSeries) = show_details(s.s)
 
 
-wrap_soc(A) = SOC(A)
+wrap_soc(A) = SOCMatrix(A)
 
+"""
+    SOCHamiltonianInterp(f::Freq2RadSeries, λ; gauge=Wannier())
+
+A wrapper for a Fourier series in a given gauge that has spin-orbit coupling represented by
+the matrix `λ`. In particular, this interpolates `[f(k) 0; 0 f(k)] + λ`.
+"""
 struct SOCHamiltonianInterp{G,N,T,iip,S<:Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}},L} <: AbstractHamiltonianInterp{G,N,T,iip}
     s::S
     λ::L

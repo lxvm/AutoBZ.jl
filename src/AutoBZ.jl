@@ -104,6 +104,7 @@ include("apps.jl")
 export load_self_energy
 include("self_energies_io.jl")
 
+export SOCMatrix, SOCHamiltonianInterp
 include("soc.jl")
 
 export load_interp, load_autobz, load_wannier90_data
