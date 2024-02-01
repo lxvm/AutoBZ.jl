@@ -493,8 +493,16 @@ struct KCFrequencyIntegral{T}
 end
 
 function (kc::KCFrequencyIntegral)(hv_k, dom, Σ, n, β, Ω, μ)
+    _check_selfenergy_limits(Σ, dom)
     solver = IntegralSolver(kc.solver.f, dom, kc.solver.alg, kc.solver.cacheval, kc.solver.kwargs)
     return kinetic_coefficient_integrand(hv_k, solver, Σ, n, β, Ω, μ)
+end
+
+function _check_selfenergy_limits(Σ, dom)
+    l, u = AutoBZCore.endpoints(dom)
+    l < lb(Σ) && throw(ArgumentError("lower limit of frequency integral exceeds range of self energy (see AutoBZ.lb)"))
+    u > ub(Σ) && throw(ArgumentError("upper limit of frequency integral exceeds range of self energy (see AutoBZ.ub)"))
+    return
 end
 
 """
@@ -526,6 +534,7 @@ function get_safe_fermi_window_limits(Ω, β, dom; kwargs...)
     return AutoBZCore.PuncturedInterval(int)
 end
 function kc_inner_params(dom; Σ, n, β, Ω, μ=zero(Ω))
+    _check_selfenergy_limits(Σ, dom)
     new_dom = get_safe_fermi_window_limits(Ω, β, dom)
     return (new_dom, Σ, n, β, Ω, μ)
 end
@@ -658,6 +667,7 @@ struct DensityFrequencyIntegral{T}
 end
 
 function (n::DensityFrequencyIntegral)(h_k, dom, Σ, β, μ)
+    _check_selfenergy_limits(Σ, dom)
     solver = IntegralSolver(n.solver.f, dom, n.solver.alg, n.solver.cacheval, n.solver.kwargs)
     return solver(; h_k, Σ, β, μ)
 end
@@ -680,6 +690,7 @@ function get_safe_fermi_function_limits(β, dom; kwargs...)
 end
 
 function dens_params_inside(dom; Σ, β, μ=zero(inv(oneunit(β))))
+    _check_selfenergy_limits(Σ, dom)
     new_dom = get_safe_fermi_function_limits(β, dom)
     return (new_dom, Σ, β, μ)
 end

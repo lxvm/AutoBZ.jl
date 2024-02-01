@@ -5,7 +5,6 @@ using LinearAlgebra
 
 # using SymmetryReduceBZ # add package to use bz=IBZ()
 using AutoBZ
-using EquiBaryInterp
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 h, bz = load_wannier90_data("svo"; interp=HamiltonianInterp, bz=CubicSymIBZ())
