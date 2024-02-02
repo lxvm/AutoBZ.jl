@@ -8,10 +8,10 @@ the fields `(date_time, num_wann, nrpts, degen, irvec, C)`
 """
 parse_hamiltonian(filename) = open(filename) do file
     date_time = readline(file)
-    
+
     num_wann = parse(Int, readline(file))
     nrpts = parse(Int, readline(file))
-    
+
     entries_per_line = 15
     degen = Vector{Int}(undef, nrpts)
     for j in 1:ceil(Int, nrpts/entries_per_line)
@@ -56,7 +56,7 @@ keyword `compact` to specify:
 """
 function load_hamiltonian(filename; period=1.0, compact=:N)
     date_time, num_wann, nrpts, degen, irvec, C_ = parse_hamiltonian(filename)
-    C = load_coefficients(Val{compact}(), num_wann, irvec, C_)[1]
+    C = load_coefficients(Val{compact}(), num_wann, irvec, degen, C_)[1]
     FourierSeries3D(C, to_3period(period))
 end
 
@@ -64,8 +64,8 @@ to_3period(x::Real) = to_3period(convert(Float64, x))
 to_3period(x::Float64) = (x,x,x)
 to_3period(x::NTuple{3,Float64}) = x
 
-load_coefficients(compact, num_wann, irvec, cs...) = load_coefficients(compact, num_wann, irvec, cs)
-@generated function load_coefficients(compact, num_wann, irvec, cs::NTuple{N}) where N
+load_coefficients(compact, num_wann, irvec, degen, cs...) = load_coefficients(compact, num_wann, irvec, degen, cs)
+@generated function load_coefficients(compact, num_wann, irvec, degen, cs::NTuple{N}) where N
     T_full = :(SMatrix{num_wann,num_wann,ComplexF64,num_wann^2})
     T_compact = :(SHermitianCompact{num_wann,ComplexF64,StaticArrays.triangularnumber(num_wann)})
     if compact === Val{:N}
@@ -90,7 +90,7 @@ quote
     for (i,idx) in enumerate(irvec)
         idx_ = CartesianIndex((idx .+ nmodes .+ 1)...)
         for (j,c) in enumerate(cs)
-            Cs[j][idx_] = $expr
+            Cs[j][idx_] = $expr/degen[i]
         end
     end
     Cs
@@ -160,7 +160,7 @@ values of the series are.
 """
 function load_position_operator(filename; period=1.0, compact=:N)
     date_time, num_wann, nrpts, irvec, X_, Y_, Z_ = parse_position_operator(filename)
-    X, Y, Z = load_coefficients(Val{compact}(), num_wann, irvec, X_, Y_, Z_)
+    X, Y, Z = load_coefficients(Val{compact}(), num_wann, irvec, ones(Int, length(irvec)), X_, Y_, Z_)
     periods = to_3period(period)
     FX = FourierSeries3D(X, periods)
     FY = FourierSeries3D(Y, periods)
