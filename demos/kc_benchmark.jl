@@ -55,7 +55,7 @@ kc_solver = IntegralSolver(kc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abs
 
 #=
 # create bz integrand, which evaluates a frequency integral at each kpt
-kc_integrand = KineticCoefficientIntegrand(falg, hv, Σ; abstol=atol/nsyms(bz), reltol=rtol)
+kc_integrand = KineticCoefficientIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; Σ, abstol=atol/nsyms(bz), reltol=rtol)
 # construct solver
 kc_solver = IntegralSolver(kc_integrand, bz, kalg; abstol=atol, reltol=rtol)
 =#

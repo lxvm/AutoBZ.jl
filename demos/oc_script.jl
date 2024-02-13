@@ -61,7 +61,7 @@ oc_integrand = OpticalConductivityIntegrand(bz, kalg, hv; Σ, β, abstol=atol, r
 oc_solver = IntegralSolver(oc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
 
 # create integrand with frequency integral on the inside
-# oc_integrand = OpticalConductivityIntegrand(falg, hv, Σ, β; abstol=atol/nsyms(bz), reltol=rtol)
+# oc_integrand = OpticalConductivityIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
 # oc_solver = IntegralSolver(oc_integrand, bz, kalg; abstol=atol, reltol=rtol)
 
 # run calculation

@@ -40,7 +40,6 @@ p1 = hchebinterp(DOS, ω_lo, ω_hi; criterion=HAdaptError(), atol=interp_atol, o
 hchebinterp(DOS, ω_lo, ω_hi; criterion=SpectralError(), atol=1.0, order=fast_order)
 t_ = time()
 p2 = hchebinterp(DOS, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
-# p2 = hchebinterp(D, ω_lo, ω_hi; criterion=SpectralError(), atol=interp_atol, order=fast_order)
 @info "fast interpolation took $(time()-t_) s"
 
 nodes = Float64[]
