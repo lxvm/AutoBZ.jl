@@ -194,7 +194,7 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     F3 = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
     Fs = (F1, F2, F3)
     Ms = soc === nothing ? Fs : map(f -> WrapperFourierSeries(wrap_soc, f), Fs)
-    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period), irot; coord)
+    BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period=one(precision)), irot; coord)
 end
 
 """
