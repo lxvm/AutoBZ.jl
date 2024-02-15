@@ -9,3 +9,4 @@ Add tests to library
 Absorb chemical potential into Hamiltonian and self-energy
 Kinetic coefficients at zero temperature with TransportIntegrand in AutoBZ.Jobs
 Vector-valued and batched integrands to compute several integrands together
+Berry curvature integration: https://journals.jps.jp/doi/10.1143/JPSJ.74.1674
