@@ -32,29 +32,76 @@ bibliography: paper.bib
 # Summary
 
 In recent years, open source DFT codes combined with tools such as Wannier90
+[@mostofiWannier90ToolObtaining2008]
 have enabled high-throughput materials searches by robustly calculating the
-electronic structure of many metals and crystals from first principles. To
+electronic structure of many metals and crystals from first principles [@vitaleAutomatedHighthroughputWannierisation2020]. To
 compare theory and experiment, the last step in predicting the electronic and
 optical properties of these solids is calculating integrals to obtain quantities
 such as the dielectric function, the density of states (DOS), and the Hall
 conductivity. Often the details of the electronic structure may very sensitively
 control the resonant features of these observable quantities, which makes it
 crucial that this final step in many material-realistic calculations be as
-accurate as possible and reflect underlying theoretical predictions. We
+accurate as possible and reflect underlying theoretical predictions
+[@kratzerBasicsElectronicStructure2019]. We
 developed AutoBZ.jl to explore efficient algorithms and codes for the
 challenging, nearly singular integrals that occur in response function
 calculations that commonly arise in problems solid-state physics. Designed on
-open-source software principles and written in Julia, our package enables
+open-source software principles and written in Julia
+[@bezansonJuliaFreshApproach2017], our package enables
 high-order accurate and parallelizable optical conductivity and DOS calculations
 at challenging sub-meV energy scales and serves as an extensible framework for
 future projects on materials response phenomena.
 
 # Statement of need
 
-![The optical conductivity of SrVO3.\label{fig:oc}](oc_fermiliquid.png)
-and referenced from text using \autoref{fig:oc}.
+Most existing libraries that perform Brillouin-zone integration to compute
+optical conductivity, including
+[@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],
+are restricted to using uniform integration grids despite the fact the
+conductivity integrand may be nearly singular.
+In practice, this means integration grids must become very dense to attain good
+accuracy and quickly become time or memory-limited even for modest problems.
+Ref. [@kayeAutomaticHighorderAdaptive2023]
+proposed automatic, high-order-accurate, and adaptive integration algorithms
+that guarantee convergence to a requested tolerance for the very similar problem
+of calculating the single-particle Green's function. In AutoBZ.jl, we have
+reproduced those results and extended them to the problem of the optical
+conductivity with the goal of studying strongly interacting systems with
+sufficient energy resolution, i.e. sub-meV, to elucidate the various effects of
+interactions, dispersion, and spin-orbit coupling. In particular, we believe the
+DMFT [@georgesDynamicalMeanfieldTheory1996a] community will benefit from this
+package, either as a post-processing tool for experimental predictions, such as
+the calculation presented in \autoref{fig:oc}, or as an
+inner-loop calculation, such as for ensuring charge self-consistency.
 
-[@tsirkinHighPerformanceWannier2021]
+Our package was developed in a modular, Julian fashion with various components
+for integration [@vanmunozAutoBZCoreJlWannier2023] and interpolation
+[@vanmunozHChebInterpJlMultidimensional2023; @vanmunozFourierSeriesEvaluatorsJlWannier2023]
+that may be independently useful. We also model our APIs for solving integrals
+and DOS based on the CommonSolve.jl interface to provide an interface consistent
+with other Julia packages. The BZ integration algorithms we recommend for
+problems with a small scattering rate is Monkhorst-Pack integration, which is
+the standard method used by other libraries, and otherwise iterated adaptive
+integration, which is novel and more efficient in the small scattering regime,
+attaining logarithmic scaling. We also include a Julia package extension to
+SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a]
+to optimize our integration using the symmetry group of a lattice, including an
+implementation of a symmetric Monkhorst-Pack grid using the algorithm in Ref.
+[@hartRobustAlgorithmKpoint2019]. Another feature we provide is a calculation of
+the electron density that can easily be combined with NonlinearSolve.jl as a
+chemical potential finder.
+AutoBZ.jl can also be called from MATLAB and Python and it has file-based
+interfaces to read Wannier90 Hamiltonians and frequency-dependent self-energy
+data. The benefits of this modular design are that contributing new algorithms
+and problem types to the code base is simplified with well-documented APIs and
+that our package's intentional interoperatibility enables it to be used in
+scripts for many interesting research problems.
+
+![A calculation optical conductivity of the cubic perovskite SrVO3 at geometric
+series of temperatures such that the scattering is halved each time the
+temperature is decreased, reaching 0.2 meV. AutoBZ.jl
+was used to compute the conductivity, which was interpolated by HChebinterp.jl
+with parallelization of both the integration and interpolation. \label{fig:oc}](oc_fermiliquid.png)
 
 # Acknowledgements
 

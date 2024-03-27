@@ -1,3 +1,19 @@
+@article{aichhornTRIQSDFTToolsTRIQS2016,
+  title = {{{TRIQS}}/{{DFTTools}}: {{A TRIQS}} Application for {\emph{Ab Initio}} Calculations of Correlated Materials},
+  shorttitle = {{{TRIQS}}/{{DFTTools}}},
+  author = {Aichhorn, Markus and Pourovskii, Leonid and Seth, Priyanka and Vildosola, Veronica and Zingl, Manuel and Peil, Oleg E. and Deng, Xiaoyu and Mravlje, Jernej and Kraberger, Gernot J. and Martins, Cyril and Ferrero, Michel and Parcollet, Olivier},
+  year = {2016},
+  month = jul,
+  journal = {Computer Physics Communications},
+  volume = {204},
+  pages = {200--208},
+  issn = {0010-4655},
+  doi = {10.1016/j.cpc.2016.03.014},
+  urldate = {2024-03-27},
+  abstract = {We present the TRIQS/DFTTools package, an application based on the TRIQS library that connects this toolbox to realistic materials calculations based on density functional theory (DFT). In particular, TRIQS/DFTTools together with TRIQS allows an efficient implementation of DFT plus dynamical mean-field theory (DMFT) calculations. It supplies tools and methods to construct Wannier functions and to perform the DMFT self-consistency cycle in this basis set. Post-processing tools, such as band-structure plotting or the calculation of transport properties are also implemented. The package comes with a fully charge self-consistent interface to the Wien2k band structure code, as well as a generic interface that allows to use TRIQS/DFTTools together with a large variety of DFT codes. It is distributed under the GNU General Public License (GPLv3). Program summary Program title: TRIQS/DFTTools Project homepage:https://triqs.ipht.cnrs.fr/applications/dft\_tools Catalogue identifier: AFAF\_v1\_0 Program summary URL:http://cpc.cs.qub.ac.uk/summaries/AFAF\_v1\_0.html Program obtainable from: CPC Program Library, Queen's University, Belfast, N. Ireland Licensing provisions: GNU General Public License, version 3np No. of lines in distributed program, including test data, etc.: 164018 No. of bytes in distributed program, including test data, etc.: 4916969 Distribution format: tar.gz Programming language: Fortran/Python. Computer: Any architecture with suitable compilers including PCs and clusters. Operating system: Unix, Linux, OSX. RAM: Highly problem dependent Classification: 6.5, 7.3, 7.7, 7.9. External routines: TRIQS, cmake Nature of problem: Setting up state-of-the-art methods for an ab initio description of correlated systems from scratch requires a lot of code development. In order to make these calculations possible for a larger community there is need for high-level methods that allow the construction of DFT+DMFT calculations in a modular and efficient way. Solution method: We present a Fortran/Python open-source computational library that provides high-level abstractions and modules for the combination of DFT with many-body methods, in particular the dynamical mean-field theory. It allows the user to perform fully-fledged DFT+DMFT calculations using simple and short Python scripts. Running time: Tests take less than a minute; otherwise highly problem dependent.},
+  keywords = {calculations,Dynamical mean-field theory,Many-body physics,Strongly-correlated electrons}
+}
+
 @article{bezansonJuliaFreshApproach2017,
   title = {Julia: {{A Fresh Approach}} to {{Numerical Computing}}},
   shorttitle = {Julia},
@@ -15,6 +31,52 @@
   abstract = {JuMP is an open-source modeling language that allows users to express a wide range of optimization problems (linear, mixed-integer, quadratic, conic-quadratic, semidefinite, and nonlinear) in a high-level, algebraic syntax. JuMP takes advantage of advanced features of the Julia programming language to offer unique functionality while achieving performance on par with commercial modeling tools for standard tasks. In this work we will provide benchmarks, present the novel aspects of the implementation, and discuss how JuMP can be extended to new problem classes and composed with state-of-the-art tools for visualization and interactivity.}
 }
 
+@article{georgesDynamicalMeanfieldTheory1996a,
+  title = {Dynamical Mean-Field Theory of Strongly Correlated Fermion Systems and the Limit of Infinite Dimensions},
+  author = {Georges, Antoine and Kotliar, Gabriel and Krauth, Werner and Rozenberg, Marcelo J.},
+  year = {1996},
+  month = jan,
+  journal = {Reviews of Modern Physics},
+  volume = {68},
+  number = {1},
+  pages = {13--125},
+  publisher = {American Physical Society},
+  doi = {10.1103/RevModPhys.68.13},
+  urldate = {2024-03-27},
+  abstract = {We review the dynamical mean-field theory of strongly correlated electron systems which is based on a mapping of lattice models onto quantum impurity models subject to a self-consistency condition. This mapping is exact for models of correlated electrons in the limit of large lattice coordination (or infinite spatial dimensions). It extends the standard mean-field construction from classical statistical mechanics to quantum problems. We discuss the physical ideas underlying this theory and its mathematical derivation. Various analytic and numerical techniques that have been developed recently in order to analyze and solve the dynamical mean-field equations are reviewed and compared to each other. The method can be used for the determination of phase diagrams (by comparing the stability of various types of long-range order), and the calculation of thermodynamic properties, one-particle Green's functions, and response functions. We review in detail the recent progress in understanding the Hubbard model and the Mott metal-insulator transition within this approach, including some comparison to experiments on three-dimensional transition-metal oxides. We present an overview of the rapidly developing field of applications of this method to other systems. The present limitations of the approach, and possible extensions of the formalism are finally discussed. Computer programs for the numerical implementation of this method are also provided with this article.}
+}
+
+@article{hartRobustAlgorithmKpoint2019,
+  title = {A Robust Algorithm for K-Point Grid Generation and Symmetry Reduction},
+  author = {Hart, Gus L. W. and Jorgensen, Jeremy J. and Morgan, Wiley S. and Forcade, Rodney W.},
+  year = {2019},
+  month = jun,
+  journal = {Journal of Physics Communications},
+  volume = {3},
+  number = {6},
+  pages = {065009},
+  publisher = {IOP Publishing},
+  issn = {2399-6528},
+  doi = {10.1088/2399-6528/ab2937},
+  urldate = {2024-03-27},
+  abstract = {We develop an algorithm for i) computing generalized regular -point grids, ii) reducing the grids to their symmetrically distinct points, and iii) mapping the reduced grid points into the Brillouin zone. The algorithm exploits the connection between integer matrices and finite groups to achieve a computational complexity that is linear with the number of -points. The favorable scaling means that, at a given -point density, all possible commensurate grids can be generated (as suggested by Moreno and Soler) and quickly reduced to identify the grid with the fewest symmetrically unique -points. These optimal grids provide significant speed-up compared to Monkhorst--Pack -point grids; they have better symmetry reduction resulting in fewer irreducible -points at a given grid density. The integer nature of this new reduction algorithm also simplifies issues with finite precision in current implementations. The algorithm is available as open source software.},
+  langid = {english}
+}
+
+@article{jorgensenGeneralAlgorithmCalculating2022a,
+  title = {A {{General Algorithm}} for {{Calculating Irreducible Brillouin Zones}}},
+  author = {Jorgensen, Jeremy J. and Christensen, John E. and Jarvis, Tyler J. and Hart, Gus L. W.},
+  year = {2022},
+  month = jun,
+  journal = {Communications in Computational Physics},
+  volume = {31},
+  number = {2},
+  pages = {495--515},
+  issn = {1815-2406, 1991-7120},
+  doi = {10.4208/cicp.OA-2021-0094},
+  urldate = {2024-03-27}
+}
+
 @article{kayeAutomaticHighorderAdaptive2023,
   title = {Automatic, High-Order, and Adaptive Algorithms for {{Brillouin}} Zone Integration},
   author = {Kaye, Jason and Beck, Sophie and Barnett, Alex and Van Mu{\~n}oz, Lorenzo and Parcollet, Olivier},
@@ -30,6 +92,22 @@
   abstract = {SciPost Journals Publication Detail SciPost Phys. 15, 062 (2023) Automatic, high-order, and adaptive algorithms for Brillouin zone integration},
   copyright = {All rights reserved},
   langid = {english}
+}
+
+@article{kratzerBasicsElectronicStructure2019,
+  title = {The {{Basics}} of {{Electronic Structure Theory}} for {{Periodic Systems}}},
+  author = {Kratzer, Peter and Neugebauer, J{\"o}rg},
+  year = {2019},
+  month = mar,
+  journal = {Frontiers in Chemistry},
+  volume = {7},
+  publisher = {Frontiers},
+  issn = {2296-2646},
+  doi = {10.3389/fchem.2019.00106},
+  urldate = {2024-03-27},
+  abstract = {When density functional theory is used to describe the electronic structure of periodic systems, the application of Bloch's theorem to the Kohn-Sham wavefunctions greatly facilitates the calculations. In this paper of the series, the concepts needed to model infinite systems are introduced. These comprise the unit cell in real space, as well as its counterpart in reciprocal space, the Brillouin zone. Grids for sampling the Brillouin zone and finite k-point sets are discussed. For metallic systems, these tools need to be complemented by methods to determine the Fermi energy and the Fermi surface. Various schemes for broadening the distribution function around the Fermi energy are presented and the approximations involved are discussed. In order to obtain an interpretation of electronic structure calculations in terms of physics, the concepts of bandstructures and atom-projected and/or orbital-projected density of states are useful. Aspects of convergence with the number of basis functions and the number of k-points need to be addressed specifically for each physical property. The importance of this issue will be exemplified for force constant calculations and simulations of finite-temperature properties of materials. The methods developed for periodic systems carry over, with some reservations, to less symmetric situations by working with a supercell. The chapter closes with an outlook to the use of supercell calculations for surfaces and interfaces of crystals.},
+  langid = {english},
+  keywords = {Brillouin zone sampling,convergence tests,Density Functional Theory,high-throughput calculations,Solid-state chemistry techniques,Supercell approach}
 }
 
 @article{mostofiWannier90ToolObtaining2008,
@@ -67,4 +145,41 @@
   copyright = {2021 The Author(s)},
   langid = {english},
   keywords = {Computational methods,Electronic properties and materials,Electronic structure}
+}
+
+@misc{vanmunozAutoBZCoreJlWannier2023,
+  title = {{{AutoBZCore}}.Jl: {{Wannier}} Interpolation and Intergration Used by {{AutoBZ}}.Jl},
+  author = {Van Mu{\~n}oz, Lorenzo},
+  year = {2023}
+}
+
+@misc{vanmunozFourierSeriesEvaluatorsJlFourier2023,
+  title = {{{FourierSeriesEvaluators}}.Jl: {{Fourier}} Series Evaluators for Hierarchical Grids},
+  author = {Van Mu{\~n}oz, Lorenzo},
+  year = {2023}
+}
+
+@misc{vanmunozHChebInterpJlMultidimensional2023,
+  title = {{{HChebInterp}}.Jl: {{Multi-dimensional}} h-Adaptive {{Chebyshev}} Interpolation},
+  author = {Van Mu{\~n}oz, Lorenzo},
+  year = {2023}
+}
+
+@article{vitaleAutomatedHighthroughputWannierisation2020,
+  title = {Automated High-Throughput {{Wannierisation}}},
+  author = {Vitale, Valerio and Pizzi, Giovanni and Marrazzo, Antimo and Yates, Jonathan R. and Marzari, Nicola and Mostofi, Arash A.},
+  year = {2020},
+  month = jun,
+  journal = {npj Computational Materials},
+  volume = {6},
+  number = {1},
+  pages = {1--18},
+  publisher = {Nature Publishing Group},
+  issn = {2057-3960},
+  doi = {10.1038/s41524-020-0312-y},
+  urldate = {2024-03-27},
+  abstract = {Maximally-localised Wannier functions (MLWFs) are routinely used to compute from first-principles advanced materials properties that require very dense Brillouin zone integration and to build accurate tight-binding models for scale-bridging simulations. At the same time, high-throughput (HT) computational materials design is an emergent field that promises to accelerate reliable and cost-effective design and optimisation of new materials with target properties. The use of MLWFs in HT workflows has been hampered by the fact that generating MLWFs automatically and robustly without any user intervention and for arbitrary materials is, in general, very challenging. We address this problem directly by proposing a procedure for automatically generating MLWFs for HT frameworks. Our approach is based on the selected columns of the density matrix method and we present the details of its implementation in an AiiDA workflow. We apply our approach to a dataset of 200 bulk crystalline materials that span a wide structural and chemical space. We assess the quality of our MLWFs in terms of the accuracy of the band-structure interpolation that they provide as compared to the band-structure obtained via full first-principles calculations. Finally, we provide a downloadable virtual machine that can be used to reproduce the results of this paper, including all first-principles and atomistic simulations as well as the computational workflows.},
+  copyright = {2020 The Author(s)},
+  langid = {english},
+  keywords = {Computational methods,Condensed-matter physics}
 }
