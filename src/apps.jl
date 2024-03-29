@@ -175,7 +175,7 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
             return $f(x; Σ=EtaSelfEnergy(oneunit(el)), ω=zero(el))
         end
 
-        # Define the type alias to have the same behavior as the function
+        # Define a constructor for the integrand
         """
             $($T)(h; Σ, ω, μ=0)
 
@@ -391,16 +391,6 @@ function AutoBZCore.remake_integrand_cache(f::TransportDistributionIntegrandType
 end
 
 SymRep(Γ::TransportDistributionIntegrandType) = coord_to_rep(Γ.w.series)
-
-# For nested integrands, we have to start to worry about whether or not the outer integral
-# is parallelized in order to make the inner integrand threadsafe. If there is
-# parallelization, then I opt to deepcopy the inner IntegralSolver for each evaluation out
-# of an abundance of caution. Some integral solvers may not need to be copied if their
-# algorithm allocates no cache, but I let deepcopy figure this out. We could probably limit
-# the number of copies to the number of threads, but I am not so worried about the
-# parallel performance (we can't let the integration routines copy the integrand because the
-# solvers are often wrapped by anonymous functions that can't be copied).
-
 
 
 function transport_fermi_integrand_(ω, Γ, n, β, Ω)
