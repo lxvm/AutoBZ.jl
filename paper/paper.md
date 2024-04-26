@@ -77,7 +77,7 @@ can bring new light to response function calculations that were previously intra
 
 Our package was developed in a modular, Julian fashion with various components
 for integration [@vanmunozAutoBZCoreJlWannier2023] and interpolation
-[@vanmunozHChebInterpJlMultidimensional2023; @vanmunozFourierSeriesEvaluatorsJlWannier2023]
+[@vanmunozHChebInterpJlMultidimensional2023; @vanmunozFourierSeriesEvaluatorsJlFourier2023]
 that may be independently useful.
 We also include a Julia package extension to
 SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a]
