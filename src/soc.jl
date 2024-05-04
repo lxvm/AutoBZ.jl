@@ -158,7 +158,7 @@ function SOCHamiltonianInterp(s, λ; gauge=GaugeDefault(SOCHamiltonianInterp))
 end
 
 GaugeDefault(::Type{<:SOCHamiltonianInterp}) = Wannier()
-parentseries(h::SOCHamiltonianInterp) = h.s.s
+parentseries(h::SOCHamiltonianInterp) = h.s.s.s
 
 period(h::SOCHamiltonianInterp) = period(h.s)
 frequency(h::SOCHamiltonianInterp) = frequency(h.s)
