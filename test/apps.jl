@@ -19,11 +19,7 @@ using Test
         # the Green's function integrands have unknown symmetry
         # representations but we are only integrating a scalar Hamiltonian
         # wrapped as a matrix
-        if eltype(r) <: AutoBZCore.TrivialRepType
-            @test r[1] ≈ r[2] atol=1e-1
-        else
-            @test only(r[1]) ≈ AutoBZCore.symmetrize(f, ibz, only(r[2])) atol=1e-1
-        end
+        @test r[1] ≈ r[2] atol=1e-1
     end
     @testset "TransportFunctionIntegrand" begin
         hv = GradientVelocityInterp(h, I, gauge=Hamiltonian())
