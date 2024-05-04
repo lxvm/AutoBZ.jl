@@ -208,12 +208,12 @@ function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
     r
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
-    B = bz.A'; invB = _inv(B)
-    transpose(B) * symmetrize_(LatticeRep(), bz, transpose(invB) * x)
+    invB = bz.A'; B = _inv(invB)
+    transpose(invB) * symmetrize_(LatticeRep(), bz, transpose(B) * x)
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
-    B = bz.A'; invB = _inv(B)
-    transpose(B) * symmetrize_(LatticeRep(), bz, transpose(invB) * x * invB) * B
+    invB = bz.A'; B = _inv(invB)
+    transpose(invB) * symmetrize_(LatticeRep(), bz, transpose(B) * x * B) * invB
 end
 
 coord_to_rep(::Lattice) = LatticeRep()
