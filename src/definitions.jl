@@ -191,27 +191,29 @@ same way as the lattice and in Cartesian coordinates.
 """
 struct CartesianRep <: AbstractSymRep end
 
+# bz.syms = inv(B) * S * B = A' * S * inv(A'), with S in Cartesian coordinates
+# so we transpose to get the correct action on the real-space indices
 function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractVector)
     r = zero(x)
     for S in bz.syms
-        r += S * x
+        r += S' * x
     end
     r
 end
 function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
     r = zero(x)
     for S in bz.syms
-        r += S * x * S'
+        r += S' * x * S
     end
     r
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
     B = bz.A'; invB = _inv(B)
-    invB * symmetrize_(LatticeRep(), bz, B * x)
+    transpose(B) * symmetrize_(LatticeRep(), bz, transpose(invB) * x)
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
     B = bz.A'; invB = _inv(B)
-    invB * symmetrize_(LatticeRep(), bz, B * x * transpose(B)) * transpose(invB)
+    transpose(B) * symmetrize_(LatticeRep(), bz, transpose(invB) * x * invB) * B
 end
 
 coord_to_rep(::Lattice) = LatticeRep()

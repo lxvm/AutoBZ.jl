@@ -390,6 +390,7 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 function load_wannier90_data(seedname::String; precision=Float64, load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     bz = load_autobz(bz, seedname; precision)
     wi = if interp <: AbstractVelocityInterp
+        interp <: CovariantVelocityInterp || @warn "integration of current correlations is incorrect without a CovariantVelocityInterp"
         load_interp(interp, seedname, bz.A; precision, kwargs...)
     else
         load_interp(interp, seedname; precision, kwargs...)
