@@ -61,15 +61,16 @@ have enabled high-throughput materials searches by robustly calculating the
 electronic structure of many metals and crystals from first principles
 [@vitaleAutomatedHighthroughputWannierisation2020]. To
 compare theory and experiment, the last step in predicting the electronic and
-optical properties of these solids is calculating integrals to obtain quantities
+optical properties of these solids is calculating Brillouin-zone (BZ) integrals
+to obtain quantities
 such as the dielectric function, the density of states, and the Hall
 conductivity. Often the details of the electronic structure may very sensitively
 control the resonant features of these observable quantities, which makes it
 crucial that this final step in many material-realistic calculations be as
 accurate as possible and reflect underlying theoretical predictions
 [@kratzerBasicsElectronicStructure2019].
-Most existing libraries that perform Brillouin-zone integration to compute
-the optical conductivity, including
+Most existing BZ integration libraries that compute
+the optical conductivity, including Refs.
 [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],
 are restricted to using uniform integration grids despite the fact the
 conductivity integrand may be nearly singular at resonances.
