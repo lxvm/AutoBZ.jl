@@ -103,7 +103,9 @@ scripting tool for many interesting research problems.
 ![An optical conductivity calculation for a 3-band model of $t_{2g}$ orbitals in
 the cubic perovskite SrVO3 across a geometric
 series of temperatures such that the scattering rate is halved each time the
-temperature is decreased, reaching a minimum value of 0.2 meV. AutoBZ.jl
+temperature is decreased, reaching a minimum value of 0.2 meV. 
+The inset shows the $1/T^2$ scaling of the DC conductivity expected for Fermi liquids.
+AutoBZ.jl
 was used to compute the conductivity, which was interpolated by HChebinterp.jl
 with parallelization of both the integration and interpolation. \label{fig:oc}](oc_fermiliquid.png)
 
