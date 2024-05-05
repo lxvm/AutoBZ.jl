@@ -84,8 +84,8 @@ SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a]
 to optimize our integration using the symmetry group of a lattice, including an
 implementation of a symmetric Monkhorst-Pack grid using the algorithm in Ref.
 [@hartRobustAlgorithmKpoint2019]. Another feature we provide is a calculation of
-the electron density that can easily be combined with NonlinearSolve.jl as a
-chemical potential finder.
+the electron density that can easily be combined with NonlinearSolve.jl
+[@pal2024nonlinearsolve] as a chemical potential finder.
 AutoBZ.jl can also be called from MATLAB and Python and it has file-based
 interfaces to read Wannier90 Hamiltonians and frequency-dependent self-energy
 data. The benefits of this modular design are that contributing new algorithms
