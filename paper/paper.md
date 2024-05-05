@@ -1,5 +1,5 @@
 ---
-title: 'AutoBZ.jl: automatic, adaptive Brillouin-zone integration of Wannier-interpolated response functions'
+title: 'AutoBZ.jl: automatic, adaptive Brillouin-zone integration of response functions using Wannier interpolation'
 tags:
   - Julia
   - electronic structure theory
@@ -36,42 +36,48 @@ challenging, nearly singular Brillouin zone (BZ) integrals that commonly occur
 in response function calculations in solid-state physics.
 Designed on open-source software principles and written in Julia
 [@bezansonJuliaFreshApproach2017], our package enables high-order accurate and
-automatically-converging optical conductivity and DOS calculations at
-challenging sub-meV energy scales and serves as an extensible framework for
-future projects on materials response phenomena.
-In AutoBZ.jl, we have reproduced adaptive integration algorithms proposed in
-Ref. [@kayeAutomaticHighorderAdaptive2023] and extended them to the problem of
-the optical conductivity with the goal of studying strongly interacting systems
+automatically-converging optical conductivity and density of states calculations
+at challenging sub-meV energy scales using adaptive integration algorithms
+proposed in Ref. [@kayeAutomaticHighorderAdaptive2023].
+AutoBZ.jl also serves as an extensible framework for future projects on
+materials response phenomena, and our goal is to use it to study strongly
+interacting systems
 with sufficient energy resolution, i.e. sub-meV, to elucidate the various
 effects of interactions, dispersion, and spin-orbit coupling. In particular, we
 believe the DMFT [@georgesDynamicalMeanfieldTheory1996a] community will benefit
 from this package, either as a post-processing tool for experimental
 predictions, such as the calculation presented in \autoref{fig:oc}, or as an
 inner-loop calculation, such as for ensuring charge self-consistency.
+We also expect AutoBZ.jl to have a broad impact on the electronic structure
+community by providing, for example, accurate benchmarks for comparison with
+experimental spectra, and a robust, automated approach for high-throughput
+screenings and machine learning of materials properties.
 
 # Statement of need
 
 In recent years, open source DFT codes combined with tools such as Wannier90
 [@mostofiWannier90ToolObtaining2008]
 have enabled high-throughput materials searches by robustly calculating the
-electronic structure of many metals and crystals from first principles [@vitaleAutomatedHighthroughputWannierisation2020]. To
+electronic structure of many metals and crystals from first principles
+[@vitaleAutomatedHighthroughputWannierisation2020]. To
 compare theory and experiment, the last step in predicting the electronic and
 optical properties of these solids is calculating integrals to obtain quantities
-such as the dielectric function, the density of states (DOS), and the Hall
+such as the dielectric function, the density of states, and the Hall
 conductivity. Often the details of the electronic structure may very sensitively
 control the resonant features of these observable quantities, which makes it
 crucial that this final step in many material-realistic calculations be as
 accurate as possible and reflect underlying theoretical predictions
 [@kratzerBasicsElectronicStructure2019].
 Most existing libraries that perform Brillouin-zone integration to compute
-optical conductivity, including
+the optical conductivity, including
 [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],
 are restricted to using uniform integration grids despite the fact the
-conductivity integrand may be nearly singular.
+conductivity integrand may be nearly singular at resonances.
 In practice, this means integration grids must become very dense to attain good
 accuracy and quickly become time or memory-limited even for modest problems.
-Clearly, improved algorithms derived from standard techniques in applied math
-can bring new light to response function calculations that were previously intractable.
+Our work employs automatic and adaptive integration algorithms that provide the
+confidence to perform accurate response function calculations with enough speed
+to access energy scales that were previously intractable.
 
 # Design principles
 
@@ -90,12 +96,13 @@ AutoBZ.jl can also be called from MATLAB and Python and it has file-based
 interfaces to read Wannier90 Hamiltonians and frequency-dependent self-energy
 data. The benefits of this modular design are that contributing new algorithms
 and problem types to the code base is simplified with well-documented APIs and
-that our package's intentional interoperatibility enables it to be used in
-scripts for many interesting research problems.
+that our package's intentional interoperatibility enables its use as a
+scripting tool for many interesting research problems.
 
-![A calculation optical conductivity of the cubic perovskite SrVO3 at geometric
-series of temperatures such that the scattering is halved each time the
-temperature is decreased, reaching 0.2 meV. AutoBZ.jl
+![An optical conductivity calculation for a 3-band model of $t_{2g}$ orbitals in
+the cubic perovskite SrVO3 across a geometric
+series of temperatures such that the scattering rate is halved each time the
+temperature is decreased, reaching a minimum value of 0.2 meV. AutoBZ.jl
 was used to compute the conductivity, which was interpolated by HChebinterp.jl
 with parallelization of both the integration and interpolation. \label{fig:oc}](oc_fermiliquid.png)
 
