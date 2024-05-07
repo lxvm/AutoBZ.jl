@@ -32,8 +32,8 @@ bibliography: paper.bib
 # Summary
 
 
-AutoBZ.jl is a modular software package developed to ~~We developed AutoBZ.jl to~~ explore efficient algorithms ~~and codes for the 
-challenging, nearly singular~~ for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step in electronic structure calculations in the computation of physical observables. ~~commonly occur
+AutoBZ.jl is a modular software package developed to ~~We developed AutoBZ.jl to~~ explore efficient algorithms ~~and codes for the
+challenging, nearly singular~~ for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step when computing physical observables in electronic structure methods. ~~commonly occur
 in response function calculations in solid-state physics.~~
 Designed on open-source software principles and written in Julia
 [@bezansonJuliaFreshApproach2017], our package provides high-order accurate and
@@ -41,9 +41,9 @@ automatically-converging algorithms to compute observables such as, e.g. the den
 proposed in Ref. [@kayeAutomaticHighorderAdaptive2023].
 Moreover, AutoBZ.jl serves as an extensible framework for future projects on computational
 materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals.
-The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay enabling efficient Fourier interpolation in reciprocal space.
-For such cases it enables users to compute BZ integrals based on the electronic ground state (i.e. T=0K) represented as tight-binding models and an artificial broadening automatically and to a user-specified error tolerance.
-Additionally, it gives access to challenging sub-meV energy scales when combined with frequency-dependent electronic self-energies based on many-body methods for strongly interacting systems such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
+The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay that allows efficient Fourier interpolation in reciprocal space[Yates].
+AutoBZ.jl enables users to compute BZ integrals based on the electronic ground state (i.e. T=0K), represented as tight-binding models combined with an artificial broadening, automatically and to a user-specified error tolerance.
+Additionally, it gives access to challenging sub-meV energy scales when combined with possibly frequency-dependent electronic self-energies computed from many-body methods for strongly interacting systems such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
 We expect AutoBZ.jl to have a broad impact on the electronic structure
 community by providing, for example, accurate benchmarks for comparison with
 experimental spectra, and a robust, automated approach for high-throughput
@@ -62,6 +62,8 @@ inner-loop calculation, such as for ensuring charge self-consistency.
 
 # Statement of need
 
+- add references
+<!---
 In recent years, DFT codes combined with tools such as Wannier90
 [@mostofiWannier90ToolObtaining2008]
 have enabled high-throughput materials searches by robustly calculating the
@@ -71,21 +73,22 @@ compare theory and experiment, the last step in predicting the electronic and
 optical properties of these solids is calculating Brillouin-zone (BZ) integrals
 to obtain quantities
 such as the dielectric function, the density of states, and the Hall
-conductivity. Often the details of the electronic structure may very sensitively
-control the resonant features of these observable quantities, which makes it
-crucial that this final step in many material-realistic calculations be as
-accurate as possible and reflect underlying theoretical predictions
-[@kratzerBasicsElectronicStructure2019].
-Most existing BZ integration libraries that compute
-the optical conductivity, including Refs.
-[@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],
-are restricted to using uniform integration grids despite the fact the
-conductivity integrand may be nearly singular at resonances.
+conductivity.
+-->
+
+In the past, most electronic structure software packages in general, but in particular those compatible with Wannier90 including Refs. [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016] have been restricted to using uniform integration grids despite the fact the BZ integrands may be nearly singular in certain regions of the BZ.
+Often the details of the electronic structure very sensitively
+control the features of the computed observables, which makes it
+crucial that this step be as
+accurate as possible in material-realistic calculations. ~~and reflect underlying theoretical predictions
+[@kratzerBasicsElectronicStructure2019]~~.
 In practice, this means integration grids must become very dense to attain good
-accuracy and quickly become time or memory-limited even for modest problems.
+accuracy and quickly become time or memory-limited even for modest problems, especially in regimes of low temperature characterized by low scattering rates.
+Furthermore, to ensure the data is well converged users had to perform tedious convergence tests or sacrifice accuracy when calculations are otherwise hindered by limited computational resources.
 Our work employs automatic and adaptive integration algorithms that provide the
-confidence to perform accurate response function calculations with enough speed
-to access energy scales that were previously intractable.
+confidence to perform accurate calculations of observables, including e.g. the density of states, transport and optical conductivity, with enough speed to access energy scales that were previously intractable.
+The two main benefits of our algorithms are the following: first, it completely removes the necessity to perform convergence tests by returning the correct result within a user-specified error tolerance. Second, it enables researchers to delve into a regime of low scattering rates that has previously been obscured by limited computational resources.
+These advancements are crucial for the development of next-generation methods, e.g. machine learning and high throughput screening of materials properties, or new quantum impurity solvers operating at low temperature.
 
 # Design principles
 
