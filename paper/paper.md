@@ -31,34 +31,41 @@ bibliography: paper.bib
 
 # Summary
 
-We developed AutoBZ.jl to explore efficient algorithms and codes for the
-challenging, nearly singular Brillouin zone (BZ) integrals that commonly occur
-in response function calculations in solid-state physics.
+
+AutoBZ.jl is a modular software package developed to ~~We developed AutoBZ.jl to~~ explore efficient algorithms ~~and codes for the 
+challenging, nearly singular~~ for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step in electronic structure calculations in the computation of physical observables. ~~commonly occur
+in response function calculations in solid-state physics.~~
 Designed on open-source software principles and written in Julia
-[@bezansonJuliaFreshApproach2017], our package enables high-order accurate and
-automatically-converging optical conductivity and density of states calculations
-at challenging sub-meV energy scales using adaptive integration algorithms
+[@bezansonJuliaFreshApproach2017], our package provides high-order accurate and
+automatically-converging algorithms to compute observables such as, e.g. the density of states or optical conductivity ~~at challenging sub-meV energy scales~~ using adaptive integration algorithms
 proposed in Ref. [@kayeAutomaticHighorderAdaptive2023].
-AutoBZ.jl also serves as an extensible framework for future projects on
-materials response phenomena, and our goal is to use it to study strongly
-interacting systems
-with sufficient energy resolution, i.e. sub-meV, to elucidate the various
-effects of interactions, dispersion, and spin-orbit coupling. In particular, we
-believe the DMFT [@georgesDynamicalMeanfieldTheory1996a] community will benefit
-from this package, either as a post-processing tool for experimental
-predictions, such as the calculation presented in \autoref{fig:oc}, or as an
-inner-loop calculation, such as for ensuring charge self-consistency.
-We also expect AutoBZ.jl to have a broad impact on the electronic structure
+Moreover, AutoBZ.jl serves as an extensible framework for future projects on computational
+materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals.
+The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay enabling efficient Fourier interpolation in reciprocal space.
+For such cases it enables users to compute BZ integrals based on the electronic ground state (i.e. T=0K) represented as tight-binding models and an artificial broadening automatically and to a user-specified error tolerance.
+Additionally, it gives access to challenging sub-meV energy scales when combined with frequency-dependent electronic self-energies based on many-body methods for strongly interacting systems such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
+We expect AutoBZ.jl to have a broad impact on the electronic structure
 community by providing, for example, accurate benchmarks for comparison with
 experimental spectra, and a robust, automated approach for high-throughput
 screenings and machine learning of materials properties.
 
+<!---
+and our goal is to use it to study strongly
+interacting systems
+with sufficient energy resolution, i.e. sub-meV, to elucidate the various
+effects of interactions, dispersion, and spin-orbit coupling. In particular, we
+believe the DMFT  community will benefit
+from this package, either as a post-processing tool for experimental
+predictions, such as the calculation presented in \autoref{fig:oc}, or as an
+inner-loop calculation, such as for ensuring charge self-consistency.
+-->
+
 # Statement of need
 
-In recent years, open source DFT codes combined with tools such as Wannier90
+In recent years, DFT codes combined with tools such as Wannier90
 [@mostofiWannier90ToolObtaining2008]
 have enabled high-throughput materials searches by robustly calculating the
-electronic structure of many metals and crystals from first principles
+electronic structure of crystalline solids from first principles
 [@vitaleAutomatedHighthroughputWannierisation2020]. To
 compare theory and experiment, the last step in predicting the electronic and
 optical properties of these solids is calculating Brillouin-zone (BZ) integrals
@@ -90,12 +97,12 @@ We also include a Julia package extension to
 SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a]
 to optimize our integration using the symmetry group of a lattice, including an
 implementation of a symmetric Monkhorst-Pack grid using the algorithm in Ref.
-[@hartRobustAlgorithmKpoint2019]. Another feature we provide is a calculation of
+[@hartRobustAlgorithmKpoint2019], as well as a routine to calculate
 the electron density that can easily be combined with NonlinearSolve.jl
 [@pal2024nonlinearsolve] as a chemical potential finder.
-AutoBZ.jl can also be called from MATLAB and Python and it has file-based
-interfaces to read Wannier90 Hamiltonians and frequency-dependent self-energy
-data. The benefits of this modular design are that contributing new algorithms
+AutoBZ.jl can be called from MATLAB and Python and it has file-based
+interfaces to read output from the Wannier90 code such as the Hamiltonian and the position operator matrix elements, as well as frequency-dependent self-energy
+data, that is either phenomenological or calculated within a many-body framework. The benefits of this modular design are that contributing new algorithms
 and problem types to the code base is simplified with well-documented APIs and
 that our package's intentional interoperatibility enables its use as a
 scripting tool for many interesting research problems.
