@@ -32,22 +32,13 @@ bibliography: paper.bib
 # Summary
 
 
-AutoBZ.jl is a modular software package developed to ~~We developed AutoBZ.jl to~~ explore efficient algorithms ~~and codes for the
-challenging, nearly singular~~ for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step when computing physical observables in electronic structure methods. ~~commonly occur
-in response function calculations in solid-state physics.~~
-Designed on open-source software principles and written in Julia
-[@bezansonJuliaFreshApproach2017], our package provides high-order accurate and
-automatically-converging algorithms to compute observables such as, e.g. the density of states or optical conductivity ~~at challenging sub-meV energy scales~~ using adaptive integration algorithms
-proposed in Ref. [@kayeAutomaticHighorderAdaptive2023].
-Moreover, AutoBZ.jl serves as an extensible framework for future projects on computational
-materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals.
-The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay that allows efficient Fourier interpolation in reciprocal space[Yates].
+AutoBZ.jl is a modular software package developed to explore efficient algorithms for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step when computing physical observables in electronic structure methods.
+Designed on open-source software principles and written in Julia [@bezansonJuliaFreshApproach2017], our package provides high-order accurate, adaptive, automatically-converging algorithms proposed in Ref. [@kayeAutomaticHighorderAdaptive2023] to compute observables such as, e.g. the density of states or optical conductivity[VanMunoz_et_al:2024].
+Moreover, AutoBZ.jl serves as an extensible framework for future research and development on computational materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals.
+The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay that allows efficient Fourier interpolation (also called Wannier interpolation) in reciprocal space[Yates].
 AutoBZ.jl enables users to compute BZ integrals based on the electronic ground state (i.e. T=0K), represented as tight-binding models combined with an artificial broadening, automatically and to a user-specified error tolerance.
-Additionally, it gives access to challenging sub-meV energy scales when combined with possibly frequency-dependent electronic self-energies computed from many-body methods for strongly interacting systems such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
-We expect AutoBZ.jl to have a broad impact on the electronic structure
-community by providing, for example, accurate benchmarks for comparison with
-experimental spectra, and a robust, automated approach for high-throughput
-screenings and machine learning of materials properties.
+Additionally, it gives access to challenging sub-meV energy scales when combined with possibly frequency-dependent electronic self-energies computed from many-body methods for strongly interacting systems, such as in dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
+We expect AutoBZ.jl to have a broad impact on the electronic structure community, providing, for example, a computational tool for accurate benchmarks for comparison with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of materials properties.
 
 <!---
 and our goal is to use it to study strongly
@@ -62,7 +53,6 @@ inner-loop calculation, such as for ensuring charge self-consistency.
 
 # Statement of need
 
-- add references
 <!---
 In recent years, DFT codes combined with tools such as Wannier90
 [@mostofiWannier90ToolObtaining2008]
@@ -76,40 +66,26 @@ such as the dielectric function, the density of states, and the Hall
 conductivity.
 -->
 
-In the past, most electronic structure software packages in general, but in particular those compatible with Wannier90 including Refs. [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016] have been restricted to using uniform integration grids despite the fact the BZ integrands may be nearly singular in certain regions of the BZ.
-Often the details of the electronic structure very sensitively
-control the features of the computed observables, which makes it
-crucial that this step be as
-accurate as possible in material-realistic calculations. ~~and reflect underlying theoretical predictions
-[@kratzerBasicsElectronicStructure2019]~~.
-In practice, this means integration grids must become very dense to attain good
-accuracy and quickly become time or memory-limited even for modest problems, especially in regimes of low temperature characterized by low scattering rates.
+In the past, most electronic structure software packages in general, but in particular those compatible with Wannier90 including Refs. [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016]🔥will add more🔥 employ uniform integration grids despite the fact the BZ integrands may be nearly singular in certain regions of the BZ.
+Often the details of the electronic structure very sensitively control the features of the computed observables, which makes it crucial that this step be as accurate as possible in material-realistic calculations. 
+In practice, this means integration grids must become very dense to attain good accuracy and quickly become time or memory-limited even for modest problems, especially in regimes of low temperature characterized by low scattering rates.
 Furthermore, to ensure the data is well converged users had to perform tedious convergence tests or sacrifice accuracy when calculations are otherwise hindered by limited computational resources.
-Our work employs automatic and adaptive integration algorithms that provide the
-confidence to perform accurate calculations of observables, including e.g. the density of states, transport and optical conductivity, with enough speed to access energy scales that were previously intractable.
-The two main benefits of our algorithms are the following: first, it completely removes the necessity to perform convergence tests by returning the correct result within a user-specified error tolerance. Second, it enables researchers to delve into a regime of low scattering rates that has previously been obscured by limited computational resources.
-These advancements are crucial for the development of next-generation methods, e.g. machine learning and high throughput screening of materials properties, or new quantum impurity solvers operating at low temperature.
+Our work employs automatic and adaptive integration algorithms that allow to access energy scales that were previously intractable, providing confidence to perform accurate calculations of observables, including e.g. the density of states, transport and optical conductivity.
+The two main benefits of our algorithms are the following: first, it completely removes the necessity to perform convergence tests by returning the correct result within a user-specified error tolerance.
+Second, it enables researchers to delve into a regime of low scattering rates that has until now been obscured by limited computational resources when paired with uniform integration grids.
+These advancements are crucial for the development of next-generation methods, e.g. machine learning and high throughput screening of materials properties, and new quantum impurity solvers operating at low temperature.
 
 # Design principles
 
-Our package was developed in a modular, Julian fashion with various components
-for integration [@vanmunozAutoBZCoreJlWannier2023] and interpolation
-[@vanmunozHChebInterpJlMultidimensional2023; @vanmunozFourierSeriesEvaluatorsJlFourier2023]
-that may be independently useful.
-We also include a Julia package extension to
-SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a]
-to optimize our integration using the symmetry group of a lattice, including an
-implementation of a symmetric Monkhorst-Pack grid using the algorithm in Ref.
-[@hartRobustAlgorithmKpoint2019], as well as a routine to calculate
-the electron density that can easily be combined with NonlinearSolve.jl
-[@pal2024nonlinearsolve] as a chemical potential finder.
-AutoBZ.jl can be called from MATLAB and Python and it has file-based
-interfaces to read output from the Wannier90 code such as the Hamiltonian and the position operator matrix elements, as well as frequency-dependent self-energy
-data, that is either phenomenological or calculated within a many-body framework. The benefits of this modular design are that contributing new algorithms
-and problem types to the code base is simplified with well-documented APIs and
-that our package's intentional interoperatibility enables its use as a
-scripting tool for many interesting research problems.
+Our package was developed in a modular, Julian fashion with various components for integration [@vanmunozAutoBZCoreJlWannier2023] and interpolation [@vanmunozHChebInterpJlMultidimensional2023; @vanmunozFourierSeriesEvaluatorsJlFourier2023] that may be independently useful.
+We also include a Julia package extension to SymmetryReduceBZ.jl [@jorgensenGeneralAlgorithmCalculating2022a] to optimize our integration using the symmetry group of a lattice, including an
+implementation of a symmetric Monkhorst-Pack grid using the algorithm in Ref.[@hartRobustAlgorithmKpoint2019], as well as a routine to calculate the electron density that can easily be combined with NonlinearSolve.jl[@pal2024nonlinearsolve] as a chemical potential finder.
+AutoBZ.jl can be called from MATLAB and Python and it has file-based interfaces to read output from the Wannier90 code such as the Hamiltonian and the position operator matrix elements, as well as frequency-dependent self-energy data, that is either phenomenological or calculated within a many-body framework.
+The benefits of this modular design are that contributing new algorithms and problem types to the code base is simplified with well-documented APIs and that our package's intentional interoperatibility enables its use as a scripting tool for many research problems.
 
+🔥I still think the user would benefit from this nice overview of interoperating Julia packages you made at some point, but up to you.🔥
+
+🔥I would still suggest to use a different example to avoid copyright issues given it is going to be published by an APS journal🔥
 ![An optical conductivity calculation for a 3-band model of $t_{2g}$ orbitals in
 the cubic perovskite SrVO3 across a geometric
 series of temperatures such that the scattering rate is halved each time the
