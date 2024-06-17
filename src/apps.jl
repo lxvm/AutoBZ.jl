@@ -271,12 +271,14 @@ function transport_function_integrand(x::FourierValue, ::CanonicalParameters; kw
 end
 
 """
-    TransportFunctionIntegrand(hv; β, μ=0)
+    TransportFunctionIntegrand(hv::AbstractVelocityInterp; β, μ=0)
 
-Computes the following integral
+A function whose integral over the BZ gives the transport function, proportional
+to the Drude weight,
 ```math
-\\D_{\\alpha\\beta} = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
+D_{\\alpha\\beta} = \\sum_{nm} \\int_{\\text{BZ}} dk f'(\\epsilon_{nk}-\\mu) \\nu_{n\\alpha}(k) \\nu_{m\\beta}(k)
 ```
+where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distribution.
 """
 function TransportFunctionIntegrand(hv::AbstractVelocityInterp; kwargs...)
     @assert gauge(hv) isa Hamiltonian
@@ -358,14 +360,13 @@ function transport_distribution_integrand(v::FourierValue, ::CanonicalParameters
 end
 
 """
-    TransportDistributionIntegrand(hv; Σ, ω₁, ω₂, μ=0)
+    TransportDistributionIntegrand(hv::AbstractVelocityInterp; Σ, ω₁, ω₂, μ=0)
 
 A function whose integral over the BZ gives the transport distribution
 ```math
 \\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See `Integrand` for more details.
 """
 function TransportDistributionIntegrand(hv::AbstractVelocityInterp; kwargs...)
     return FourierIntegrand(transport_distribution_integrand, hv; kwargs...)
@@ -416,8 +417,8 @@ function transport_fermi_integrand(ω, transport_integrand::FourierIntegrand, bz
 end
 
 """
-    KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::AbstracVelocity; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
-    KineticCoefficientIntegrand(lb, ub, alg, hv::AbstracVelocity; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
+    KineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::AbstractVelocityInterp; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
+    KineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocityInterp; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
 
 A function whose integral over the BZ gives the kinetic
 coefficient. Mathematically, this computes
@@ -741,6 +742,11 @@ function aux_transport_distribution_integrand_(auxfun::F, vs::SVector{N,V}, Gω�
     return AuxValue(tr_kron(vsAω₁, vsAω₂), auxfun(vs, Gω₁, Gω₂))
 end
 
+"""
+    default_transport_auxfun(vs, Gω₁, Gω₂)
+
+Computes ``\\operatorname{Tr}[\\nu_\\alpha(k) G(k,\\omega_1) \\nu_\\beta(k) G(k, \\omega_2)]``
+"""
 function default_transport_auxfun(vs, Gω₁, Gω₂)
     vsGω₁ = map(v -> v * Gω₁, vs)
     vsGω₂ = map(v -> v * Gω₂, vs)
@@ -776,14 +782,16 @@ function aux_transport_distribution_integrand(x::FourierValue, auxfun::F, ::Cano
 end
 
 """
-    AuxTransportDistributionIntegrand(hv, [auxfun]; Σ, ω₁, ω₂, μ)
+    AuxTransportDistributionIntegrand(hv, [auxfun=default_transport_auxfun]; Σ, ω₁, ω₂, μ)
 
 A function whose integral over the BZ gives the transport distribution
 ```math
 \\Gamma_{\\alpha\\beta}(\\omega_1, \\omega_2) = \\int_{\\text{BZ}} dk \\operatorname{Tr}[\\nu_\\alpha(k) A(k,\\omega_1) \\nu_\\beta(k) A(k, \\omega_2)]
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-See `Integrand` for more details.
+`auxfun(vs, G1, G2)` is a function that peaks where the integrand does, is cheap
+to evaluate from its arguments, and is easier to integrate, with a default of
+[`default_transport_auxfun`](@ref).
 """
 function AuxTransportDistributionIntegrand(hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; kwargs...)
     return FourierIntegrand(aux_transport_distribution_integrand, hv, auxfun; kwargs...)
@@ -817,10 +825,15 @@ function aux_kinetic_coefficient_integrand(ω, auxfun::F, Σ, hv_k, n, β, Ω, �
 end
 
 """
-    AuxKineticCoefficientIntegrand
+    AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
+    AuxKineticCoefficientIntegrand(lb, ub, alg, hv::AbstractVelocityInterp, auxfun=default_transport_auxfun; Σ, n, β, Ω, μ=0, abstol, reltol, maxiters)
+
 
 A kinetic coefficient integrand that is more robust to the peak-missing problem. See
-[`KineticCoefficientIntegrand`](@ref) for arguments.
+[`KineticCoefficientIntegrand`](@ref) for arguments. `auxfun(vs, G1, G2)` is a function that
+should have peaks where the transport distribution does, should be cheap to
+evaluate from its arguments, and is easier to integrate. It defaults to
+[`default_transport_auxfun`](@ref).
 """
 function AuxKineticCoefficientIntegrand(bz, alg::AutoBZAlgorithm, hv::Union{T,FourierWorkspace{T}}, auxfun=default_transport_auxfun; abstol=nothing, kwargs...) where {T<:AbstractVelocityInterp}
     solver_kws, kws = nested_solver_kwargs(NamedTuple(kwargs))

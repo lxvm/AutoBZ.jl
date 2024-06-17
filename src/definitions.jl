@@ -57,14 +57,22 @@ abstract type AbstractGauge end
 """
     Wannier <: AbstractGauge
 
-Singleton type representing the Wannier gauge
+Singleton type representing the Wannier gauge. In this gauge, the Fourier series
+representation of the operator is evaluated as-is, usually resulting in a dense
+matrix at each ``\\bm{k}`` point. When evaluating a Green's function, choosing
+this gauge requires inverting a dense matrix, which scales as
+``\\mathcal{O}(N^3)`` where ``N`` is the number of orbitals.
 """
 struct Wannier <: AbstractGauge end
 
 """
     Hamiltonian <: AbstractGauge
 
-Singleton type representing the Hamiltonian gauge
+Singleton type representing the Hamiltonian gauge. This gauge is the eigenbasis
+of `H`, and all operators will be rotated to this basis. The Hamiltonian will
+also be returned as an `Eigen` factorization. In this basis, `H` is a diagonal
+matrix, so calculating a Green's function is an ``\\mathcal{O}(N)`` operation
+where ``N`` is the number of bands.
 """
 struct Hamiltonian <: AbstractGauge end
 
@@ -92,9 +100,10 @@ end
 """
     AbstractGaugeInterp{G,N,T,iip} <: AbstractWannierInterp{N,T,iip}
 
-An abstract subtype of `AbstractFourierSeries` representing in-place
+An abstract subtype of `AbstractFourierSeries` representing
 Fourier series evaluators for Wannier-interpolated quantities with a choice of
-basis, or gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
+gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
+A gauge is a choice of basis for the function space of the operator.
 For details, see [`to_gauge`](@ref).
 """
 abstract type AbstractGaugeInterp{G,N,T,iip} <: AbstractWannierInterp{N,T,iip} end
@@ -119,7 +128,8 @@ to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
     AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip}
 
 Abstract type representing Hamiltonians, which are matrix-valued Hermitian Fourier series.
-They should also have period 1, but produce derivatives with wavenumber 1.
+They should also have period 1, but produce derivatives with wavenumber 1 (not
+``2\\pi``), in order to be consistent with definitions of the velocity operator.
 """
 abstract type AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip} end
 
@@ -164,7 +174,8 @@ abstract type AbstractCoordinate end
 """
     Lattice <: AbstractCoordinate
 
-Singleton type representing lattice coordinates.
+Singleton type representing lattice coordinates. The matrix ``B`` whose columns
+are reciprocal lattice vectors converts this basis to the Cartesian basis.
 """
 struct Lattice <: AbstractCoordinate end
 
@@ -276,21 +287,23 @@ abstract type AbstractVelocityComponent end
 """
     Whole <: AbstractVelocityComponent
 
-Singleton type representing whole velocities
+Singleton type representing whole velocities, i.e. the total velocity operator.
 """
 struct Whole <: AbstractVelocityComponent end
 
 """
     Inter <: AbstractVelocityComponent
 
-Singleton type representing interband velocities
+Singleton type representing interband velocities, which are the diagonal terms
+of the velocity operator in the [`Hamiltonian`](@ref) gauge
 """
 struct Inter <: AbstractVelocityComponent end
 
 """
     Intra <: AbstractVelocityComponent
 
-Singleton type representing intraband velocities
+Singleton type representing intraband velocities, which are the off-diagonal terms
+of the velocity operator in the [`Hamiltonian`](@ref) gauge
 """
 struct Intra <: AbstractVelocityComponent end
 
@@ -357,10 +370,12 @@ to_vcomp(::Intra, vhs::NTuple{N}) where {N} =
     AbstractVelocityInterp{C,B,G,N,T,iip} <:AbstractCoordInterp{B,G,N,T,iip}
 
 An abstract subtype of `AbstractCoordInterp` also containing information the
-velocity component, `C`, which is typically `Val(:whole)`, `Val(:inter)`, or
-`Val(:intra)`. For details see [`to_vcomp_gauge`](@ref).
-Since the velocity depends on the Hamiltonian, subtypes should also evaluate the
-Hamiltonian.
+velocity component, `C`, which is typically [`Whole`](@ref), [`Inter`](@ref), or
+[`Intra`](@ref). These choices refer to the diagonal (intra) or off-diagonal
+(inter) matrix elements of the velocity operator in the eigebasis of `H(k)`.
+For details see [`to_vcomp_gauge`](@ref).
+Since the velocity depends on the Hamiltonian, subtypes should evaluate `(H(k),
+(v_1(k), v_2(k), ...))`.
 """
 abstract type AbstractVelocityInterp{C,B,G,N,T,iip} <:AbstractCoordInterp{B,G,N,T,iip} end
 
