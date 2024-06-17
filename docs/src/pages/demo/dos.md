@@ -1,4 +1,4 @@
-# Demos
+# Density of states
 
 To illustrate the principles and practice of using `AutoBZ.jl`, the tutorials
 below show how to setup and compute BZ integrals for various observables of toy,
@@ -159,3 +159,5 @@ H = FourierSeries(C, period = 2*pi/a)
 The DOS integrand can be formulated as before, except it must also compute the
 trace since this Hamiltonian is matrix-valued. Another option would be to use
 the pre-defined [`AutoBZ.DOSIntegrand`](@ref).
+
+## Interpolation
