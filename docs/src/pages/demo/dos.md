@@ -1,9 +1,9 @@
-# Demos
+# Density of states
 
-To illustrate the principles and practice of using `AutoBZ.jl`, the tutorials
-below show how to setup and compute BZ integrals for various observables of toy,
-tight-binding models with the package. Additionally, scripts corresponding to
-the tutorials are available in the `demos` folder of the repo.
+The [density of states (DOS)](https://en.wikipedia.org/wiki/Density_of_states)
+is a standard electronic structure calculation. Here we show how to calculate it
+using a finite scattering rate, i.e. at finite temperature, using AutoBZ.jl by
+working through a few examples.
 
 ## DOS of the integer lattice tight-binding model
 
@@ -34,11 +34,9 @@ vectors ``\{\pm\hat{j}\}_{j=1}^{n}``. In step two, we identify the coefficients
 to be ``-t/2`` for all the terms by simply writing the cosines as complex
 exponentials. Finally we fill the array of coefficients by taking each
 ``\bm{R}`` to be the array index of the corresponding coefficient ``H_{\bm{R}}``.
-```julia
+```@example dos_z
 using OffsetArrays
-
 using AutoBZ
-
 n = 3 # arbitrary positive integer representing the number of k-space dimensions
 a = 1.0 # lattice spacing
 t = 1.0 # hopping amplitude
@@ -60,36 +58,41 @@ integral
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
 rate. We implement our own user-defined integrand with the
-`AutoBZCore.FourierIntegrand` type:
-```julia
+`AutoBZCore.FourierIntegrand` type and an `AutoBZCore.IntegralSolver`:
+```@example dos_z
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-dos_integrand(H_k, ω, η) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
-dos_integrand(H_k::FourierValue, ω, η) = dos_integrand(H_k.s, ω, η) # unwrap the value of the series
-D = FourierIntegrand(dos_integrand, H, ω, η) # user-defined integrand
+dos_integrand(H_k, η, ω) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
+dos_integrand(H_k::FourierValue, η, ω) = dos_integrand(H_k.s, η, ω) # unwrap the value of the series
+D = FourierIntegrand(dos_integrand, H, η) # user-defined integrand with partial arguments
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
-```julia
+```@example dos_z
 using LinearAlgebra
 bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
-
-atol = 1e-3 # absolute error tolerance requests the result to within ±atol
-
-prob = AutoBZCore.IntegralProblem(D, bz)
-
-sol = AutoBZCore.solve(prob, IAI(), abstol=atol)
+solver = IntegralSolver(D, bz, PTR(npt=50))
 ```
-The routine returns the estimate of the integral `sol.u` and an error estimate `sol.resid`.
+We can calculate and plot the DOS as a function of frequency
+```@example dos_z
+ENV["GKSwstype"] = "100" # hide
+using Plots
+freqs = range(-ω, ω, length=100) * 1.1
+plot(freqs, solver, title="Cubic lattice", xguide="ħω", yguide="DOS", label="η=$η")
+savefig("dos_z.png"); nothing # hide
+```
+
+![dos integer lattice](dos_z.png)
+
 
 You will find a working example of this model in the `DOS_example.jl` demo that
 computes DOS over a range of frequencies for this model.
 
-## DOS of Graphene
+## DOS interpolation for Graphene
 
 In this tutorial, we will build the Fourier series corresponding to a
-tight-binding model of graphene. This example is more complex in that the
+tight-binding model of [graphene](https://en.wikipedia.org/wiki/Graphene#Properties). This example is more complex in that the
 lattice vectors are not orthogonal and that there are multiple bands.
 
 The tight-binding model on the hexagonal lattice with lattice constant ``a`` and
@@ -143,12 +146,10 @@ linear combination of Bravais lattice vectors for each exponential.
 \end{pmatrix}
 ```
 This corresponds to the following Fourier series in `AutoBZ`
-```julia
+```@example dos_g
 using StaticArrays
 using OffsetArrays
-
 using AutoBZ
-
 a = 1.0 # length of Bravais lattice vectors
 t = 1.0 # hopping amplitude
 C = OffsetArray(zeros(SMatrix{2,2,ComplexF64,4}, (5,5)), -2:2, -2:2)
@@ -159,3 +160,29 @@ H = FourierSeries(C, period = 2*pi/a)
 The DOS integrand can be formulated as before, except it must also compute the
 trace since this Hamiltonian is matrix-valued. Another option would be to use
 the pre-defined [`AutoBZ.DOSIntegrand`](@ref).
+```@example dos_g
+using LinearAlgebra
+ω = 4.0 # eV
+η = 0.1 # eV
+Σ = EtaSelfEnergy(η)
+D = DOSIntegrand(HamiltonianInterp(AutoBZ.Freq2RadSeries(H)); Σ)
+bz = load_bz(FBZ(2), Diagonal(collect(AutoBZ.period(H))))
+solver = IntegralSolver(D, bz, PTR(npt=100))
+```
+Using this integral solver, we can compute a fast-to-evaluate, adaptive
+interpolant for the DOS using
+[HChebInterp.jl](https://github.com/lxvm/HChebInterp.jl).
+```@example dos_g
+ENV["GKSwstype"] = "100" # hide
+using HChebInterp
+using Plots
+DOS = hchebinterp(ω -> solver(; ω), -ω, ω; atol=1e-3)
+plot(range(-ω, ω, length=1000), DOS, title="Graphene", xguide="ħω", yguide="DOS", label="η=$η")
+savefig("dos_g.png"); nothing # hide
+```
+
+![dos graphene](dos_g.png)
+
+The advantage of interpolating the DOS is that the adaptive algorithm will
+automatically select frequencies to resolve narrow features to within the
+requested tolerance.

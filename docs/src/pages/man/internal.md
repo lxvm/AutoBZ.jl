@@ -28,4 +28,5 @@ AutoBZ.LatticeRep
 AutoBZ.GaugeDefault
 AutoBZ.VcompDefault
 AutoBZ.herm
+AutoBZ.default_transport_auxfun
 ```

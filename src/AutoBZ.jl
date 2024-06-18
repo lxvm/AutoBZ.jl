@@ -1,7 +1,7 @@
 """
 This Julia package provides routines for multi-dimensional Brillouin zone (BZ)
 integration for applications of Wannier interpolation to the calculation of density of
-states and optical conductivity with self energies and spin-orbit coupling.
+states, chemical potential, and optical conductivity with self energies.
 It uses algorithms which automatically compute BZ integrals to a
 specified error tolerance by resolving smooth yet highly localized integrands.
 
@@ -44,7 +44,6 @@ the Fermi surface when ``\\hbar\\omega=\\mu``) by a scattering rate depending on
       [HChebInterp.jl](https://github.com/lxvm/HChebInterp.jl).
 * IBZ integration for arbitrary symmetry groups (via an interface to
   [SymmetryReduceBZ.jl](https://github.com/jerjorg/SymmetryReduceBZ.jl))
-* Supports systems with spin-orbit coupling expressed in the self-energy
 
 [^1]: [Kaye et al. "Automatic, high-order, and adaptive algorithms for Brillouin zone integration"](http://arxiv.org/abs/2211.12959)
 """

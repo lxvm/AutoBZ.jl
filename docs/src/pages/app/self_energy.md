@@ -1,7 +1,9 @@
 # Self energies
 
 This section of the documentation explains how scalar and matrix-valued self
-energy data are formatted, loaded, and evaluated
+energy data are formatted, loaded, and evaluated. Self energies are interpolated
+efficiently during the evaluation of the Green's function using a
+fast-to-evaluate polynomial or rational representation of input data.
 
 ## IO
 
@@ -15,7 +17,7 @@ is converted into a piecewise Chebyshev interpolant with `HChebInterp.jl`.
 
 Depending on the amount of data necessary to represent the self-energy, there
 are different data file formats for scalar and matrix-valued self energies.
-Within matrix-valued self energies. There is also a special case diagonal
+Within matrix-valued self energies. There is also a special case for diagonal
 matrices.
 
 #### Scalar

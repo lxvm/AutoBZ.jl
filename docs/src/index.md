@@ -6,7 +6,7 @@
 AutoBZ
 ```
 
-To start using the package, see the [Workflow](@ref) and [Demos](@ref) sections.
+To start using the package, see the Getting Started and Tutorial sections.
 
 ## Notes
 

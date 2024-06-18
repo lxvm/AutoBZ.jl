@@ -17,15 +17,19 @@ makedocs(
     modules=[AutoBZ],
     pages = [
         "Home" => "index.md",
+        "Getting started" => "pages/workflow.md",
+        "Tutorials" => [
+            "pages/demo/dos.md",
+            "pages/demo/density.md",
+            "pages/demo/oc.md",
+        ],
         "Manual" => [
             "pages/man/fourier.md",
             "pages/app/self_energy.md",
             "pages/app/integrands.md",
             "pages/app/interfaces.md",
             "pages/man/internal.md",
-            ],
-        "Demos" => "pages/demo.md",
-        "Workflow" => "pages/workflow.md",
+        ],
     ],
 )
 
