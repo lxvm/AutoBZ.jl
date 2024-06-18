@@ -35,12 +35,11 @@ bibliography: paper.bib
 # Summary
 
 
-AutoBZ.jl is a modular software package developed to explore efficient algorithms for the computation of Brillouin zone (BZ) integrals, which are a fundamental and ubiquitous step when computing physical observables in electronic structure methods.
-Designed on open-source software principles and written in Julia [@bezansonJuliaFreshApproach2017], our package provides high-order accurate, adaptive, automatically-converging algorithms proposed in Ref. [@kayeAutomaticHighorderAdaptive2023] to compute observables such as, e.g. the density of states or optical conductivity[@VanMunoz_et_al:2024].
-Moreover, AutoBZ.jl serves as an extensible framework for future research and development on computational materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals.
-The package operates in the setting of a small Hamiltonian in a Wannier basis, i.e. with a rapid decay that allows efficient Fourier interpolation (also called Wannier interpolation) in reciprocal space[@mostofiWannier90ToolObtaining2008].
-AutoBZ.jl enables users to compute BZ integrals for properties of the electronic ground state (i.e. T=0K) of tight-binding models combined with an artificial broadening using algorithms that converge automatically to a user-specified error tolerance.
-Additionally, AutoBZ.jl's adaptive algorithms give access to challenging sub-meV energy scales that normally occur in frequency-dependent electronic self-energies computed from many-body methods for strongly interacting systems, such as in dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a].
+AutoBZ.jl is a modular software package developed to explore efficient algorithms for Brillouin zone (BZ) integration, which is fundamental to computing physical observables in electronic structure methods.
+Designed on open-source software principles and written in Julia [@bezansonJuliaFreshApproach2017], our package provides high-order accurate, adaptive, automatically-converging algorithms proposed in Ref. [@kayeAutomaticHighorderAdaptive2023] to compute observables including the density of states and optical conductivity[@VanMunoz_et_al:2024].
+AutoBZ.jl enables users to compute ground state (i.e. T=0K) properties of tight-binding models, typically derived from localized Wannier functions, with an artificial broadening using BZ integration algorithms that converge automatically to a user-specified error tolerance.
+Moreover, AutoBZ.jl serves as an extensible framework for future research and development on computational materials response phenomena, providing a flexible toolbox to calculate a broad range of quantities involving BZ integrals using Wannier interpolation[@mostofiWannier90ToolObtaining2008].
+A key opportunity created by AutoBZ.jl's adaptive algorithms is that they give access to sub-meV energy scales that normally occur in frequency-dependent electronic self-energies computed from many-body methods for strongly interacting systems, such as in dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a], where traditional methods become intractable.
 We expect AutoBZ.jl to have a broad impact on the electronic structure community, providing, for example, a computational tool for accurate benchmarks for comparison with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of materials properties.
 
 <!---
@@ -69,13 +68,12 @@ such as the dielectric function, the density of states, and the Hall
 conductivity.
 -->
 
-In general, most electronic structure software packages, including those compatible with Wannier90 [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],🔥will add more🔥 employ uniform integration grids despite the fact the BZ integrands may be nearly singular in certain regions of the BZ.
-Often the details of the electronic structure very sensitively control the features of the computed observables, which makes it crucial that this step be as accurate as possible in material-realistic calculations. 
+In general, most electronic structure software packages, including those compatible with Wannier90 [@tsirkinHighPerformanceWannier2021; @aichhornTRIQSDFTToolsTRIQS2016],🔥will add more🔥 employ uniform integration grids despite the fact BZ integrands may be nearly singular in localized regions of the BZ.
+Often these details of the electronic structure very sensitively control the features of the computed observables, which makes it crucial that BZ integration be as accurate as possible in material-realistic calculations. 
 In practice, this means integration grids must become very dense to attain good accuracy and quickly become time or memory-limited even for modest problems, especially in regimes of low temperature characterized by low scattering rates.
-Furthermore, to ensure the data is well converged users had to perform tedious convergence tests or sacrifice accuracy when calculations are otherwise hindered by limited computational resources.
-Our work employs automatic and adaptive integration algorithms that allow to access energy scales that were previously intractable, providing confidence to perform accurate calculations of observables, including e.g. the density of states, transport and optical conductivity.
-The two main benefits of our algorithms are the following: first, it completely removes the necessity to perform convergence tests by returning the correct result within a user-specified error tolerance.
-Second, it enables researchers to delve into a regime of low scattering rates that has until now been obscured by limited computational resources when paired with uniform integration grids.
+Furthermore, most practicioners using uniform grids with a fixed number of points must ensure that results are well converged by performing tedious convergence tests or sacrifice accuracy when calculations are otherwise hindered by limited computational resources.
+The two main benefits of our automatic and adaptive integration algorithms, implemented for the density of states and optical conductivity, are the following: first, they completely remove the necessity to perform convergence tests by returning the correct result within a user-specified error tolerance.
+Second, they provide researchers with access to a regime of low scattering rates that has until now been intractable when using uniform integration grids.
 These advancements are crucial for the development of next-generation methods, e.g. machine learning and high throughput screening of materials properties, and new quantum impurity solvers operating at low temperature.
 
 # Design principles
