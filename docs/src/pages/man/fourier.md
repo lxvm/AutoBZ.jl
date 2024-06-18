@@ -62,7 +62,7 @@ The recipe to write it as a Fourier series has two-steps
 2. Factor the Hamiltonian into a linear combination of normal modes indexed by
    the distinct ``\bm{R}`` vectors. If the Hamiltonian is matrix-valued, this
    can be done one matrix element at a time.
-For a non-trivial example, see the [DOS of Graphene](@ref).
+For a non-trivial example, see the [DOS interpolation for Graphene](@ref).
 
 ## Interface
 
