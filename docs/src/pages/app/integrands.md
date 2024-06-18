@@ -19,7 +19,7 @@ manner for each integration routines.
 
 ## Pre-defined
 
-### Types
+### Constructors
 
 ```@docs
 AutoBZ.GlocIntegrand

@@ -51,7 +51,7 @@ potentials and account for the normalization of the integral
 ENV["GKSwstype"] = "100" # hide
 using Plots
 freqs = range(-2, 2, length=100)
-plot(freqs, μ -> 2*solver(; μ)/det(bz.B), title="Two hopping model", xguide="μ", yguide="Electron filling", label="η=$η")
+plot(freqs, μ -> 2*solver(; μ)/det(bz.B), title="Two hopping model", xguide="μ", yguide="Electron filling", label="η=$η, β=$β")
 savefig("number_density.png"); nothing # hide
 ```
 
@@ -62,7 +62,7 @@ savefig("number_density.png"); nothing # hide
 
 Using the electron density solver above, we can easily create a chemical
 potential finder from
-[SimpleNonlinearSolver.jl](https://github.com/SciML/SimpleNonlinearSolve.jl)
+[SimpleNonlinearSolve.jl](https://github.com/SciML/SimpleNonlinearSolve.jl)
 root-finding algorithms.
 
 ```@example chempot
