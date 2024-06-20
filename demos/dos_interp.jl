@@ -22,7 +22,7 @@ shift!(h, μ) # shift the Fermi energy to zero
 Σ = EtaSelfEnergy(η)
 
 # set error tolerances
-atol = 1e-3
+atol = 1e-4
 rtol = 0.0
 
 # set interpolation parameters
@@ -30,8 +30,13 @@ interp_atol=1e-3
 order = 4
 fast_order = 15
 
-D = IntegralSolver(DOSIntegrand(h; Σ), bz, IAI(); abstol=atol, reltol=rtol)
-DOS = ω -> D(; ω)
+solver = DOSSolver(h, bz, IAI(); Σ, ω = (ω_lo+ω_hi)/2, abstol=atol, reltol=rtol)
+DOS = let solver=solver, Σ=Σ
+    ω -> begin
+        AutoBZ.update!(solver; ω, Σ)
+        solve!(solver).value
+    end
+end
 hchebinterp(DOS, ω_lo, ω_hi; criterion=HAdaptError(), atol=1.0, order=order)
 t_ = time()
 p1 = hchebinterp(DOS, ω_lo, ω_hi; criterion=HAdaptError(), atol=interp_atol, order=order)

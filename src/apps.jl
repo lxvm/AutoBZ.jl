@@ -1,42 +1,9 @@
-# The integrands here all define a set of canonical parameters. Think of these as default
-# arguments, except that we typically don't want to provide defaults in order to require
-# that the user provide the necessary data for the problem
-# in particular, canonical parameters are only used to initialize the solver, often for an
-# easy set of parameters that won't take long to compute in the case it needs to be evaluated
-
-# At solve time, the precedence of parameters is:
-# parameters passed to integrand constructor < parameters passed to solver
-# We are able to provide this precedence of parameters by making all parameters keyword
-# arguments. Moreover, positional arguments are reserved for internal use.
-
-# Typically we also want to transform the problem based on the parameters, e.g.
-# - precompute some function that only depends on parameters, not variables
-# - truncate the limits of frequency integration
-# - set a Δn for PTR
-# The infrastructure for parameter transformations provides a service to the user for
-# convenience (they don't have to do these transformations themselves) and performance (it
-# lets us pre-allocate parallelization buffers and rule caches) with the constraint that the
-# types of the parameters the user provides is limited to a canonical set (so that return
-# types of the integrand are predictable). We use these facilities to provide a high-level
-# interface for pre-defined problems to the generic and extensible AutoBZCore library.
-
-# IntegralSolver defines two codepaths since it is oblivious to parameters:
-# 1. make_cache for integrands that don't define `init_solver_cacheval` (and variants)
-# 2. remake_cache for integrands that do
-# We rely on path 2 for parameter-based transformations since it is the only way to
-# repeat the transformation for all parameters (including the first). Since the parameters
-# haven't been given when the IntegralSolver is made, we redirect `init_solver_cacheval` to
-# `init_cacheval` with the following parameter type so we can dispatch at
-# `integrand_return_type` to
-
-struct CanonicalParameters end
-
 propagator_denominator(h, M) = M-h
 propagator_denominator(h::Eigen, M::UniformScaling) =
     propagator_denominator(Diagonal(h.values), M)
 propagator_denominator((h, U)::Eigen, M::AbstractMatrix) =
     propagator_denominator(Diagonal(h), U' * M * U) # rotate to Hamiltonian gauge
-propagator_denominator(h::FourierValue, M) = propagator_denominator(h.s, M)
+# propagator_denominator(h::FourierValue, M) = propagator_denominator(h.s, M)
 
 """
     gloc_integrand(h, M)
@@ -71,109 +38,29 @@ See [`TrGlocIntegrand`](@ref).
 dos_integrand(G) = -imag(tr_inv(G))/pi
 
 # shift energy by chemical potential, but not self energy
-_evalM(Σ::Union{AbstractMatrix,UniformScaling}, ω, μ) = ((ω+μ)*I - Σ,)
+_evalM(Σ::Union{AbstractMatrix,UniformScaling}, ω, μ) = (ω+μ)*I - Σ
 _evalM(Σ::AbstractSelfEnergy, ω, μ) = _evalM(Σ(ω), ω, μ)
 evalM(; Σ, ω, μ=zero(ω)) = _evalM(Σ, ω, μ)
 
-# given mixed parameters and a function that maps them to a tuple of a canonical
-# form for the integrand, return new mixed parameters
-function canonize(f::F, p::MixedParameters) where {F}
-    params = f(getfield(p, :args)...; getfield(p, :kwargs)...)
-    return MixedParameters(params, NamedTuple())
+function update!(solver; ω, Σ, μ=zero(ω))
+    solver.p = evalM(; ω, Σ, μ)
+    return
 end
 
-function make_fourier_nest(p, f, w)
-    if length(w.cache) == 1
-        return nothing
-    else
-        x = period(w.series)
-        fx = FourierIntegrand(p, w)(x, CanonicalParameters())
-        return make_fourier_nest_(f, fx, w, x...)
-    end
-end
-function make_fourier_nest_(f, fx, w, x1, x...)
-    len = length(w.cache)
-    if x isa Tuple{}
-        if len == 1
-            return deepcopy(f)
-        else
-            f1s = ntuple(n -> deepcopy(f), Val(len))
-            y1s = typeof(fx)[]
-            x1s = eltype(x1)[]
-            return NestedBatchIntegrand(collect(f1s), y1s, x1s, max_batch=10^6)
-        end
-    else
-        nests = ntuple(n -> make_fourier_nest_(f, fx, w.cache[n], x1, x[begin:end-1]...), Val(len))
-        if (len = length(w.cache)) == 1
-            return nests[1]
-        else
-            ys = typeof(fx*x1*prod(x[begin:end-1]))[]
-            xs = eltype(x[end])[]
-            return NestedBatchIntegrand(collect(nests), ys, xs, max_batch=10^6)
-        end
-    end
-end
-
-function alloc_nest_buffers(nest, x)
-    nest isa NestedBatchIntegrand || return nest
-    xs = eltype(nest.x) === Nothing ? typeof(x[end])[] : nest.x
-    workers = map(f -> alloc_nest_buffers(f, x[begin:end-1]), nest.f)
-    return NestedBatchIntegrand(workers, nest.y, xs, max_batch = nest.max_batch)
-end
-
-# to implement AutoPTR correctly we need a mutable cache, which IntegralSolver does not
-# provide due to potential type changes when transforming parameters
-mutable struct AutoPTRState{A<:AutoPTR,R,C,B}
-    alg::A
-    rule::R
-    cache::C
-    buffer::B
-end
-AutoPTRState(; alg, rule, cache, buffer) = AutoPTRState(alg, rule, cache, buffer)
-
-# helper functions for cache initialization and updating that take care of autoptr
-function _init_solver_cacheval(f, dom, alg)
-    new_f = if f isa FourierIntegrand
-        nest = alloc_nest_buffers(f.nest, interior_point(dom.lims))
-        nest === nothing ? f : FourierIntegrand(f.f, f.w, nest)
-    else
-        f
-    end
-    cacheval = AutoBZCore.init_cacheval(new_f, dom, CanonicalParameters(), alg)
-    return alg isa AutoPTR ? AutoPTRState(; alg, cacheval...) : cacheval
-end
-
-function _remake_integrand_cache(f, dom, p, alg, cacheval, kwargs)
-    new_cacheval = if alg isa AutoPTR && alg != cacheval.alg
-        next_cacheval = AutoBZCore.init_cacheval(f, dom, p, alg)
-        cacheval.alg = alg
-        cacheval.cache = next_cacheval.cache
-        cacheval.rule = next_cacheval.rule
-        cacheval.buffer = next_cacheval.buffer
-        next_cacheval
-    else
-        cacheval
-    end
-    return AutoBZCore.IntegralCache(f, dom, p, alg, new_cacheval, kwargs)
-end
+# TODO implement these integrands with a CommonSolveIntegralFunction with a ResolventProblem
 
 # Generic behavior for single Green's function integrands (methods and types)
 for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
-    T = Symbol(name, "Integrand")
+    T = Symbol(name, "Solver")
 
     @eval begin
         # define a method to evaluate the Green's function
-        $f(h, M) = $f(propagator_denominator(h, M))
+        $f(k, h, M) = $f(propagator_denominator(h, M))
         # We don't want to evalM at every k-point and instead will use
         # AutoBZCore.remake_cache below to evalM once per integral
         # However,these methods are useful for initialization/plotting
-        $f(h::FourierValue; kws...) = $f(h, evalM(; kws...)...)
-        function $f(x::FourierValue, ::CanonicalParameters; kws...)
-            el = real(_eltype(x.s))
-            return $f(x; Σ=EtaSelfEnergy(oneunit(el)), ω=zero(el))
-        end
 
         # Define a constructor for the integrand
         """
@@ -182,30 +69,17 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
         Green's function integrands accepting a self energy Σ that can either be a matrix or a
         function of ω (see the self energy section of the documentation for examples)
         """
-        function $T(h::AbstractHamiltonianInterp; kwargs...)
-            return FourierIntegrand($f, h; kwargs...)
-        end
-        function $T(w::FourierWorkspace{<:AbstractHamiltonianInterp}; kwargs...)
-            p = ParameterIntegrand($f; kwargs...)
-            nest = make_fourier_nest(p, ParameterIntegrand($f), w)
-            return nest === nothing ? FourierIntegrand(p, w) : FourierIntegrand(p, w, nest)
-        end
-
-        # We provide the following functions to build a cache during construction of IntegralSolvers
-        function AutoBZCore.init_solver_cacheval(f::FourierIntegrand{typeof($f)}, dom, alg)
-            return _init_solver_cacheval(f, dom, alg)
-        end
-
-        function AutoBZCore.remake_integrand_cache(f::FourierIntegrand{typeof($f)}, dom, p, alg, cacheval, kwargs)
-            # pre-evaluate the self energy when remaking the cache
-            new_p = canonize(evalM, p)
-            # Define default equispace grid stepping for AutoPTR
-            new_alg = choose_autoptr_step(alg, sigma_to_eta(p.Σ), f.w.series)
-            return _remake_integrand_cache(f, dom, new_p, new_alg, cacheval, kwargs)
+        function $T(h::AbstractHamiltonianInterp, bz, alg; ω, Σ, μ=zero(ω), kws...)
+            p = evalM(; ω, Σ, μ)
+            k = SVector(period(h))
+            proto = $f(k, h(k), p)
+            f = FourierIntegralFunction($f, h, proto)
+            prob = AutoBZProblem(UnknownRep(), f, bz, p; kws...)
+            return init(prob, alg)
         end
     end
 end
-
+#=
 choose_autoptr_step(alg, _...) = alg
 
 function choose_autoptr_step(alg::AutoPTR, a::Real)
@@ -884,3 +758,4 @@ Returns a `AuxKineticCoefficientIntegrand` with `n=0`. See
 [`AuxKineticCoefficientIntegrand`](@ref) for further details
 """
 AuxOpticalConductivityIntegrand(args...; kws...) = AuxKineticCoefficientIntegrand(args...; kws..., n=0)
+=#

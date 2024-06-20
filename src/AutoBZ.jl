@@ -59,7 +59,7 @@ using Reexport
 @reexport using AutoBZCore
 
 import FourierSeriesEvaluators: period, frequency, allocate, contract!, evaluate!, nextderivative, show_dims, show_details
-import AutoBZCore: SymRep, symmetrize_, MixedParameters, IntegralAlgorithm, AutoBZAlgorithm, AbstractBZ, interior_point
+import AutoBZCore: symmetrize_, IntegralAlgorithm, AutoBZAlgorithm, AbstractBZ, interior_point
 
 using FourierSeriesEvaluators: FourierWorkspace, freq2rad
 using EquiBaryInterp: LocalEquiBaryInterp
@@ -93,7 +93,7 @@ include("interp.jl")
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
 
-export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
+export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
 export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
