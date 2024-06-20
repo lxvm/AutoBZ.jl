@@ -60,11 +60,13 @@ using Reexport
 
 import FourierSeriesEvaluators: period, frequency, allocate, contract!, evaluate!, nextderivative, show_dims, show_details
 import AutoBZCore: symmetrize_, IntegralAlgorithm, AutoBZAlgorithm, AbstractBZ, interior_point
+import CommonSolve: init, solve!
 
 using FourierSeriesEvaluators: FourierWorkspace, freq2rad
 using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
+using FastLapackInterface: EigenWs, HermitianEigenWs
 
 export AbstractSelfEnergy
 export AbstractWannierInterp
@@ -78,8 +80,9 @@ include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
-include("SSymmetricCompact.jl")
 
+export EigenProblem, LAPACKEigen, LAPACKEigenH, LAPACKEigvals, LAPACKEigvalsH
+include("eigen.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 

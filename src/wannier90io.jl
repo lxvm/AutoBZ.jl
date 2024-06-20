@@ -64,7 +64,7 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge
     (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, H)
     f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
     if soc === nothing
-        return HamiltonianInterp(Freq2RadSeries(f); gauge)
+        return HamiltonianInterp(Freq2RadSeries(f), EigenProblem(first(C)), LAPACKEigenH(); gauge)
     else
         return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
     end
@@ -420,15 +420,17 @@ end
 # have the orbital representation of the symmetry operators available.
 # this is because H(k) and H(pg*k) are identical up to a gauge transformation
 # The velocities are also tough to compare because the point-group operator should be applied
-function calc_interp_error_(g::AbstractGauge, val, err)
-    wval = g isa Hamiltonian ? val : to_gauge(Hamiltonian(), val)
-    werr = g isa Hamiltonian ? err : to_gauge(Hamiltonian(), err)
+function calc_interp_error_(solver, g::AbstractGauge, val, err)
+    wval = g isa Hamiltonian ? val : to_gauge!(solver, Hamiltonian(), val)
+    werr = g isa Hamiltonian ? err : to_gauge!(solver, Hamiltonian(), err)
     return norm(wval.values - werr.values)
 end
 function calc_interp_error(h::AbstractHamiltonianInterp, val, err)
-    return calc_interp_error_(gauge(h), val, err)
+    return calc_interp_error_(init(h.prob, h.alg), gauge(h), val, err)
 end
 function calc_interp_error(hv::AbstractVelocityInterp, val, err)
+    # TODO test the symmetry on the velocity with a trace over the orbital indices, rotation
+    # on coordinate indices
     return calc_interp_error_(gauge(hv), val[1], err[1])
 end
 calc_interp_error(::BerryConnectionInterp, val, err) = NaN

@@ -1,3 +1,9 @@
+@enum ReturnCode begin
+    Success
+    Failure
+    MaxIters
+end
+
 #=
     DEFINITIONS FOR SELF ENERGY INTERPOLANTS
 =#
@@ -66,7 +72,7 @@ this gauge requires inverting a dense matrix, which scales as
 struct Wannier <: AbstractGauge end
 
 """
-    Hamiltonian <: AbstractGauge
+    Hamiltonian() <: AbstractGauge
 
 Singleton type representing the Hamiltonian gauge. This gauge is the eigenbasis
 of `H`, and all operators will be rotated to this basis. The Hamiltonian will
@@ -83,17 +89,13 @@ Transform the Hamiltonian according to the following values of `gauge`
 - [`Wannier`](@ref): keeps `h, vs` in the original, orbital basis
 - [`Hamiltonian`](@ref): diagonalizes `h` and rotates `h` into the energy, band basis
 """
-to_gauge(::Wannier, H) = H
-to_gauge(::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
+to_gauge!(solver, ::Wannier, H) = H
+to_gauge!(solver, ::Wannier, (h,U)::Eigen) = U * Diagonal(h) * U'
 
-function to_gauge(::Hamiltonian, H::AbstractMatrix)
-    # this test will fail if we do contour deformation. It would be better to check the
-    # types of the inputs are real instead, but we don't have access to the FourierValue
-
-    # It would be better to fix this ambiguity by requiring the series evaluator return a
-    # Hermitian-wrapped array
-    isapproxhermitian(H, atol=real(oneunit(eltype(H)))/10^6) || throw(ArgumentError("found non-Hermitian Hamiltonian"))
-    _eigen(Hermitian(H)) # need to wrap with Hermitian for type stability
+function to_gauge!(solver, ::Hamiltonian, H::AbstractMatrix)
+    solver.A = H
+    sol = solve!(solver)
+    return sol.value
 end
 
 
@@ -122,10 +124,10 @@ GaugeDefault(::T) where {T<:AbstractGaugeInterp} = GaugeDefault(T)
 show_details(w::AbstractGaugeInterp) =
     " in $(gauge(w)) gauge"
 
-to_gauge(gi::AbstractGaugeInterp, w) = to_gauge(gauge(gi), w)
+to_gauge!(solver, gi::AbstractGaugeInterp, w) = to_gauge!(solver, gauge(gi), w)
 
 """
-    AbstractHamiltonianInterp{G,N,T,iip} <: AbstractGaugeInterp{G,N,T,iip}
+    AbstractHamiltonianInterp{G,N,T,iip,isherm} <: AbstractGaugeInterp{G,N,T,iip}
 
 Abstract type representing Hamiltonians, which are matrix-valued Hermitian Fourier series.
 They should also have period 1, but produce derivatives with wavenumber 1 (not

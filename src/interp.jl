@@ -39,14 +39,16 @@ show_details(s::Freq2RadSeries) = show_details(s.s)
 A wrapper for `FourierSeries` with an additional gauge that allows for
 convenient diagonalization of the result. For details see [`to_gauge`](@ref).
 """
-struct HamiltonianInterp{G,N,T,iip,F<:Freq2RadSeries{N,T,iip,<:FourierSeries}} <: AbstractHamiltonianInterp{G,N,T,iip}
+struct HamiltonianInterp{G,N,T,iip,P,A,F<:Freq2RadSeries{N,T,iip,<:FourierSeries}} <: AbstractHamiltonianInterp{G,N,T,iip}
     f::F
-    function HamiltonianInterp{G}(f::Freq2RadSeries{N,T,iip,<:FourierSeries}) where {G,N,T,iip}
-        return new{G,N,T,iip,typeof(f)}(f)
+    prob::P
+    alg::A
+    function HamiltonianInterp{G}(f::Freq2RadSeries{N,T,iip,<:FourierSeries}, prob, alg) where {G,N,T,iip}
+        return new{G,N,T,iip,typeof(prob),typeof(alg),typeof(f)}(f, prob, alg)
     end
 end
 
-HamiltonianInterp(f; gauge=GaugeDefault(HamiltonianInterp)) = HamiltonianInterp{gauge}(f)
+HamiltonianInterp(f, prob, alg; gauge=GaugeDefault(HamiltonianInterp)) = HamiltonianInterp{gauge}(f, prob, alg)
 
 GaugeDefault(::Type{<:HamiltonianInterp}) = Wannier()
 parentseries(h::HamiltonianInterp) = h.f.s
@@ -54,11 +56,20 @@ parentseries(h::HamiltonianInterp) = h.f.s
 period(h::HamiltonianInterp) = period(h.f)
 frequency(h::HamiltonianInterp) = frequency(h.f)
 allocate(h::HamiltonianInterp, x, dim) = allocate(h.f, x, dim)
+function allocate(h::HamiltonianInterp, x, dim::Val{1})
+    cache = allocate(h.f, x, dim)
+    if gauge(h) isa Hamiltonian
+        solver = init(h.prob, h.alg)
+        return cache, solver
+    else
+        return cache, nothing
+    end
+end
 function contract!(cache, h::HamiltonianInterp, x, dim)
-    return HamiltonianInterp{gauge(h)}(contract!(cache, h.f, x, dim))
+    return HamiltonianInterp{gauge(h)}(contract!(cache, h.f, x, dim), h.prob, h.alg)
 end
 function evaluate!(cache, h::HamiltonianInterp, x)
-    return to_gauge(h, evaluate!(cache, h.f, x))
+    return to_gauge!(cache[2], h, evaluate!(cache[1], h.f, x))
 end
 nextderivative(h::HamiltonianInterp, dim) = nextderivative(h.f, dim)
 
