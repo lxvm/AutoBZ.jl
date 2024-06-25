@@ -34,21 +34,26 @@ show_details(s::Freq2RadSeries) = show_details(s.s)
 
 
 """
-    HamiltonianInterp(f::FourierSeries; gauge=:Wannier)
+    HamiltonianInterp(f::AbstractFourierSeries; gauge=:Wannier)
 
 A wrapper for `FourierSeries` with an additional gauge that allows for
 convenient diagonalization of the result. For details see [`to_gauge`](@ref).
 """
-struct HamiltonianInterp{G,N,T,iip,P,A,F<:Freq2RadSeries{N,T,iip,<:FourierSeries}} <: AbstractHamiltonianInterp{G,N,T,iip}
+struct HamiltonianInterp{G,N,T,iip,P,A,F<:Freq2RadSeries{N,T,iip}} <: AbstractHamiltonianInterp{G,N,T,iip}
     f::F
     prob::P
     alg::A
-    function HamiltonianInterp{G}(f::Freq2RadSeries{N,T,iip,<:FourierSeries}, prob, alg) where {G,N,T,iip}
+    function HamiltonianInterp{G}(f::Freq2RadSeries{N,T,iip}, prob, alg) where {G,N,T,iip}
         return new{G,N,T,iip,typeof(prob),typeof(alg),typeof(f)}(f, prob, alg)
     end
 end
 
-HamiltonianInterp(f, prob, alg; gauge=GaugeDefault(HamiltonianInterp)) = HamiltonianInterp{gauge}(f, prob, alg)
+HamiltonianInterp(f::Freq2RadSeries, prob, alg; gauge=GaugeDefault(HamiltonianInterp)) = HamiltonianInterp{gauge}(f, prob, alg)
+function HamiltonianInterp(f::AbstractFourierSeries, prob, alg; kws...)
+    @assert f(period(f)) isa AbstractMatrix
+    fq = Freq2RadSeries(f)
+    return HamiltonianInterp(fq, prob, alg; kws...)
+end
 
 GaugeDefault(::Type{<:HamiltonianInterp}) = Wannier()
 parentseries(h::HamiltonianInterp) = h.f.s

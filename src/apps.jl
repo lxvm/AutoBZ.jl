@@ -79,6 +79,29 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
         end
     end
 end
+
+function Gloc2Solver(h::AbstractHamiltonianInterp, bz, bzalg, linalg=Inverse(); ω, Σ, μ=zero(ω), kws...)
+    p = evalM(; ω, Σ, μ)
+    k = SVector(period(h))
+    hk= h(k)
+    post = inv
+    linprob = LinearSystemProblem(ismutable(hk) ? (hk .= p .- hk) : p-hk)
+    g = gauge(h)
+    up = (solver, k, hk, p) -> begin
+        _hk = g isa Hamiltonian ? hk.values : hk
+        if ismutable(solver.A)
+            solver.A .= p .- _hk
+        else
+            solver.A = p - _hk
+        end
+        return
+    end
+    post = (sol, k, hk, p) -> inv(sol.value)
+    proto = post(solve(linprob, linalg), k, hk, p)
+    f = CommonSolveFourierIntegralFunction(linprob, linalg, up, post, h, proto)
+    prob = AutoBZProblem(UnknownRep(), f, bz, p; kws...)
+    return init(prob, bzalg)
+end
 #=
 choose_autoptr_step(alg, _...) = alg
 

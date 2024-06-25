@@ -66,7 +66,7 @@ using FourierSeriesEvaluators: FourierWorkspace, freq2rad
 using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
-using FastLapackInterface: EigenWs, HermitianEigenWs
+using FastLapackInterface: LUWs, EigenWs, HermitianEigenWs
 
 export AbstractSelfEnergy
 export AbstractWannierInterp
@@ -80,7 +80,8 @@ include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
-
+export LinearSystemProblem, LUFactorization, Inverse
+include("linearsystem.jl")
 export EigenProblem, LAPACKEigen, LAPACKEigenH, LAPACKEigvals, LAPACKEigvalsH
 include("eigen.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
@@ -97,6 +98,7 @@ export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnerg
 include("self_energies.jl")
 
 export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
+export Gloc2Solver
 export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand

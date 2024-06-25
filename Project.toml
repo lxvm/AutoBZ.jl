@@ -1,12 +1,14 @@
 name = "AutoBZ"
 uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
 authors = ["lxvm <lorenzo@vanmunoz.com> and contributors"]
-version = "0.4.5"
+version = "0.5.0"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"
 BaryRational = "91aaffc3-5777-4842-85b7-5d3d5d6a3494"
+CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 EquiBaryInterp = "c5458111-f826-47c0-abe9-f36aa00852ec"
+FastLapackInterface = "29a986be-02c6-4525-aec4-84b980013641"
 FourierSeriesEvaluators = "2a892dea-6eef-4bb5-9d1c-de966c9f6db5"
 HChebInterp = "78faba9b-a54b-441f-8118-62407cbe4e59"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -29,11 +31,13 @@ BrillouinPlotlyJSExt = ["Brillouin", "PlotlyJS"]
 
 [compat]
 Aqua = "0.8"
-AutoBZCore = "0.3"
+AutoBZCore = "0.4"
 BaryRational = "0.1,1"
 Brillouin = "0.5"
+CommonSolve = "0.2"
 EquiBaryInterp = "0.1"
-FourierSeriesEvaluators = "1"
+FastLapackInterface = "1,2"
+FourierSeriesEvaluators = "1.1"
 HChebInterp = "1"
 LinearAlgebra = "1.9"
 Logging = "1.9"

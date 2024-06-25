@@ -144,11 +144,24 @@ parentseries(::AbstractHamiltonianInterp)
 
 show_dims(h::AbstractHamiltonianInterp) = show_dims(parentseries(h))
 
-function shift!(f::FourierSeries, λ_::Number)
-    λ = convert(eltype(eltype(f.c)), λ_)
-    # We index into the R=0 coefficient to shift by a constant
-    f.c[-CartesianIndex(f.o)] -= λ*I
+function shift!(f::FourierSeries, λ::Number)
+    _shift!(f.c, -CartesianIndex(f.o), λ)
     return f
+end
+function shift!(f::HermitianFourierSeries, λ::Number)
+    _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n) + (n == 1 ? 0 : div(size(f.c, n), 2)), Val(ndims(f.c)))), λ)
+    return f
+end
+function shift!(f::RealSymmetricFourierSeries, λ::Number)
+    _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n), Val(ndims(f.c)))), λ)
+    return f
+end
+
+function _shift!(c::AbstractArray, o::CartesianIndex, λ_::Number)
+    λ = convert(eltype(eltype(c)), λ_)
+    # We index into the R=0 coefficient to shift by a constant
+    c[o] -= λ*I
+    return c
 end
 
 """

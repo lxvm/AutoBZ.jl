@@ -29,6 +29,7 @@ algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
 for alg in algs
     @show nameof(typeof(alg))
     solver = DOSSolver(h, bz, alg; Σ, ω, abstol=atol, reltol=rtol)
-    @time @show solve!(solver)
+    sol = @time solve!(solver)
+    @show sol.value
     println()
 end
