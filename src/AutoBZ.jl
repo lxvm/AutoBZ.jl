@@ -82,7 +82,7 @@ export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
 export LinearSystemProblem, LUFactorization, Inverse
 include("linearsystem.jl")
-export EigenProblem, LAPACKEigen, LAPACKEigenH, LAPACKEigvals, LAPACKEigvalsH
+export EigenProblem, LAPACKEigen, LAPACKEigenH, JLEigen
 include("eigen.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")

@@ -12,14 +12,42 @@ function sorteig!(p, tmp, λ::AbstractVector, X::AbstractMatrix, sortby::Union{F
 end
 sorteig!(λ::AbstractVector, sortby::Union{Function,Nothing}=eigsortby) = sortby === nothing ? λ : sort!(λ, by=sortby)
 
-struct EigenProblem{A,S,K}
+struct EigenProblem{vecs,A,S,K}
+    vecs::Val{vecs}
     A::A
     sortby::S
     kwargs::K
 end
-EigenProblem(A::AbstractMatrix, sortby=eigsortby; kws...) = EigenProblem(A, sortby, kws)
 
-mutable struct EigenSolver{A,S,K,G,C}
+"""
+    EigenProblem(A::AbstractMatrix, [vecs::Bool=true, sortby]; kws...)
+
+Define an eigenproblem for the matrix `A` with the option `vecs` to return
+the spectrum with the eigenvectors (`true` by default) or only the spectrum
+(`false`). A comparison function `sortby(λ)` can be provided to sort the
+eigenvalues, which by default are sorted lexicographically. `sortby=nothing`
+will leave the eigenvalues in an arbitrary order.
+Additonal keywords are forwarded to the solver.
+
+Aims to provide a non-allocating interface to `LinearAlgebra.eigen`.
+
+When `vecs` is `true`, the value of the solution will be a `LinearAlgebra.Eigen`
+factorization object. When `vecs` is false, the solution will be a vector
+containing the eigenvalues. The function [`hasvecs`](@ref) will return `vecs`.
+"""
+function EigenProblem(A::AbstractMatrix, vecs::Bool=true, sortby=eigsortby; kws...)
+    return EigenProblem(Val(vecs), A, sortby, kws)
+end
+
+"""
+    hasvecs(::EigenProblem{vecs}) where {vecs} = vecs
+
+Test whether the eigenproblem also needs the eigenvectors
+"""
+hasvecs(::EigenProblem{vecs}) where {vecs} = vecs
+
+mutable struct EigenSolver{vecs,A,S,K,G,C}
+    vecs::Val{vecs}
     A::A
     sortby::S
     kwargs::K
@@ -27,60 +55,76 @@ mutable struct EigenSolver{A,S,K,G,C}
     cacheval::C
 end
 
-struct EigenSolution{V,S}
+"""
+    hasvecs(::EigenSolver{vecs}) where {vecs} = vecs
+
+Test whether the eigensolver also calculates the eigenvectors
+"""
+hasvecs(::EigenSolver{vecs}) where {vecs} = vecs
+
+struct EigenSolution{vecs,V,S}
+    vecs::Val{vecs}
     value::V
     retcode::ReturnCode
     stats::S
 end
 
+"""
+    hasvecs(sol::EigenSolution{vecs}) where {vecs} = vecs
+
+Test whether the eigensolution contains the eigenvectors.
+If `true`, `sol.value` will be a `LinearAlgebra.Eigen` and otherwise a vector
+containing the spectrum.
+"""
+hasvecs(::EigenSolution{vecs}) where {vecs} = vecs
+
 function init(prob::EigenProblem, alg::EigenAlgorithm; kws...)
-    cacheval = init_cacheval(prob.A, alg)
+    cacheval = init_cacheval(prob, alg)
     kwargs = (; kws..., prob.kwargs...)
-    return EigenSolver(prob.A, prob.sortby, kwargs, alg, cacheval)
+    return EigenSolver(prob.vecs, prob.A, prob.sortby, kwargs, alg, cacheval)
 end
 
 function solve!(solver::EigenSolver)
-    return do_eigen(solver.A, solver.sortby, solver.alg, solver.cacheval)
+    return do_eigen(solver.vecs, solver.A, solver.sortby, solver.alg, solver.cacheval)
 end
 
 struct LAPACKEigen <: EigenAlgorithm
     balanc::Char
-    jobvl::Char
-    jobvr::Char
     sense::Char
 end
-function LAPACKEigen(;
-    permute=true, scale=true, balanc = permute ? (scale ? 'B' : 'P') : (scale ? 'S' : 'N'),
-    vecs=true, jobvl=vecs ? 'V' : 'N', jobvr=vecs ? 'V' : 'N',
-    sense='N')
-    return LAPACKEigen(balanc, jobvl, jobvr, sense)
+function LAPACKEigen(; balanc = 'B', sense='N')
+    return LAPACKEigen(balanc, sense)
 end
 
-function init_cacheval(A, alg::LAPACKEigen)
+function init_cacheval(prob::EigenProblem, alg::LAPACKEigen)
+    A = prob.A
     ishermitian(A) && @warn "Hermitian matrix detected. Consider using LAPACKEigenH"
     Atmp = Matrix{typeof(complex(one(eltype(A))))}(undef, size(A)...)
     copy!(Atmp, A)
-    ws = EigenWs(Atmp; lvecs = alg.jobvl == 'V', rvecs = alg.jobvl == 'R', sense = alg.sense != 'N')
+    ws = EigenWs(Atmp; lvecs = false, rvecs = hasvecs(prob), sense = alg.sense != 'N')
     perm = Vector{Int}(undef, checksquare(A))
-    return A[:,begin], _ustrip(A), Atmp, Atmp[:,1], ws, perm
+    return complex(A[:,begin]), complex(_ustrip(A)), Atmp, Atmp[:,1], ws, perm
 end
 
-function do_eigen(A, sortby::S, alg::LAPACKEigen, (Avec, Amat, Atmp, tmp, ws, perm)) where S
+function do_eigen(v::Val{vecs}, A, sortby::S, alg::LAPACKEigen, (Avec, Amat, Atmp, tmp, ws, perm)) where {vecs,S}
     _ucopy!(Atmp, A)
-    t = LAPACK.geevx!(ws, alg.balanc, alg.jobvl, alg.jobvr, alg.sense, Atmp)
+    t = LAPACK.geevx!(ws, alg.balanc, 'N', vecs ? 'V' : 'N', alg.sense, Atmp)
     values = t[2]
     vectors = t[eltype(Atmp) isa Real ? 5 : 4]
     if sortby !== nothing
-        sorteig!(perm, tmp, values, vectors, sortby)
+        if vecs
+            sorteig!(perm, tmp, values, vectors, sortby)
+        else
+            sorteig!(values, sortby)
+        end
     end
-    E = LinearAlgebra.Eigen(_ofutype(Avec, values), _oftype(Amat, vectors))
+    E = vecs ? LinearAlgebra.Eigen(_ofutype(Avec, values), _oftype(Amat, vectors)) : values
     retcode = Success
     stats = (;) # TODO populate stats
-    return EigenSolution(E, retcode, stats)
+    return EigenSolution(v, E, retcode, stats)
 end
 
 struct LAPACKEigenH{T} <: EigenAlgorithm
-    jobz::Char
     range::Char
     uplo::Char
     vl::T
@@ -89,60 +133,54 @@ struct LAPACKEigenH{T} <: EigenAlgorithm
     iu::Int
     work::Bool
 end
-function LAPACKEigenH(;
-    vecs=true, jobz=vecs ? 'V' : 'N',
-    range='A', uplo='U',
-    vl=0, vu=0, il=0, iu=0,
-    work=true)
-    return LAPACKEigenH(jobz, range, uplo, vl, vu, il, iu, work)
+function LAPACKEigenH(; range='A', uplo='U', vl=0, vu=0, il=0, iu=0, work=true)
+    return LAPACKEigenH(range, uplo, vl, vu, il, iu, work)
 end
 
-function init_cacheval(A, alg::LAPACKEigenH)
+function init_cacheval(prob::EigenProblem, alg::LAPACKEigenH)
+    A = prob.A
     ishermitian(A) || @warn "Non-hermitian matrix detected. Results may be incorrect"
     Atmp = Matrix{typeof(one(eltype(A)))}(undef, size(A)...)
-    ws = HermitianEigenWs(Atmp; vecs = alg.jobz == 'V', work = alg.work)
+    ws = HermitianEigenWs(Atmp; vecs = hasvecs(prob), work = alg.work)
     perm = Vector{Int}(undef, checksquare(A))
     return real(parent(A)[:,begin]), _ustrip(parent(A)), Atmp, Atmp[:,1], ws, perm
 end
 
-function do_eigen(A, sortby::S, alg::LAPACKEigenH, (Avec, Amat, Atmp, tmp, ws, perm); abstol=-1.0) where S
+function do_eigen(v::Val{vecs}, A, sortby::S, alg::LAPACKEigenH, (Avec, Amat, Atmp, tmp, ws, perm); abstol=-1.0) where {vecs,S}
     _ucopy!(Atmp, A)
     a = real(zero(eltype(Atmp)))
-    t = LAPACK.syevr!(ws, alg.jobz, alg.range, alg.uplo, Atmp, oftype(a, alg.vl), oftype(a, alg.vu), alg.il, alg.iu, oftype(a, abstol))
+    t = LAPACK.syevr!(ws, vecs ? 'V' : 'N', alg.range, alg.uplo, Atmp, oftype(a, alg.vl), oftype(a, alg.vu), alg.il, alg.iu, oftype(a, abstol))
     values, vectors = t
     if sortby !== nothing
-        sorteig!(perm, tmp, values, vectors, sortby)
+        if vecs
+            sorteig!(perm, tmp, values, vectors, sortby)
+        else
+            sorteig!(values, sortby)
+        end
     end
-    E = LinearAlgebra.Eigen(_ofutype(Avec, values), _oftype(Amat, vectors))
+    E = vecs ? LinearAlgebra.Eigen(_ofutype(Avec, values), _oftype(Amat, vectors)) : values
     retcode = Success
     stats = (;) # TODO populate stats
-    return EigenSolution(E, retcode, stats)
+    return EigenSolution(v, E, retcode, stats)
 end
 
-struct LAPACKEigvals <: EigenAlgorithm
-    alg::LAPACKEigen
+struct JLEigen <: EigenAlgorithm
+    permute::Bool
+    scale::Bool
 end
-function LAPACKEigvals(; kws...)
-    return LAPACKEigvals(LAPACKEigen(; kws..., jobvl = 'N', jobvr = 'N', sense = 'N'))
-end
-function init_cacheval(A, alg::LAPACKEigvals)
-    return init_cacheval(A, alg.alg)
-end
-function do_eigen(A, sortby, alg::LAPACKEigvals, ws)
-    sol = do_eigen(A, sortby, alg.alg, ws)
-    return EigenSolution(sol.value.values, sol.retcode, sol.stats)
+JLEigen(; permute=true, scale=true) = JLEigen(permute, scale)
+
+init_cacheval(::EigenProblem, alg::JLEigen) = nothing
+function do_eigen(v::Val{vecs}, A, sortby::S, alg::JLEigen, cacheval; kws...) where {vecs,S}
+    E = vecs ? _eigen(A; permute=alg.permute, scale=alg.scale, sortby) : _eigvals(A; permute=alg.permute, scale=alg.scale, sortby)
+    retcode = Success
+    stats = (;) # TODO populate stats
+    return EigenSolution(v, E, retcode, stats)
 end
 
-struct LAPACKEigvalsH{T} <: EigenAlgorithm
-    alg::LAPACKEigenH{T}
-end
-function LAPACKEigvalsH(; kws...)
-    return LAPACKEigvalsH(LAPACKEigenH(; kws..., jobz = 'N'))
-end
-function init_cacheval(A, alg::LAPACKEigvalsH)
-    return init_cacheval(A, alg.alg)
-end
-function do_eigen(A, sortby, alg::LAPACKEigvalsH, ws)
-    sol = do_eigen(A, sortby, alg.alg, ws)
-    return EigenSolution(sol.value.values, sol.retcode, sol.stats)
-end
+_eigen(args...; kws...) = eigen(args...; kws...)
+_eigen(A::Union{<:Hermitian,<:Symmetric}, args...; sortby, kws...) = eigen(A, args...; sortby)
+_eigen(A::StaticArray, args...; permute, scale, kws...) = eigen(A, args...; permute, scale)
+_eigvals(args...; kws...) = eigvals(args...; kws...)
+_eigvals(A::Union{<:Hermitian,<:Symmetric}, args...; sortby, kws...) = eigvals(A, args...; sortby)
+_eigvals(A::StaticArray, args...; permute, scale, kws...) = eigvals(A, args...; permute, scale)
