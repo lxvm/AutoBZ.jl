@@ -1,7 +1,7 @@
 using Test
 using LinearAlgebra
 using StaticArrays
-using AutoBZ: EigenProblem, LAPACKEigen, LAPACKEigenH, JLEigen
+using AutoBZ
 
 function test_vectors(A, values, vectors; kws...)
     for (val, vec) in zip(values, eachcol(vectors))
@@ -13,11 +13,13 @@ end
 @testset "eigen - general" for alg in (LAPACKEigen(), JLEigen())
     for A in [rand(40, 40), rand(ComplexF64, 40, 40)]
         prob = EigenProblem(A, false)
-        sol = solve(prob, alg)
+        solver = init(prob, alg)
+        sol = solve!(solver)
         @test sol.value isa AbstractVector
         @test sol.value ≈ eigvals(A)
         prob = EigenProblem(A)
-        sol = solve(prob, alg)
+        solver = init(prob, alg)
+        sol = solve!(solver)
         @test sol.value isa Eigen
         eig = eigen(A)
         @test sol.value.values ≈ eig.values
@@ -36,11 +38,13 @@ end
         begin x = rand(SHermitianCompact{3,ComplexF64,6}); (x+x')/2; end,
     ]
         prob = EigenProblem(A, false)
-        sol = solve(prob, alg)
+        solver = init(prob, alg)
+        sol = solve!(solver)
         @test sol.value isa AbstractVector
         @test sol.value ≈ eigvals(A)
         prob = EigenProblem(A)
-        sol = solve(prob, alg)
+        solver = init(prob, alg)
+        sol = solve!(solver)
         @test sol.value isa Eigen
         eig = eigen(A)
         @test sol.value.values ≈ eig.values

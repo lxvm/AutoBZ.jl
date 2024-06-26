@@ -21,7 +21,9 @@ end
 @testset "AutoBZ" begin
     @testset "aqua" Aqua.test_all(AutoBZ)
     @testset "utils" include("utils.jl")
+    @testset "linearsystem" include("linearsystem.jl")
     @testset "eigen" include("eigen.jl")
+    @testset "trinv" include("trinv.jl")
     @testset "apps" include("apps.jl")
     # TODO: validate linalg, soc, interpolation, fermi functions, self energies, io
 end
