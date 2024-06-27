@@ -64,33 +64,33 @@ function do_linear_solve!(A, Pl, Pr, alg::LUFactorization, ws; kws...)
 end
 
 """
-    JLInverse()
+    JLInv()
 
 Solve a linear system by explicitly constructing the inverse. This should only be used for
 very small matrices, such as 3x3, or when the full matrix is desired. Intended for immutable matrices.
 """
-struct JLInverse <: LinearSystemAlgorithm end
+struct JLInv <: LinearSystemAlgorithm end
 
-function init_linear_cacheval(A, Pl, Pr, alg::JLInverse)
+function init_linear_cacheval(A, Pl, Pr, alg::JLInv)
     # TODO allocate workspace for LAPACK.getri!
     return ismutable(A) ? init_linear_cacheval(A, Pl, Pr, LUFactorization()) : nothing
 end
-function do_linear_solve!(A, Pl, Pr, alg::JLInverse, cacheval; kws...)
+function do_linear_solve!(A, Pl, Pr, alg::JLInv, cacheval; kws...)
     invA = if ismutable(A)
         sol = do_linear_solve!(A, Pl, Pr, LUFactorization(), cacheval; kws...)
         LAPACK.getri!(sol.value.factors, sol.value.ipiv)
     else
         _inv(A)
     end
-    value = JLInverseMatrix(invA)
+    value = JLInvMatrix(invA)
     retcode = Success
     stats = (;)
     return LinearSystemSolution(value, retcode, stats)
 end
 
-struct JLInverseMatrix{A}
+struct JLInvMatrix{A}
     A::A
 end
-Base.inv(A::JLInverseMatrix) = A.A
-Base.:\(A::JLInverseMatrix, b) = A.A * b
-LinearAlgebra.ldiv!(x, A::JLInverseMatrix, b) = mul!(x, A.A, b)
+Base.inv(A::JLInvMatrix) = A.A
+Base.:\(A::JLInvMatrix, b) = A.A * b
+LinearAlgebra.ldiv!(x, A::JLInvMatrix, b) = mul!(x, A.A, b)

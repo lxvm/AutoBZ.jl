@@ -80,7 +80,7 @@ include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
-export LinearSystemProblem, LUFactorization, JLInverse
+export LinearSystemProblem, LUFactorization, JLInv
 include("linearsystem.jl")
 export EigenProblem, LAPACKEigen, LAPACKEigenH, JLEigen
 include("eigen.jl")
@@ -100,7 +100,7 @@ export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnerg
 include("self_energies.jl")
 
 export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
-export Gloc2Solver
+export Gloc2Solver, TrGloc2Solver
 export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
