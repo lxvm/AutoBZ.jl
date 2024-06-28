@@ -100,12 +100,16 @@ export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnerg
 include("self_energies.jl")
 
 export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
-export Gloc2Solver, TrGloc2Solver
 export TransportFunctionIntegrand, TransportDistributionIntegrand
 export KineticCoefficientIntegrand, OpticalConductivityIntegrand
 export ElectronDensityIntegrand
 export AuxTransportDistributionIntegrand, AuxKineticCoefficientIntegrand, AuxOpticalConductivityIntegrand
 include("apps.jl")
+export Gloc2Solver
+include("GlocSolver.jl")
+export TrGloc2Solver
+include("TrGlocSolver.jl")
+
 
 export load_self_energy
 include("self_energies_io.jl")
