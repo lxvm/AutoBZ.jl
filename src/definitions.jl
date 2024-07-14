@@ -201,13 +201,15 @@ Singleton type representing Cartesian coordinates.
 """
 struct Cartesian <: AbstractCoordinate end
 
+abstract type AbstractCoordSymRep <: AbstractSymRep end
+
 """
     LatticeRep()
 
 Symmetry representation of objects that transform under the group action in the
 same way as the lattice.
 """
-struct LatticeRep <: AbstractSymRep end
+struct LatticeRep <: AbstractCoordSymRep end
 
 """
     CartesianRep()
@@ -215,11 +217,12 @@ struct LatticeRep <: AbstractSymRep end
 Symmetry representation of objects that transform under the group action in the
 same way as the lattice and in Cartesian coordinates.
 """
-struct CartesianRep <: AbstractSymRep end
+struct CartesianRep <: AbstractCoordSymRep end
 
 # bz.syms = inv(B) * S * B = A' * S * inv(A'), with S in Cartesian coordinates
 # so we transpose to get the correct action on the real-space indices
 function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractVector)
+    bz.syms === nothing && return x
     r = zero(x)
     for S in bz.syms
         r += S' * x
@@ -227,6 +230,7 @@ function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractVector)
     r
 end
 function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
+    bz.syms === nothing && return x
     r = zero(x)
     for S in bz.syms
         r += S' * x * S
@@ -234,13 +238,21 @@ function symmetrize_(::LatticeRep, bz::SymmetricBZ, x::AbstractMatrix)
     r
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractVector)
+    bz.syms === nothing && return x
     invB = bz.A'; B = _inv(invB)
     transpose(invB) * symmetrize_(LatticeRep(), bz, transpose(B) * x)
 end
 function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
+    bz.syms === nothing && return x
     invB = bz.A'; B = _inv(invB)
     transpose(invB) * symmetrize_(LatticeRep(), bz, transpose(B) * x * B) * invB
 end
+function symmetrize_(rep::AbstractCoordSymRep, bz::SymmetricBZ, x::AutoBZCore.IteratedIntegration.AuxValue)
+    val = symmetrize_(rep, bz, x.val)
+    aux = symmetrize_(rep, bz, x.aux)
+    return AutoBZCore.IteratedIntegration.AuxValue(val, aux)
+end
+symmetrize_(::AbstractCoordSymRep, bz::SymmetricBZ, x::Number) = symmetrize_(TrivialRep(), bz, x)
 
 coord_to_rep(::Lattice) = LatticeRep()
 coord_to_rep(::Cartesian) = CartesianRep()
@@ -322,15 +334,15 @@ of the velocity operator in the [`Hamiltonian`](@ref) gauge
 """
 struct Intra <: AbstractVelocityComponent end
 
-to_vcomp_gauge_mass(::Whole, ::Wannier, H, vs::NTuple, ms::NTuple) = (H, vs, ms)
-function to_vcomp_gauge_mass(vcomp::C, g::Wannier, H, vs::NTuple, ms::NTuple) where C
-    E, vhs = to_vcomp_gauge(vcomp, Hamiltonian(), H, vs)
-    return to_gauge(g, E, vhs)..., ms
+to_vcomp_gauge_mass!(cache, ::Whole, ::Wannier, H, vs::NTuple, ms::NTuple) = (H, vs, ms)
+function to_vcomp_gauge_mass!(cache, vcomp::C, g::Wannier, H, vs::NTuple, ms::NTuple) where C
+    E, vhs = to_vcomp_gauge!(cache, vcomp, Hamiltonian(), H, vs)
+    return to_gauge!(cache, g, E, vhs)..., ms
 end
 
-function to_vcomp_gauge_mass(vcomp::C, ::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {C,N,M}
-    E, vhs, mhs = to_gauge(Hamiltonian(), H, vws, mws)
-    return (E, to_vcomp(vcomp, vhs), mhs)
+function to_vcomp_gauge_mass!(cache, vcomp::C, ::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {C,N,M}
+    E, vhs, mhs = to_gauge!(cache, Hamiltonian(), H, vws, mws)
+    return (E, to_vcomp!(cache, vcomp, vhs), mhs)
 end
 
 """
@@ -347,28 +359,28 @@ Transform the velocities into a gauge according to the following values of `G`
 """
 to_vcomp_gauge
 
-to_vcomp_gauge(::Whole, ::Wannier, H, vs::NTuple) = (H, vs)
-function to_vcomp_gauge(vcomp::C, g::Wannier, H, vs::NTuple) where C
-    E, vhs = to_vcomp_gauge(vcomp, Hamiltonian(), H, vs)
-    to_gauge(g, E, vhs)
+to_vcomp_gauge!(cache, ::Whole, ::Wannier, H, vs::NTuple) = (H, vs)
+function to_vcomp_gauge!(cache, vcomp::C, g::Wannier, H, vs::NTuple) where C
+    E, vhs = to_vcomp_gauge!(cache, vcomp, Hamiltonian(), H, vs)
+    to_gauge!(cache, g, E, vhs)
 end
 
-function to_vcomp_gauge(vcomp::C, ::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}) where {C,N}
-    E, vhs = to_gauge(Hamiltonian(), H, vws)
+function to_vcomp_gauge!(cache, vcomp::C, ::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}) where {C,N}
+    E, vhs = to_gauge!(cache, Hamiltonian(), H, vws)
     return (E, to_vcomp(vcomp, vhs))
 end
 
-function to_gauge(g::Wannier, H::Eigen, vhs::NTuple{N}) where N
+function to_gauge!(cache, g::Wannier, H::Eigen, vhs::NTuple{N}) where N
     U = H.vectors
-    return (to_gauge(g, H), ntuple(n -> U * vhs[n] * U', Val(N)))
+    return (to_gauge!(cache, g, H), ntuple(n -> U * vhs[n] * U', Val(N)))
 end
-function to_gauge(g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}) where N
-    E = to_gauge(g, H)
+function to_gauge!(cache, g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}) where N
+    E = to_gauge!(cache, g, H)
     U = E.vectors
     return (E, ntuple(n -> U' * vws[n] * U, Val(N)))
 end
-function to_gauge(g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {N,M}
-    E = to_gauge(g, H)
+function to_gauge!(cache, g::Hamiltonian, H::AbstractMatrix, vws::NTuple{N}, mws::NTuple{M}) where {N,M}
+    E = to_gauge!(cache, g, H)
     U = E.vectors
     return (E, ntuple(n -> U' * vws[n] * U, Val(N)), ntuple(n -> U' * mws[n] * U, Val(M)))
 end
@@ -392,7 +404,7 @@ For details see [`to_vcomp_gauge`](@ref).
 Since the velocity depends on the Hamiltonian, subtypes should evaluate `(H(k),
 (v_1(k), v_2(k), ...))`.
 """
-abstract type AbstractVelocityInterp{C,B,G,N,T,iip} <:AbstractCoordInterp{B,G,N,T,iip} end
+abstract type AbstractVelocityInterp{C,B,G,N,T,iip} <: AbstractCoordInterp{B,G,N,T,iip} end
 
 vcomp(::AbstractVelocityInterp{C}) where C = C
 
@@ -408,13 +420,13 @@ VcompDefault(::T) where {T<:AbstractVelocityInterp} = VcompDefault(T)
 show_details(v::AbstractVelocityInterp) =
     " in $(gauge(v)) gauge and $(coord(v)) coordinates with $(vcomp(v)) velocities"
 
-to_vcomp_gauge_mass(vi::AbstractVelocityInterp, h, vs::NTuple, ms::NTuple) =
-    to_vcomp_gauge_mass(vcomp(vi), gauge(vi), h, vs, ms)
+to_vcomp_gauge_mass!(cache, vi::AbstractVelocityInterp, h, vs::NTuple, ms::NTuple) =
+    to_vcomp_gauge_mass!(cache, vcomp(vi), gauge(vi), h, vs, ms)
 
-to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::NTuple) =
-    to_vcomp_gauge(vcomp(vi), gauge(vi), h, vs)
-function to_vcomp_gauge(vi::AbstractVelocityInterp, h, vs::SVector)
-    rh, rvs = to_vcomp_gauge(vcomp(vi), gauge(vi), h, vs.data)
+to_vcomp_gauge!(cache, vi::AbstractVelocityInterp, h, vs::NTuple) =
+    to_vcomp_gauge!(cache, vcomp(vi), gauge(vi), h, vs)
+function to_vcomp_gauge!(cache, vi::AbstractVelocityInterp, h, vs::SVector)
+    rh, rvs = to_vcomp_gauge!(cache, vcomp(vi), gauge(vi), h, vs.data)
     return rh, SVector(rvs)
 end
 
@@ -435,3 +447,5 @@ function shift!(v::AbstractVelocityInterp, λ)
     shift!(parentseries(v), λ)
     return v
 end
+
+abstract type AbstractInverseMassInterp{C,B,G,N,T,iip} <: AbstractVelocityInterp{C,B,G,N,T,iip} end

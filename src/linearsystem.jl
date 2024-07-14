@@ -92,5 +92,5 @@ struct JLInvMatrix{A}
     A::A
 end
 Base.inv(A::JLInvMatrix) = A.A
-Base.:\(A::JLInvMatrix, b) = A.A * b
-LinearAlgebra.ldiv!(x, A::JLInvMatrix, b) = mul!(x, A.A, b)
+Base.:\(A::JLInvMatrix, b::AbstractVector) = A.A * b
+LinearAlgebra.ldiv!(x, A::JLInvMatrix, b::AbstractVector) = mul!(x, A.A, b)

@@ -178,9 +178,9 @@ function do_eigen(v::Val{vecs}, A, sortby::S, alg::JLEigen, cacheval; kws...) wh
     return EigenSolution(v, E, retcode, stats)
 end
 
-_eigen(args...; kws...) = eigen(args...; kws...)
+_eigen(A::AbstractMatrix, args...; kws...) = eigen(A, args...; kws...)
 _eigen(A::Union{<:Hermitian,<:Symmetric}, args...; sortby, kws...) = eigen(A, args...; sortby)
 _eigen(A::StaticArray, args...; permute, scale, kws...) = eigen(A, args...; permute, scale)
-_eigvals(args...; kws...) = eigvals(args...; kws...)
+_eigvals(A::AbstractMatrix, args...; kws...) = eigvals(A, args...; kws...)
 _eigvals(A::Union{<:Hermitian,<:Symmetric}, args...; sortby, kws...) = eigvals(A, args...; sortby)
 _eigvals(A::StaticArray, args...; permute, scale, kws...) = eigvals(A, args...; permute, scale)

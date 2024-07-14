@@ -3,7 +3,7 @@ using LinearAlgebra
 using StaticArrays
 using AutoBZ
 
-for alg in (JLTrInv(), LinearSystemTrInv(LUFactorization()), LinearSystemTrInv(JLInverse()), EigenTrInv(JLEigen()))
+for alg in (JLTrInv(), LinearSystemTrInv(LUFactorization()), LinearSystemTrInv(JLInv()), EigenTrInv(JLEigen()))
     for A in [
         rand(40, 40),
         rand(ComplexF64, 40, 40),

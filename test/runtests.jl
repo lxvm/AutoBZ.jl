@@ -15,14 +15,20 @@ function integer_lattice(n)
     end
     return C
 end
-function coeffs2FourierHamiltonian(C)
-    return HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(C; period=2pi)), nothing, nothing)
+function coeffs2FourierHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(C; period=2pi)), prob, alg; gauge)
 end
-function coeffs2HermitianHamiltonian(C)
-    return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(FourierSeries(C; period=2pi))), nothing, nothing)
+function coeffs2HermitianHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
 end
-function coeffs2RealSymmetricHamiltonian(C)
-    return HamiltonianInterp(AutoBZ.Freq2RadSeries(RealSymmetricFourierSeries(FourierSeries(C; period=2pi))), nothing, nothing)
+function coeffs2RealSymmetricHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(RealSymmetricFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
 end
 
 # run these tests with multiple threads to check multithreading works
@@ -34,7 +40,12 @@ end
     @testset "trinv" include("trinv.jl")
     @testset "GlocSolver" include("GlocSolver.jl")
     @testset "TrGlocSolver" include("TrGlocSolver.jl")
-    # @testset "apps" include("apps.jl")
+    @testset "TransportFunctionSolver" include("TransportFunctionSolver.jl")
+    @testset "TransportDistributionSolver" include("TransportDistributionSolver.jl")
+    @testset "ElectronDensitySolver" include("ElectronDensitySolver.jl")
+    @testset "KineticCoefficientSolver" include("KineticCoefficientSolver.jl")
+    @testset "AuxTransportDistributionSolver" include("AuxTransportDistributionSolver.jl")
+    @testset "AuxKineticCoefficientSolver" include("AuxKineticCoefficientSolver.jl")
     # TODO: validate linalg, soc, interpolation, fermi functions, self energies, io
 end
 

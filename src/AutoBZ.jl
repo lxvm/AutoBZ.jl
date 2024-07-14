@@ -100,22 +100,18 @@ export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnerg
 include("self_energies.jl")
 
 export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
-export TransportFunctionIntegrand, TransportDistributionIntegrand
-export KineticCoefficientIntegrand, OpticalConductivityIntegrand
-export ElectronDensityIntegrand
-export AuxTransportDistributionIntegrand, AuxKineticCoefficientIntegrand, AuxOpticalConductivityIntegrand
+export TransportFunctionSolver, TransportDistributionSolver
+export KineticCoefficientSolver, OpticalConductivitySolver
+export ElectronDensitySolver
+export AuxTransportDistributionSolver, AuxKineticCoefficientSolver, AuxOpticalConductivitySolver
 include("apps.jl")
-export Gloc2Solver
-include("GlocSolver.jl")
-export TrGloc2Solver
-include("TrGlocSolver.jl")
-
 
 export load_self_energy
 include("self_energies_io.jl")
 
 export SOCMatrix, SOCHamiltonianInterp
 include("soc.jl")
+include("SSymmetricCompact.jl")
 
 export load_interp, load_autobz, load_wannier90_data
 include("wannier90io.jl")

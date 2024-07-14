@@ -16,9 +16,9 @@ for d in 1:3
         abstol=1e-2
         reltol=0.0
         for alg in (PTR(; npt=50), IAI(), AutoPTR(a=η))
-            solver = TrGloc2Solver(h, bz, alg; Σ, ω, μ, abstol, reltol)
+            solver = TrGlocSolver(Σ, h, bz, alg; ω, μ, abstol, reltol)
             sol1 = solve!(solver)
-            AutoBZ.update!(solver; Σ, ω=-ω, μ)
+            AutoBZ.update_gloc!(solver; ω=-ω, μ)
             sol2 = solve!(solver)
             @test sol1.value ≈ -conj(sol2.value) atol=abstol rtol=reltol
         end

@@ -3,7 +3,7 @@ using LinearAlgebra
 using StaticArrays
 using AutoBZ
 
-for alg in (LUFactorization(), JLInverse())
+for alg in (LUFactorization(), JLInv())
     for A in [
         rand(40, 40),
         rand(ComplexF64, 40, 40),
