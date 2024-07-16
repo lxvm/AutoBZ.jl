@@ -30,10 +30,10 @@ interp_atol=1e-3
 order = 4
 fast_order = 15
 
-solver = DOSSolver(h, bz, IAI(); Σ, ω = (ω_lo+ω_hi)/2, abstol=atol, reltol=rtol)
-DOS = let solver=solver, Σ=Σ
+solver = DOSSolver(Σ, h, bz, IAI(); ω = (ω_lo+ω_hi)/2, abstol=atol, reltol=rtol)
+DOS = let solver=solver
     ω -> begin
-        AutoBZ.update!(solver; ω, Σ)
+        AutoBZ.update_gloc!(solver; ω)
         solve!(solver).value
     end
 end

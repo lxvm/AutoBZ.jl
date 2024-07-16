@@ -28,22 +28,20 @@ rtol = 0.0
 npt = 100
 
 
-kalgs = (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
+kalgs = (IAI(), AutoPTR(), PTR(; npt=npt))
 falg = QuadGKJL()
-
+fdom = (AutoBZ.lb(Σ), AutoBZ.ub(Σ))
 
 # loop to test various routines with the frequency integral on the inside
-integrand = ElectronDensityIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, h; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
 for kalg in kalgs
     @show nameof(typeof(kalg))
-    solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
-    @time @show solver(; μ)
+    solver = ElectronDensitySolver(h, bz, kalg, Σ, fdom, falg; β, μ, abstol=atol, reltol=rtol)
+    @time @show solve!(solver).value
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
-    local integrand = ElectronDensityIntegrand(bz, kalg, h; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
     @show nameof(typeof(kalg))
-    solver = IntegralSolver(integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
-    @time @show solver(; μ)
+    solver = ElectronDensitySolver(Σ, fdom, falg, h, bz, kalg; β, μ, abstol=atol, reltol=rtol)
+    @time @show solve!(solver).value
 end

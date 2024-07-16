@@ -30,20 +30,18 @@ npt = 25
 
 falg = QuadGKJL() # adaptive algorithm for frequency integral
 
-kalgs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR()) # BZ algorithms
+kalgs = (IAI(), PTR(; npt=npt), AutoPTR()) # BZ algorithms
 
 # loop to test various routines with the frequency integral on the inside
-integrand = OpticalConductivityIntegrand(AutoBZ.lb(Σ), AutoBZ.lb(Σ), falg, hv; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
 for kalg in kalgs
     @show nameof(typeof(kalg))
-    solver = IntegralSolver(integrand, bz, kalg; abstol=atol, reltol=rtol)
-    @time @show solver(; Ω)
+    solver = OpticalConductivitySolver(hv, bz, kalg, Σ, falg; Ω, β, abstol=atol, reltol=rtol)
+    @time @show solve!(solver).value
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
-    local integrand = OpticalConductivityIntegrand(bz, kalg, hv; Σ, β, abstol=atol, reltol=rtol)
     @show nameof(typeof(kalg))
-    solver = IntegralSolver(integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
-    @time @show solver(; Ω)
+    solver = OpticalConductivitySolver(Σ, falg, hv, bz, kalg; Ω, β, abstol=atol, reltol=rtol)
+    @time @show solve!(solver).value
 end
