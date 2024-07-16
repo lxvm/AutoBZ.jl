@@ -50,30 +50,22 @@ npt = 15
 kalg = PTR(; npt=npt)
 # kalg = AutoPTR()
 # kalg = IAI()
-#= alternative algorithms that save work for IAI when requesting a reltol
-kalg = PTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
-kalg = AutoPTR_IAI(; ptr=AutoPTR(), iai=IAI())
-=#
 
 
 # create integrand with bz integral on the inside
-oc_integrand = OpticalConductivityIntegrand(bz, kalg, hv; Σ, β, abstol=atol, reltol=rtol)
-oc_solver = IntegralSolver(oc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
+oc_solver = OpticalConductivitySolver(Σ, falg, hv, bz, kalg; β, Ω=first(Ωs), abstol=atol, reltol=rtol)
 
 # create integrand with frequency integral on the inside
-# oc_integrand = OpticalConductivityIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
-# oc_solver = IntegralSolver(oc_integrand, bz, kalg; abstol=atol, reltol=rtol)
+# oc_solver = OpticalConductivitySolver(hv, bz, kalg, Σ, falg; β, Ω=first(Ωs), abstol=atol, reltol=rtol)
 
 # run calculation
-nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
-
 results = h5open("oc.h5", "w") do h5
-    batchsolve(h5, oc_solver, paramzip(Ω=Ωs); nthreads=nthreads)
+    h5["frequencies"] = collect(Ωs)
+    dat_oc = create_dataset(h5, "conductivities", ComplexF64, (3, 3, length(Ωs)))
+    for (i, Ω) in enumerate(Ωs)
+        AutoBZ.update_oc!(oc_solver; β, Ω)
+        sol = solve!(oc_solver)
+        dat_oc[:,:,i] = sol.value
+    end
+    dat_oc[:,:,:]
 end
-
-# show the number of points used on the ibz
-kalg isa AutoPTR && @show AutoSymPTR.countevals.(oc_integrand.p[1].cacheval.cache)
-# show npt/dim
-kalg isa AutoPTR && bz.syms !== nothing && @show getproperty.(oc_integrand.p[1].cacheval.cache, :npt)
-
-nothing
