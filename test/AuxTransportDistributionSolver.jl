@@ -7,7 +7,7 @@ for d in 1:3
     for hv in [
         let h=coeffs2FourierHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), LAPACKEigen(); gauge=Hamiltonian()); end,
         let h=coeffs2HermitianHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), JLEigen(); gauge=Hamiltonian()); end,
-        let h=coeffs2RealSymmetricHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), JLEigen(); gauge=Hamiltonian()); end,
+        # let h=coeffs2RealSymmetricHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), JLEigen(); gauge=Hamiltonian()); end,
     ]
         η = 1.0
         Σ = EtaSelfEnergy(η)

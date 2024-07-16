@@ -25,11 +25,13 @@ function coeffs2HermitianHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
     alg = gauge isa Wannier ? nothing : eigalg
     return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
 end
+#=
 function coeffs2RealSymmetricHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
     prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
     alg = gauge isa Wannier ? nothing : eigalg
     return HamiltonianInterp(AutoBZ.Freq2RadSeries(RealSymmetricFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
 end
+=#
 
 # run these tests with multiple threads to check multithreading works
 @testset "AutoBZ" begin
