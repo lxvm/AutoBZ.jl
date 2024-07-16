@@ -9,7 +9,7 @@ AutoBZ.tr_kron
 AutoBZ.gloc_integrand
 AutoBZ.diag_inv
 AutoBZ.tr_mul
-AutoBZ.to_gauge
+AutoBZ.to_gauge!
 AutoBZ.fermi_window_halfwidth
 AutoBZ.diaggloc_integrand
 AutoBZ.CoordDefault
@@ -17,7 +17,7 @@ AutoBZ.CartesianRep
 AutoBZ.to_coord
 AutoBZ.shift!
 AutoBZ.tr_inv
-AutoBZ.to_vcomp_gauge
+AutoBZ.to_vcomp_gauge!
 AutoBZ.get_safe_fermi_window_limits
 AutoBZ.parentseries
 AutoBZ.commutator
@@ -28,5 +28,9 @@ AutoBZ.LatticeRep
 AutoBZ.GaugeDefault
 AutoBZ.VcompDefault
 AutoBZ.herm
-AutoBZ.default_transport_auxfun
+AutoBZ.EigenProblem
+AutoBZ.hasvecs
+AutoBZ.LinearSystemProblem
+AutoBZ.LUFactorization
+AutoBZ.JLInv
 ```

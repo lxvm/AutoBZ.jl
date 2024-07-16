@@ -73,9 +73,12 @@ using AutoBZ
 function get_dos(seedname, self_energy_path, ωs, rtol, atol)
     H, FBZ = load_wannier90_data(seedname)
     Σ = load_self_energy(self_energy_path)
-    integrand = DOSIntegrand(H, Σ)
-    dos = IntegralSolver(integrand, FBZ, abstol=atol, reltol=rtol)
-    return batchsolve(dos, ωs)
+    integrand = DOSSolver(Σ, H, FBZ, IAI(); ω=first(ωs))
+    solver = IntegralSolver(integrand, FBZ, abstol=atol, reltol=rtol)
+    return map(ωs) do ω
+        update_gloc!(solver; ω)
+        solve!(solver).value
+    end
 end
 ```
 The MATLAB snippet below shows how to setup the Julia server to run a demo

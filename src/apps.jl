@@ -33,7 +33,7 @@ Returns `-imag(tr(inv(M-h)))/pi` where `M = ω*I-Σ(ω)`. It is unsafe to use
 this in the inner integral for small eta due to the localized tails of the
 integrand. The default, safe version also integrates the real part which is less
 localized, at the expense of a slight slow-down due to complex arithmetic.
-See [`TrGlocIntegrand`](@ref).
+See [`trgloc_integrand`](@ref).
 """
 dos_integrand(G) = -imag(tr_inv(G))/pi
 
@@ -51,7 +51,7 @@ end
 # TODO implement these integrands with a CommonSolveIntegralFunction with a ResolventProblem
 
 # Generic behavior for single Green's function integrands (methods and types)
-for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
+for (name, rep) in (("Gloc", UnknownRep()), ("DiagGloc", UnknownRep()), ("TrGloc", TrivialRep()), ("DOS", TrivialRep()))
     # create and export symbols
     f = Symbol(lowercase(name), "_integrand")
     T = Symbol(name, "Solver")
@@ -70,13 +70,14 @@ for name in ("Gloc", "DiagGloc", "TrGloc", "DOS")
         Green's function integrands accepting a self energy Σ that can either be a matrix or a
         function of ω (see the self energy section of the documentation for examples)
         Additional keywords are passed directly to the solver.
+        Use `AutoBZ.update_gloc!(solver; ω, μ=0)` to change the parameters.
         """
         function $T(Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, alg; ω, μ=zero(ω), kws...)
             p = (Σ, evalM(; ω, Σ, μ))
             k = SVector(period(h))
             proto = $f(k, h(k), p)
             f = FourierIntegralFunction($f, h, proto)
-            prob = AutoBZProblem(UnknownRep(), f, bz, p; kws...)
+            prob = AutoBZProblem($rep, f, bz, p; kws...)
             return init(prob, alg)
         end
     end
@@ -147,6 +148,7 @@ D_{\\alpha\\beta} = \\sum_{nm} \\int_{\\text{BZ}} dk f'(\\epsilon_{nk}-\\mu) \\n
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distribution.
 Additional keywords are passed directly to the solver.
+Use `AutoBZ.update_tf!(solver; β, μ=0)` to update the parameters.
 """
 function TransportFunctionSolver(hv::AbstractVelocityInterp, bz, bzalg; β, μ=zero(inv(oneunit(β))), kws...)
     @assert gauge(hv) isa Hamiltonian
@@ -217,6 +219,7 @@ A function whose integral over the BZ gives the transport distribution
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 Additional keywords are passed directly to the solver.
+Use `AutoBZ.update_td!(solver; ω₁, ω₂, μ=0)` to update the parameters.
 """
 function TransportDistributionSolver(Σ::AbstractSelfEnergy, hv::AbstractVelocityInterp, bz, bzalg; ω₁, ω₂, μ=zero(ω₁), kwargs...)
     p = (Σ, evalM2(; Σ, ω₁, ω₂, μ))
@@ -229,19 +232,20 @@ function TransportDistributionSolver(Σ::AbstractSelfEnergy, hv::AbstractVelocit
 end
 
 """
-    KineticCoefficientIntegrand(hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, Σ, alg; n, β, Ω, μ=0, abstol, reltol, maxiters)
-    KineticCoefficientIntegrand(Σ, alg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm; n, β, Ω, μ=0, abstol, reltol, maxiters)
+    KineticCoefficientSolver(hv, bz, bzalg, Σ, falg; n, β, Ω, μ=0, kws...)
+    KineticCoefficientSolver(Σ, falg, hv, bz, bzalg; n, β, Ω, μ=0, kws...)
 
-A function whose integral over the BZ gives the kinetic
-coefficient. Mathematically, this computes
+A solver for kinetic coefficients.
+The two orderings of arguments correspond to orders of integration.
+(The outer integral appears first in the argument list.)
+Use `AutoBZ.update_kc!(solver; β, Ω, μ, n)` to change parameters.
+
+Mathematically, this computes
 ```math
 A_{n,\\alpha\\beta}(\\Omega) = \\int_{-\\infty}^{\\infty} d \\omega (\\beta\\omega)^{n} \\frac{f(\\omega) - f(\\omega+\\Omega)}{\\Omega} \\Gamma_{\\alpha\\beta}(\\omega, \\omega+\\Omega)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
-The argument `alg` determines what the order of integration is. Given a BZ
-algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
-integral.
 """
 function KineticCoefficientSolver(Σ::AbstractSelfEnergy, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm; β, Ω, n, μ=zero(Ω), kws...)
     inner_kws = _rescale_abstol(inv(max(Ω, inv(β))); kws...)
@@ -323,10 +327,12 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
 end
 
 """
-    OpticalConductivitySolver
+    OpticalConductivitySolver(hv, bz, bzalg, Σ, falg; β, Ω, μ=0, kws...)
+    OpticalConductivitySolver(Σ, falg, hv, bz, bzalg; β, Ω, μ=0, kws...)
 
-Returns a `KineticCoefficientSolver` with `n=0`. See
-[`KineticCoefficientSolver`](@ref) for further details
+A solver for the optical conductivity. For details see [`KineticCoefficientSolver`](@ref)
+and note that by default the parameter `n=0`. Use `AutoBZ.update_oc!(solver; β, Ω, μ)` to
+change parameters.
 """
 OpticalConductivitySolver(args...; kws...) = KineticCoefficientSolver(args...; kws..., n=0)
 update_oc!(solver; kws...) = update_kc!(solver; kws..., n=0)
@@ -334,8 +340,13 @@ update_oc!(solver; kws...) = update_kc!(solver; kws..., n=0)
 # Electron density
 
 """
-    ElectronDensitySolver(bz, alg::AutoBZAlgorithm, h::AbstractHamiltonianInterp; Σ, β, [μ=0])
-    ElectronDensitySolver(lb, ub, alg, h::AbstractHamiltonianInterp; Σ, β, [μ=0])
+    ElectronDensitySolver(h, bz, bzalg, Σ, fdom, falg; β, μ=0, kws...)
+    ElectronDensitySolver(Σ, fdom, falg, h, bz, bzalg; β, μ=0, kws...)
+
+A solver for the electron density.
+The two orderings of arguments correspond to orders of integration.
+(The outer integral appears first in the argument list.)
+Use `AutoBZ.update_density!(solver; β, μ=0)`
 
 A function whose integral over the BZ gives the electron density.
 Mathematically, this computes
@@ -343,10 +354,6 @@ Mathematically, this computes
 n(\\mu) = \\int_{-\\infty}^{\\infty} d \\omega f(\\omega) \\operatorname{DOS}(\\omega+\\mu)
 ```
 where ``f(\\omega) = (e^{\\beta\\omega}+1)^{-1}`` is the Fermi distriubtion.
-The argument `alg` determines what the order of integration is. Given a BZ
-algorithm, the inner integral is the BZ integral. Otherwise it is the frequency
-integral.
-
 To get the density/number of electrons, multiply the result of this integral by `n_sp/det(bz.B)`
 """
 function ElectronDensitySolver(Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHamiltonianInterp, bz, bzalg; β, μ=zero(inv(oneunit(β))), bandwidth=one(μ), kws...)
@@ -355,11 +362,11 @@ function ElectronDensitySolver(Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHa
     inner_kws = _rescale_abstol(inv(bandwidth); kws...)
     dos_solver = DOSSolver(Σ, h, bz, bzalg; ω=(fdom[1]+fdom[2])/2, μ, inner_kws...)
     p = (; β, μ)
-    proto = dos_solver.f.prototype * fermi(β, (fdom[1]+fdom[2])/2)
+    proto = dos_solver.f.prototype * V * fermi(β, (fdom[1]+fdom[2])/2)
     f = IntegralFunction(proto) do ω, (; β, μ)
         update_gloc!(dos_solver; ω, μ)
         dos = solve!(dos_solver).value
-        return dos/V*fermi(β, ω)
+        return dos*fermi(β, ω)
     end
     prob = IntegralProblem(f, get_safe_fermi_function_limits(β, lb(Σ), ub(Σ)), p; kws...)
     return init(prob, falg)
@@ -392,9 +399,8 @@ function ElectronDensitySolver(h::AbstractHamiltonianInterp, bz, bzalg, Σ::Abst
         solver.dom = get_safe_fermi_function_limits(β, fdom...)
         return
     end
-    post = (sol, k, h, p) -> sol.value/V
-    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ/V)
-    # TODO rescale abstol by 1/V
+    post = (sol, k, h, p) -> sol.value
+    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
     prob = AutoBZProblem(TrivialRep(), f, bz, (; β, μ); kws...)
     return init(prob, bzalg)
 end
@@ -441,6 +447,7 @@ A function whose integral over the BZ gives the transport distribution
 ```
 Based on [TRIQS](https://triqs.github.io/dft_tools/latest/guide/transport.html).
 Additional keywords are passed directly to the solver.
+Use `AutoBZ.update_auxtd!(solver; ω₁, ω₂, μ)` to update the parameters.
 """
 function AuxTransportDistributionSolver(auxfun, Σ::AbstractSelfEnergy, hv::AbstractVelocityInterp, bz, bzalg; ω₁, ω₂, μ=zero(ω₁), kwargs...)
     p = (auxfun, Σ, evalM2(; Σ, ω₁, ω₂, μ))
@@ -464,6 +471,16 @@ function update_auxtd!(solver; ω₁, ω₂, μ=zero(ω₁))
     return
 end
 
+"""
+    AuxKineticCoefficientSolver([auxfun], hv, bz, bzalg, Σ, falg; n, β, Ω, μ=0, kws...)
+    AuxKineticCoefficientSolver([auxfun], Σ, falg, hv, bz, bzalg; n, β, Ω, μ=0, kws...)
+
+A solver for kinetic coefficients using an auxiliary integrand.
+The two orderings of arguments correspond to orders of integration.
+(The outer integral appears first in the argument list.)
+The default `auxfun` is the sum of the Green's functions.
+Use `AutoBZ.update_auxkc!(solver; β, Ω, μ, n)` to change parameters.
+"""
 function AuxKineticCoefficientSolver(auxfun, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, Σ::AbstractSelfEnergy, falg; β, Ω, n, μ=zero(inv(oneunit(β))), bandwidth=one(μ), kws...)
     k = SVector(period(hv))
     hvk = hv(k)
@@ -515,5 +532,13 @@ function update_auxkc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω)
     return
 end
 
+"""
+    AuxOpticalConductivitySolver([auxfun], hv, bz, bzalg, Σ, falg; β, Ω, μ=0, kws...)
+    AuxOpticalConductivitySolver([auxfun], Σ, falg, hv, bz, bzalg; β, Ω, μ=0, kws...)
+
+A solver for the optical conductivity. For details see [`AuxKineticCoefficientSolver`](@ref)
+and note that by default the parameter `n=0`. Use `AutoBZ.update_auxoc!(solver; β, Ω, μ)` to
+change parameters.
+"""
 AuxOpticalConductivitySolver(args...; kws...) = AuxKineticCoefficientSolver(args...; kws..., n=0)
 update_auxoc!(solver; kws...) = update_auxkc!(solver; kws..., n=0)

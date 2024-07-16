@@ -58,28 +58,27 @@ integral
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
 rate. We implement our own user-defined integrand with the
-`AutoBZCore.FourierIntegrand` type and an `AutoBZCore.IntegralSolver`:
+`AutoBZCore.FourierIntegralFunction`:
 ```@example dos_z
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-dos_integrand(H_k, η, ω) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
-dos_integrand(H_k::FourierValue, η, ω) = dos_integrand(H_k.s, η, ω) # unwrap the value of the series
-D = FourierIntegrand(dos_integrand, H, η) # user-defined integrand with partial arguments
+dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
+D = FourierIntegralFunction(dos_integrand, H, (; η, ω)) # user-defined integrand with partial arguments
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
 ```@example dos_z
 using LinearAlgebra
 bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
-solver = IntegralSolver(D, bz, PTR(npt=50))
+solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50))
 ```
 We can calculate and plot the DOS as a function of frequency
 ```@example dos_z
 ENV["GKSwstype"] = "100" # hide
 using Plots
 freqs = range(-ω, ω, length=100) * 1.1
-plot(freqs, solver, title="Cubic lattice", xguide="ħω", yguide="DOS", label="η=$η")
+plot(freqs, ω -> (solver.p = (; solver.p..., ω); solve!(solver).value), title="Cubic lattice", xguide="ħω", yguide="DOS", label="η=$η")
 savefig("dos_z.png"); nothing # hide
 ```
 
@@ -159,15 +158,14 @@ H = FourierSeries(C, period = 2*pi/a)
 ```
 The DOS integrand can be formulated as before, except it must also compute the
 trace since this Hamiltonian is matrix-valued. Another option would be to use
-the pre-defined [`AutoBZ.DOSIntegrand`](@ref).
+the pre-defined [`AutoBZ.DOSSolver`](@ref).
 ```@example dos_g
 using LinearAlgebra
 ω = 4.0 # eV
 η = 0.1 # eV
 Σ = EtaSelfEnergy(η)
-D = DOSIntegrand(HamiltonianInterp(AutoBZ.Freq2RadSeries(H)); Σ)
 bz = load_bz(FBZ(2), Diagonal(collect(AutoBZ.period(H))))
-solver = IntegralSolver(D, bz, PTR(npt=100))
+solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=100); ω)
 ```
 Using this integral solver, we can compute a fast-to-evaluate, adaptive
 interpolant for the DOS using
@@ -176,7 +174,7 @@ interpolant for the DOS using
 ENV["GKSwstype"] = "100" # hide
 using HChebInterp
 using Plots
-DOS = hchebinterp(ω -> solver(; ω), -ω, ω; atol=1e-3)
+DOS = hchebinterp(ω -> (AutoBZ.update_gloc!(solver; ω); solve!(solver).value), -ω, ω; atol=1e-3)
 plot(range(-ω, ω, length=1000), DOS, title="Graphene", xguide="ħω", yguide="DOS", label="η=$η")
 savefig("dos_g.png"); nothing # hide
 ```

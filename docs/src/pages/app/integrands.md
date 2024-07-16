@@ -12,7 +12,7 @@ data are necessary to define an integrand:
 - a Fourier series
 - additional parameters for the evaluator
 Consider implementing custom integrands using the generic template type
-`AutoBZCore.FourierIntegrand` that is compatible with all of
+`AutoBZCore.FourierIntegralFunction` that is compatible with all of
 the adaptive and equispace integration routines. Using this interface will
 automatically evaluate the multi-dimensional Fourier series in an efficient
 manner for each integration routines.
@@ -22,18 +22,18 @@ manner for each integration routines.
 ### Constructors
 
 ```@docs
-AutoBZ.GlocIntegrand
-AutoBZ.DiagGlocIntegrand
-AutoBZ.TrGlocIntegrand
-AutoBZ.DOSIntegrand
-AutoBZ.TransportFunctionIntegrand
-AutoBZ.TransportDistributionIntegrand
-AutoBZ.KineticCoefficientIntegrand
-AutoBZ.OpticalConductivityIntegrand
-AutoBZ.ElectronDensityIntegrand
-AutoBZ.AuxTransportDistributionIntegrand
-AutoBZ.AuxKineticCoefficientIntegrand
-AutoBZ.AuxOpticalConductivityIntegrand
+AutoBZ.GlocSolver
+AutoBZ.DiagGlocSolver
+AutoBZ.TrGlocSolver
+AutoBZ.DOSSolver
+AutoBZ.TransportFunctionSolver
+AutoBZ.TransportDistributionSolver
+AutoBZ.KineticCoefficientSolver
+AutoBZ.OpticalConductivitySolver
+AutoBZ.ElectronDensitySolver
+AutoBZ.AuxTransportDistributionSolver
+AutoBZ.AuxKineticCoefficientSolver
+AutoBZ.AuxOpticalConductivitySolver
 ```
 
 ### Functions

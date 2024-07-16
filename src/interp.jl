@@ -37,7 +37,7 @@ show_details(s::Freq2RadSeries) = show_details(s.s)
     HamiltonianInterp(f::AbstractFourierSeries; gauge=:Wannier)
 
 A wrapper for `FourierSeries` with an additional gauge that allows for
-convenient diagonalization of the result. For details see [`to_gauge`](@ref).
+convenient diagonalization of the result. For details see [`to_gauge!`](@ref).
 """
 struct HamiltonianInterp{G,N,T,iip,P,A,F<:Freq2RadSeries{N,T,iip}} <: AbstractHamiltonianInterp{G,N,T,iip}
     f::F

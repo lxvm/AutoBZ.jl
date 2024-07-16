@@ -83,7 +83,7 @@ where ``N`` is the number of bands.
 struct Hamiltonian <: AbstractGauge end
 
 """
-    to_gauge(::AbstractGauge, h) where gauge
+    to_gauge!(cache, ::AbstractGauge, h) where gauge
 
 Transform the Hamiltonian according to the following values of `gauge`
 - [`Wannier`](@ref): keeps `h, vs` in the original, orbital basis
@@ -106,7 +106,7 @@ An abstract subtype of `AbstractFourierSeries` representing
 Fourier series evaluators for Wannier-interpolated quantities with a choice of
 gauge, `G`, which is typically [`Hamiltonian`](@ref) or [`Wannier`](@ref).
 A gauge is a choice of basis for the function space of the operator.
-For details, see [`to_gauge`](@ref).
+For details, see [`to_gauge!`](@ref).
 """
 abstract type AbstractGaugeInterp{G,N,T,iip} <: AbstractWannierInterp{N,T,iip} end
 
@@ -152,10 +152,12 @@ function shift!(f::HermitianFourierSeries, λ::Number)
     _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n) + (n == 1 ? 0 : div(size(f.c, n), 2)), Val(ndims(f.c)))), λ)
     return f
 end
+#=
 function shift!(f::RealSymmetricFourierSeries, λ::Number)
     _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n), Val(ndims(f.c)))), λ)
     return f
 end
+=#
 
 function _shift!(c::AbstractArray, o::CartesianIndex, λ_::Number)
     λ = convert(eltype(eltype(c)), λ_)
@@ -346,7 +348,7 @@ function to_vcomp_gauge_mass!(cache, vcomp::C, ::Hamiltonian, H::AbstractMatrix,
 end
 
 """
-    to_vcomp_gauge(::Val{C}, ::Val{G}, h, vs...) where {C,G}
+    to_vcomp_gauge!(cache, ::Val{C}, ::Val{G}, h, vs...) where {C,G}
 
 Take the velocity components of `vs` in any gauge according to the value of `C`
 - [`Whole`](@ref): return the whole velocity (sum of interband and intraband components)
@@ -357,7 +359,7 @@ Transform the velocities into a gauge according to the following values of `G`
 - [`Wannier`](@ref): keeps `H, vs` in the original, orbital basis
 - [`Hamiltonian`](@ref): diagonalizes `H` and rotates `H, vs` into the energy, band basis
 """
-to_vcomp_gauge
+to_vcomp_gauge!
 
 to_vcomp_gauge!(cache, ::Whole, ::Wannier, H, vs::NTuple) = (H, vs)
 function to_vcomp_gauge!(cache, vcomp::C, g::Wannier, H, vs::NTuple) where C
@@ -400,7 +402,7 @@ An abstract subtype of `AbstractCoordInterp` also containing information the
 velocity component, `C`, which is typically [`Whole`](@ref), [`Inter`](@ref), or
 [`Intra`](@ref). These choices refer to the diagonal (intra) or off-diagonal
 (inter) matrix elements of the velocity operator in the eigebasis of `H(k)`.
-For details see [`to_vcomp_gauge`](@ref).
+For details see [`to_vcomp_gauge!`](@ref).
 Since the velocity depends on the Hamiltonian, subtypes should evaluate `(H(k),
 (v_1(k), v_2(k), ...))`.
 """
