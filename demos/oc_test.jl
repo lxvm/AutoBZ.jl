@@ -10,7 +10,7 @@ using AutoBZ
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
 # keywords
 seed = "svo"
-hv, bz = load_wannier90_data(seed; interp=CovariantVelocityInterp, gauge=Wannier(), vcomp=Whole(), coord=Cartesian(), bz=CubicSymIBZ())
+hv, bz = load_wannier90_data(seed; interp=CovariantVelocityInterp, gauge=Wannier(), vcomp=Whole(), coord=Cartesian(), bz=InversionSymIBZ())
 
 # Define problem parameters
 Ω = 0.0 # eV

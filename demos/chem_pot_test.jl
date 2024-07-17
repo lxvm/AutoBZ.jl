@@ -7,7 +7,7 @@ using LinearAlgebra
 using AutoBZ
 
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
-h, bz = load_wannier90_data("svo"; interp=HamiltonianInterp, bz=CubicSymIBZ())
+h, bz = load_wannier90_data("svo"; interp=HamiltonianInterp, bz=InversionSymIBZ())
 
 # Define problem parameters
 μ = 11.0
@@ -25,23 +25,22 @@ T = 50 # K
 # set error tolerances
 atol = 1e-3
 rtol = 0.0
-npt = 100
+npt = 25
 
 
-kalgs = (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
+kalgs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
 falg = QuadGKJL()
-fdom = (AutoBZ.lb(Σ), AutoBZ.ub(Σ))
 
 # loop to test various routines with the frequency integral on the inside
 for kalg in kalgs
     @show nameof(typeof(kalg))
-    solver = ElectronDensitySolver(h, bz, kalg, Σ, fdom, falg; β, μ, abstol=atol, reltol=rtol)
+    solver = ElectronDensitySolver(h, bz, kalg, Σ, falg; β, μ, abstol=atol, reltol=rtol)
     @time @show solve!(solver).value
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
     @show nameof(typeof(kalg))
-    solver = ElectronDensitySolver(Σ, fdom, falg, h, bz, kalg; β, μ, abstol=atol, reltol=rtol)
+    solver = ElectronDensitySolver(Σ, falg, h, bz, kalg; β, μ, abstol=atol, reltol=rtol)
     @time @show solve!(solver).value
 end
