@@ -28,7 +28,7 @@ rtol = 0.0
 npt = 100
 
 
-kalgs = (IAI(), AutoPTR(), PTR(; npt=npt))
+kalgs = (IAI(), TAI(), AutoPTR(), PTR(; npt=npt))
 falg = QuadGKJL()
 fdom = (AutoBZ.lb(Σ), AutoBZ.ub(Σ))
 

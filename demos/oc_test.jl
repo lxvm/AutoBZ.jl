@@ -30,7 +30,7 @@ npt = 25
 
 falg = QuadGKJL() # adaptive algorithm for frequency integral
 
-kalgs = (IAI(), PTR(; npt=npt), AutoPTR()) # BZ algorithms
+kalgs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR()) # BZ algorithms
 
 # loop to test various routines with the frequency integral on the inside
 for kalg in kalgs
