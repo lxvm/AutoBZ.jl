@@ -23,7 +23,6 @@ manner for each integration routines.
 
 ```@docs
 AutoBZ.GlocSolver
-AutoBZ.DiagGlocSolver
 AutoBZ.TrGlocSolver
 AutoBZ.DOSSolver
 AutoBZ.TransportFunctionSolver
