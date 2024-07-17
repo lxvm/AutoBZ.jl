@@ -107,13 +107,11 @@ include("TransportFunctionSolver.jl")
 export ElectronDensitySolver
 include("ElectronDensitySolver.jl")
 export TransportDistributionSolver
+export AuxTransportDistributionSolver
 include("TransportDistributionSolver.jl")
 export KineticCoefficientSolver, OpticalConductivitySolver
-include("KineticCoefficientSolver.jl")
-export AuxTransportDistributionSolver
-include("AuxTransportDistributionSolver.jl")
 export AuxKineticCoefficientSolver, AuxOpticalConductivitySolver
-include("AuxKineticCoefficientSolver.jl")
+include("KineticCoefficientSolver.jl")
 
 
 export load_self_energy

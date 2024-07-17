@@ -9,7 +9,7 @@ function update_greens!(solver; ω, μ=zero(ω))
     return
 end
 
-function _GreensSolver(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, bzalg, linalg; ω, μ=zero(ω), kws...) where {F}
+function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, linalg; ω, μ=zero(ω), kws...) where {F}
     p = (deepcopy(Σ), evalM(; ω, Σ, μ))
     k = SVector(period(h))
     hk= h(k)
@@ -36,7 +36,10 @@ function _GreensSolver(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInt
     end |> fun
     proto = post(solve(linprob, linalg), k, hk, p)
     f = CommonSolveFourierIntegralFunction(linprob, linalg, up, post, h, proto)
-    prob = AutoBZProblem(rep, f, bz, p; kws...)
+    return AutoBZProblem(rep, f, bz, p; kws...)
+end
+function _GreensSolver(fun::F, Σ, h, bz, bzalg, linalg; kws...) where {F}
+    prob = _GreensProblem(fun, Σ, h, bz, linalg; kws...)
     return init(prob, bzalg)
 end
 
