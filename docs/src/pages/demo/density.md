@@ -30,7 +30,7 @@ H[ 1, 1, 0] = H[-1,-1, 0] =  [ 0;t′; 0;;t′; 0; 0;; 0; 0; 0]
 H[ 1,-1, 0] = H[-1, 1, 0] = -[ 0;t′; 0;;t′; 0; 0;; 0; 0; 0]
 H = HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(H, period=2pi)))
 ```
-With this Hamiltonian we can define an [`AutoBZ.ElectronDensityIntegrand`](@ref)
+With this Hamiltonian we can define an [`AutoBZ.ElectronDensitySolver`](@ref)
 and a solver that computes the electron density at a given temperature and
 scattering rate.
 ```@example chempot
@@ -41,8 +41,7 @@ bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H))))
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-integrand = ElectronDensityIntegrand(-Inf, Inf, QuadGKJL(), H; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
-solver = IntegralSolver(integrand, bz, PTR(npt=50))
+solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol)
 ```
 Here, we have chosen to the order of integration to compute a frequency integral
 for each ``\bm{k}`` point. We can compute the density over a range of chemical
@@ -51,7 +50,7 @@ potentials and account for the normalization of the integral
 ENV["GKSwstype"] = "100" # hide
 using Plots
 freqs = range(-2, 2, length=100)
-plot(freqs, μ -> 2*solver(; μ)/det(bz.B), title="Two hopping model", xguide="μ", yguide="Electron filling", label="η=$η, β=$β")
+plot(freqs, μ -> (AutoBZ.update_density!(solver; β, μ); solve!(solver).value*2/det(bz.B)), title="Two hopping model", xguide="μ", yguide="Electron filling", label="η=$η, β=$β")
 savefig("number_density.png"); nothing # hide
 ```
 
@@ -67,7 +66,7 @@ root-finding algorithms.
 
 ```@example chempot
 using SimpleNonlinearSolve
-number_density(μ, (solver, n_sp, ν, V, β)) = ν - solver(; μ, β)*n_sp/V
+number_density(μ, (solver, n_sp, ν, V, β)) = (AutoBZ.update_density!(solver; μ, β); ν - solve!(solver).value*n_sp/V)
 interval = (-1.0, 1.0)
 prob = IntervalNonlinearProblem(number_density, interval, (solver, 2, 1.0, det(bz.B), β))
 solve(prob, ITP())

@@ -37,7 +37,7 @@ The optical conductivity requires the velocity operators in addition to the
 Hamiltonian in order to compute the current-current correlations. To load a
 Hamiltonian and velocities from Wannier90 data, see
 [`AutoBZ.load_wannier90_data`](@ref). For integrating the optical conductivity,
-we construct an [`AutoBZ.OpticalConductivityIntegrand`](@ref) and a solver for
+we construct an [`AutoBZ.OpticalConductivitySolver`](@ref) and a solver for
 the BZ integral
 ```@example oc
 η = 0.1 # eV
@@ -46,8 +46,7 @@ the BZ integral
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-integrand = OpticalConductivityIntegrand(-Inf, Inf, QuadGKJL(), hv; Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
-solver = IntegralSolver(integrand, bz, PTR(npt=50))
+solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); β, Ω=0.0, μ, abstol=atol/nsyms(bz), reltol=rtol)
 ```
 Then we can evaluate the frequency dependence of the conductivity and plot
 particular matrix elements.
@@ -55,7 +54,7 @@ particular matrix elements.
 ENV["GKSwstype"] = "100" # hide
 using Plots
 freqs = range(0, 1, length=100)
-plot(freqs, Ω -> real(solver(; Ω)[1,1]), title="Two hopping model", xguide="Ω", yguide="σₓₓ (a.u.)", label="η=$η, β=$β")
+plot(freqs, Ω -> (AutoBZ.update_oc!(solver; β, Ω, μ); real(solve!(solver).value[1,1])), title="Two hopping model", xguide="Ω", yguide="σₓₓ (a.u.)", label="η=$η, β=$β")
 savefig("conductivity.png"); nothing # hide
 ```
 
@@ -65,14 +64,17 @@ savefig("conductivity.png"); nothing # hide
 ## Kinetic coefficients
 
 A generalization of the optical conductivity is the
-[`AutoBZ.KineticCoefficientIntegrand`](@ref), which enables the calculation of
+[`AutoBZ.KineticCoefficientSolver`](@ref), which enables the calculation of
 additional transport properties. For example, we can compute the Seebeck
 coefficient as a function of temperature
 ```@example oc
-integrand_1 = KineticCoefficientIntegrand(-Inf, Inf, QuadGKJL(), hv; n=1, Σ, β, abstol=atol/nsyms(bz), reltol=rtol)
-solver_1 = IntegralSolver(integrand_1, bz, PTR(npt=50))
+solver_1 = KineticCoefficientSolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); n=1, Ω=0.0, β, μ, abstol=atol/nsyms(bz), reltol=rtol)
 temps = range(100, 300, length=10)
-f = T -> -real(solver_1(; β=inv(8.617333262e-5*T), Ω=0.0)[1,1]) / real(solver(; β=inv(8.617333262e-5*T), Ω=0.0)[1,1])
+f = T -> begin
+    AutoBZ.update_oc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ)
+    AutoBZ.update_kc!(solver_1; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=1)
+    -real(solve!(solver_1).value[1,1]) / real(solve!(solver).value[1,1])
+end
 plot(temps, f, title="Two hopping model", xguide="T", yguide="κₓₓ (a.u.)", label="η=$η")
 savefig("seebeck.png"); nothing # hide
 ```
@@ -80,7 +82,7 @@ savefig("seebeck.png"); nothing # hide
 ![model Seebeck](seebeck.png)
 
 The kinetic coefficients calculate the higher moments of the
-[`AutoBZ.TransportDistributionIntegrand`](@ref) and are especially useful for
+[`AutoBZ.TransportDistributionSolver`](@ref) and are especially useful for
 thermal properties of solids.
 
 ## Auxiliary integration
@@ -91,12 +93,12 @@ from a peak missing problem that we address with a technique called auxiliary
 integration.
 
 ```@example oc
+using IteratedIntegration: AuxValue
 η = 0.01 # eV
 aux_atol = 1e-2
 trG_auxfun(vs, G1, G2) = tr(G1) + tr(G2)
-aux_integrand = AuxOpticalConductivityIntegrand(-Inf, Inf, AuxQuadGKJL(), hv, trG_auxfun; Σ, β, abstol=AuxValue(atol/η,aux_atol)/nsyms(bz), reltol=rtol)
-aux_solver = IntegralSolver(aux_integrand, bz, IAI(AuxQuadGKJL()), abstol=AuxValue(atol/η,aux_atol))
-aux_solver(; Ω=0.0).val
+aux_solver = AuxOpticalConductivitySolver(trG_auxfun, hv, bz, IAI(AuxQuadGKJL()), Σ, AuxQuadGKJL(); Ω=0.0, μ, β, abstol=AuxValue(atol/η,aux_atol), reltol=rtol)
+solve!(aux_solver).value.val
 ```
 
 To summarize this method, we define a helper function, `trG_auxfun` that takes

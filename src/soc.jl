@@ -117,10 +117,10 @@ function t2g_coupling(λ::Number=1)
     return (kron(σˣ, ϵˣ) + kron(σʸ, ϵʸ) + kron(σᶻ, ϵᶻ)) * λ * im // 2
 end
 
-struct WrapperFourierSeries{W,N,T,iip,S<:FourierSeries} <: AbstractFourierSeries{N,T,iip}
+struct WrapperFourierSeries{W,N,T,iip,S<:AbstractFourierSeries} <: AbstractFourierSeries{N,T,iip}
     w::W
     s::S
-    function WrapperFourierSeries(w, s::FourierSeries)
+    function WrapperFourierSeries(w, s::AbstractFourierSeries)
         return new{typeof(w),ndims(s),eltype(s),FourierSeriesEvaluators.isinplace(s),typeof(s)}(w, s)
     end
 end

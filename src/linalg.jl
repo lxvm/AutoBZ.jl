@@ -5,6 +5,15 @@ _eltype(x::Type) = eltype(x)
 _eltype(x) = _eltype(typeof(x))
 _eltype(::Type{<:Eigen{T,V}}) where {T,V} = typeof(zero(T)*zero(V))
 
+_oftype(y, x) = oftype(y, x)
+_oftype(y::SHermitianCompact, x::AbstractMatrix) = _oftype(SMatrix(y), x)
+_oftype(y::SHermitianCompact, x::SHermitianCompact) = oftype(y, x)
+_ofutype(y, x) = _oftype(y, x)
+
+_one(x) = one(x)
+_ustrip(A) = A
+_ucopy!(A, B) = copy!(A, B)
+
 _inv(args...; kws...) = inv(args...; kws...)
 _eigen(args...; kws...) = eigen(args...; kws...)
 

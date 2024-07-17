@@ -59,12 +59,14 @@ using Reexport
 @reexport using AutoBZCore
 
 import FourierSeriesEvaluators: period, frequency, allocate, contract!, evaluate!, nextderivative, show_dims, show_details
-import AutoBZCore: SymRep, symmetrize_, MixedParameters, IntegralAlgorithm, AutoBZAlgorithm, AbstractBZ, interior_point
+import AutoBZCore: symmetrize_, IntegralAlgorithm, AutoBZAlgorithm, AbstractBZ, interior_point
+import CommonSolve: init, solve!
 
 using FourierSeriesEvaluators: FourierWorkspace, freq2rad
 using EquiBaryInterp: LocalEquiBaryInterp
 using BaryRational: aaa
 using HChebInterp: hchebinterp
+using FastLapackInterface: LUWs, EigenWs, HermitianEigenWs
 
 export AbstractSelfEnergy
 export AbstractWannierInterp
@@ -78,8 +80,12 @@ include("definitions.jl")
 
 export diag_inv, tr_inv, tr_mul, herm, commutator
 include("linalg.jl")
-include("SSymmetricCompact.jl")
-
+export LinearSystemProblem, LUFactorization, JLInv
+include("linearsystem.jl")
+export EigenProblem, LAPACKEigen, LAPACKEigenH, JLEigen
+include("eigen.jl")
+export TraceInverseProblem, JLTrInv, LinearSystemTrInv, EigenTrInv
+include("trinv.jl")
 export fermi, fermi′, fermi_window, fermi_window_limits
 include("fermi.jl")
 
@@ -93,18 +99,27 @@ include("interp.jl")
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
 
-export GlocIntegrand, DiagGlocIntegrand, TrGlocIntegrand, DOSIntegrand
-export TransportFunctionIntegrand, TransportDistributionIntegrand
-export KineticCoefficientIntegrand, OpticalConductivityIntegrand
-export ElectronDensityIntegrand
-export AuxTransportDistributionIntegrand, AuxKineticCoefficientIntegrand, AuxOpticalConductivityIntegrand
-include("apps.jl")
+
+export GlocSolver, TrGlocSolver, DOSSolver
+include("GreensSolver.jl")
+export TransportFunctionSolver
+include("TransportFunctionSolver.jl")
+export ElectronDensitySolver
+include("ElectronDensitySolver.jl")
+export TransportDistributionSolver
+export AuxTransportDistributionSolver
+include("TransportDistributionSolver.jl")
+export KineticCoefficientSolver, OpticalConductivitySolver
+export AuxKineticCoefficientSolver, AuxOpticalConductivitySolver
+include("KineticCoefficientSolver.jl")
+
 
 export load_self_energy
 include("self_energies_io.jl")
 
 export SOCMatrix, SOCHamiltonianInterp
 include("soc.jl")
+include("SSymmetricCompact.jl")
 
 export load_interp, load_autobz, load_wannier90_data
 include("wannier90io.jl")

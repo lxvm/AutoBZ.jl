@@ -43,34 +43,27 @@ npt = 15
 kalg = PTR(; npt=npt)
 # kalg = AutoPTR()
 # kalg = IAI()
-#= alternative algorithms that save work for IAI when requesting a reltol
-kalg = PTR_IAI(; ptr=PTR(; npt=npt), iai=IAI())
-kalg = AutoPTR_IAI(; ptr=AutoPTR(), iai=IAI())
-=#
 
 # create frequency integrand, which evaluates a bz integral at each frequency
-kc_integrand = KineticCoefficientIntegrand(bz, kalg, hv; Σ, abstol=atol/nsyms(bz), reltol=rtol)
-# construct solver
-kc_solver = IntegralSolver(kc_integrand, AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg; abstol=atol, reltol=rtol)
+kc_solver = KineticCoefficientSolver(Σ, falg, hv, bz, kalg; n=0, β, Ω=first(Ω), abstol=atol/nsyms(bz), reltol=rtol)
 
-#=
 # create bz integrand, which evaluates a frequency integral at each kpt
-kc_integrand = KineticCoefficientIntegrand(AutoBZ.lb(Σ), AutoBZ.ub(Σ), falg, hv; Σ, abstol=atol/nsyms(bz), reltol=rtol)
-# construct solver
-kc_solver = IntegralSolver(kc_integrand, bz, kalg; abstol=atol, reltol=rtol)
-=#
+# kc_solver = KineticCoefficientSolver(hv, bz, kalg, Σ, falg; n=0, β, Ω=first(Ω), abstol=atol/nsyms(bz), reltol=rtol)
 
 # run calculation
-nthreads = kalg isa AutoPTR ? 1 : Threads.nthreads() # kpt parallelization (default) is preferred for large k-grids
 h5open("sro_tetra_oc_fl_ptr_eta$(η)_atol$(atol)_rtol$(rtol)_k$(npt).h5", "w") do h5
     kc_0 = create_group(h5, "kc_0")
-    batchsolve(kc_0, kc_solver, paramproduct(Ω=Ωs, n=0, β=β); nthreads=nthreads)
+    kc_0["frequencies"] = collect(Ωs)
+    kc_0_dat = create_dataset(kc_0, "conductivities", ComplexF64, (3,3,length(Ωs)))
+    for (i, Ω) in enumerate(Ωs)
+        AutoBZ.update_kc!(kc_solver; Ω, β, n=0)
+        sol = solve!(kc_solver)
+        kc_0_dat[:,:,i] = sol.value
+    end
     kc_1 = create_group(h5, "kc_1")
-    batchsolve(kc_1, kc_solver, paramproduct(Ω=0.0, n=1, β=β); nthreads=nthreads)
+    kc_1["frequencies"] = [0.0]
+    kc_1_dat = create_dataset(kc_1, "conductivities", ComplexF64, (3,3,1))
+    AutoBZ.update_kc!(kc_solver; Ω=0.0, β, n=1)
+    sol = solve!(kc_solver)
+    kc_1_dat[:,:,1] = sol.value
 end
-# show the number of points used on the ibz
-kalg isa AutoPTR && @show length.(kc_integrand.p[1].cacheval.cache)
-# show npt/dim
-kalg isa AutoPTR && bz.syms !== nothing && @show getproperty.(kc_integrand.p[1].cacheval.cache, :npt)
-
-nothing

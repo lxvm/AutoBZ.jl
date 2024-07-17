@@ -7,7 +7,7 @@ using AutoBZ
 
 seed = "svo"
 # Load the Wannier Hamiltonian as a Fourier series and the Brillouin zone
-h, bz = load_wannier90_data(seed; interp=HamiltonianInterp, bz=CubicSymIBZ())
+h, bz = load_wannier90_data(seed; interp=HamiltonianInterp, bz=InversionSymIBZ())
 
 # Define problem parameters
 ω = 0.0 # eV
@@ -23,13 +23,13 @@ atol = 1e-3
 rtol = 0.0
 npt = 100
 
-integrand = DOSIntegrand(h; Σ, μ=0)
 
 algs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR())
 
 for alg in algs
     @show nameof(typeof(alg))
-    solver = IntegralSolver(integrand, bz, alg; abstol=atol, reltol=rtol)
-    @time @show solver(ω=ω)
+    solver = DOSSolver(Σ, h, bz, alg; ω, abstol=atol, reltol=rtol)
+    sol = @time solve!(solver)
+    @show sol.value
     println()
 end
