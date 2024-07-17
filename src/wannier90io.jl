@@ -403,7 +403,7 @@ function load_wannier90_data(seedname::String; precision=Float64, load_interp=lo
         ref = wi(k)
         err, idx = findmax(bz.syms) do S
             val = wi(S*k)
-            return calc_interp_error(wi, val, ref)
+            return calc_interp_error(wi, val, ref, S, bz.A)
         end
         sym = CompactDisplay(bz.syms[idx])
         kpt = CompactDisplay(k)
@@ -427,14 +427,25 @@ function calc_interp_error_(solver, g::AbstractGauge, val, err)
     werr = g isa Hamiltonian ? err : to_gauge!(solver, Hamiltonian(), err)
     return norm(wval.values - werr.values)
 end
-function calc_interp_error(h::AbstractHamiltonianInterp, val, err)
+function calc_interp_error(h::AbstractHamiltonianInterp, val, err, S, A)
     return calc_interp_error_(init(h.prob, h.alg), gauge(h), val, err)
 end
-function calc_interp_error(hv::AbstractVelocityInterp, val, err)
+function calc_interp_error(hv::AbstractVelocityInterp, val, err, S, A)
     # TODO test the symmetry on the velocity with a trace over the orbital indices, rotation
     # on coordinate indices
-    return calc_interp_error_(gauge(hv), val[1], err[1])
+    _Aval = spectral_function(_inv(complex(11.0, 1.0)*I-val[1]))
+    _Aref = spectral_function(_inv(complex(11.0, 1.0)*I-err[1]))
+    _S = coord(hv) isa Lattice ? _inv(S') : A*_inv(S')*_inv(A)
+    return norm(tr.(val[2] .* Ref(_Aval)) .- _S * tr.(err[2] .* Ref(_Aref)))#calc_interp_error_(gauge(hv), val[1], err[1])
 end
-calc_interp_error(::BerryConnectionInterp, val, err) = NaN
+function calc_interp_error(hv::AbstractInverseMassInterp, val, err, S, A)
+    # TODO test the symmetry on the velocity with a trace over the orbital indices, rotation
+    # on coordinate indices
+    _S = coord(hv) isa Lattice ? _inv(S)' : A*_inv(S')*_inv(A)
+    return norm(tr.(val[3]) .- tr.(_S * err[3] * _S'))#calc_interp_error_(gauge(hv), val[1], err[1])
+end
+function calc_interp_error(::BerryConnectionInterp, val, err, S, A)
+    norm(tr.(val) .- S * tr.(err))
+end
 
 function load_wannierio_interp end
