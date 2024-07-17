@@ -18,9 +18,9 @@ If you use AutoBZ.jl in your software or published research works, please
 cite one, or, all of the following. Citations help to encourage the development
 and maintenance of open-source scientific software.
 - This repository: https://github.com/lxvm/AutoBZ.jl
-- Our preprint on optical conductivity integration: High-order and adaptive
+- Our preprint on optical conductivity integration: [High-order and adaptive
   optical conductivity calculations using Wannier interpolation. Lorenzo Van
-  Muñoz, Jason Kaye, Alex Barnett and Sophie Beck.
+  Muñoz, Jason Kaye, Alex Barnett and Sophie Beck](https://arxiv.org/abs/2406.15466).
 
 
 ## Author and Copyright
