@@ -41,7 +41,8 @@ bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H))))
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol)
+solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol);
+nothing # hide
 ```
 Here, we have chosen to the order of integration to compute a frequency integral
 for each ``\bm{k}`` point. We can compute the density over a range of chemical

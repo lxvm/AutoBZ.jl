@@ -71,7 +71,8 @@ specify an error tolerance, and to call one of the integration routines
 ```@example dos_z
 using LinearAlgebra
 bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
-solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50))
+solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50));
+nothing # hide
 ```
 We can calculate and plot the DOS as a function of frequency
 ```@example dos_z
@@ -165,7 +166,8 @@ using LinearAlgebra
 η = 0.1 # eV
 Σ = EtaSelfEnergy(η)
 bz = load_bz(FBZ(2), Diagonal(collect(AutoBZ.period(H))))
-solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=100); ω)
+solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=100); ω);
+nothing # hide
 ```
 Using this integral solver, we can compute a fast-to-evaluate, adaptive
 interpolant for the DOS using

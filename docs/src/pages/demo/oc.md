@@ -46,7 +46,8 @@ the BZ integral
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); β, Ω=0.0, μ, abstol=atol/nsyms(bz), reltol=rtol)
+solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); β, Ω=0.0, μ, abstol=atol/nsyms(bz), reltol=rtol);
+nothing # hide
 ```
 Then we can evaluate the frequency dependence of the conductivity and plot
 particular matrix elements.
