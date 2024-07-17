@@ -63,8 +63,8 @@ rate. We implement our own user-defined integrand with the
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
-D = FourierIntegralFunction(dos_integrand, H, (; η, ω)) # user-defined integrand with partial arguments
+dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi
+D = FourierIntegralFunction(dos_integrand, H)
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
@@ -174,7 +174,7 @@ interpolant for the DOS using
 ENV["GKSwstype"] = "100" # hide
 using HChebInterp
 using Plots
-DOS = hchebinterp(ω -> (AutoBZ.update_gloc!(solver; ω); solve!(solver).value), -ω, ω; atol=1e-3)
+DOS = hchebinterp(ω -> (AutoBZ.update_dos!(solver; ω); solve!(solver).value), -ω, ω; atol=1e-3)
 plot(range(-ω, ω, length=1000), DOS, title="Graphene", xguide="ħω", yguide="DOS", label="η=$η")
 savefig("dos_g.png"); nothing # hide
 ```
