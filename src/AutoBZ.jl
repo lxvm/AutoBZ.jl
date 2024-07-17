@@ -99,12 +99,22 @@ include("interp.jl")
 export EtaSelfEnergy, ConstScalarSelfEnergy, ScalarSelfEnergy, DiagonalSelfEnergy, MatrixSelfEnergy
 include("self_energies.jl")
 
-export GlocSolver, DiagGlocSolver, TrGlocSolver, DOSSolver
-export TransportFunctionSolver, TransportDistributionSolver
-export KineticCoefficientSolver, OpticalConductivitySolver
+
+export GlocSolver, TrGlocSolver, DOSSolver
+include("GreensSolver.jl")
+export TransportFunctionSolver
+include("TransportFunctionSolver.jl")
 export ElectronDensitySolver
-export AuxTransportDistributionSolver, AuxKineticCoefficientSolver, AuxOpticalConductivitySolver
-include("apps.jl")
+include("ElectronDensitySolver.jl")
+export TransportDistributionSolver
+include("TransportDistributionSolver.jl")
+export KineticCoefficientSolver, OpticalConductivitySolver
+include("KineticCoefficientSolver.jl")
+export AuxTransportDistributionSolver
+include("AuxTransportDistributionSolver.jl")
+export AuxKineticCoefficientSolver, AuxOpticalConductivitySolver
+include("AuxKineticCoefficientSolver.jl")
+
 
 export load_self_energy
 include("self_energies_io.jl")

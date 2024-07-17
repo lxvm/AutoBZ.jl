@@ -451,3 +451,45 @@ function shift!(v::AbstractVelocityInterp, λ)
 end
 
 abstract type AbstractInverseMassInterp{C,B,G,N,T,iip} <: AbstractVelocityInterp{C,B,G,N,T,iip} end
+
+
+choose_autoptr_step(alg, _...) = alg
+
+function choose_autoptr_step(alg::AutoPTR, a::Real)
+    return a == alg.a ? alg : AutoPTR(a=Float64(a), norm=alg.norm, nmin=alg.nmin, nmax=alg.nmax, n₀=alg.n₀, Δn=alg.Δn, keepmost=alg.keepmost, nthreads=alg.nthreads)
+end
+# estimate a value of eta that should suffice for most parameters
+# ideally we would have some upper bound on the gradient of the Hamiltonian, v,
+# divide by the largest period, T, and take a = η/v/T (dimensionless)
+function choose_autoptr_step(alg::AutoPTR, η::Number, h::AbstractHamiltonianInterp)
+    vT = velocity_bound(h)
+    a = freq2rad(η/vT) # 2pi*a′/T as in eqn. 3.24 of Trefethen's "The Exponentially Convergent Trapezoidal rule"
+    return choose_autoptr_step(alg, a)
+end
+function choose_autoptr_step(alg::AutoPTR, η::Number, hv::AbstractVelocityInterp)
+    return choose_autoptr_step(alg, η, parentseries(hv))
+end
+# heuristic helper functions for equispace updates
+
+sigma_to_eta(x::UniformScaling) = -imag(x.λ)
+function sigma_to_eta(x::Diagonal)
+    # is this right?
+    imx = imag(x.diag)
+    return -min(zero(eltype(imx)), maximum(imx))
+end
+sigma_to_eta(x::AbstractMatrix) = sigma_to_eta(Diagonal(x)) # is this right?
+sigma_to_eta(Σ::AbstractSelfEnergy) = sigma_to_eta(Σ(zero((lb(Σ)+ub(Σ))/2))) # use self energy at Fermi energy
+# instead of imag(Σ) I think we should consider the skew-Hermitian part and
+# its spectrum, however even that doesn't actually help because the poles are
+# located at det(ω - H(k) - Σ(ω)) = 0. When H and Σ are not simultaneously
+# diagonalized, inv(ω - H(k) - Σ(ω)) is no longer a sum of simple rational
+# functions, so
+
+# returns a bound (L₂ norm) on the velocity times the period v*T
+function velocity_bound(f::FourierSeries)
+    # use Parseval's theorem to compute ||v||₂ = √ ∫dk/V |v|^2 from v_R and volume V
+    # rigorously, we should care about the maximal band velocity, but that is more elaborate
+    return sqrt(sum(i -> (hypot(map(*, map(+, i.I, f.o), f.t)...)*norm(f.c[i]))^2, CartesianIndices(f.c)))
+end
+
+velocity_bound(h::AbstractHamiltonianInterp) = velocity_bound(parentseries(h))
