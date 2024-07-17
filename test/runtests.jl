@@ -43,9 +43,9 @@ end
     @testset "GlocSolver,TrGlocSolver,DOSSolver" include("GreensSolver.jl")
     @testset "TransportFunctionSolver" include("TransportFunctionSolver.jl")
     @testset "TransportDistributionSolver" include("TransportDistributionSolver.jl")
+    @testset "AuxTransportDistributionSolver" include("AuxTransportDistributionSolver.jl")
     @testset "ElectronDensitySolver" include("ElectronDensitySolver.jl")
     @testset "KineticCoefficientSolver" include("KineticCoefficientSolver.jl")
-    @testset "AuxTransportDistributionSolver" include("AuxTransportDistributionSolver.jl")
     @testset "AuxKineticCoefficientSolver" include("AuxKineticCoefficientSolver.jl")
     # TODO: validate linalg, soc, interpolation, fermi functions, self energies, io
 end
