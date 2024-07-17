@@ -20,7 +20,7 @@ end
 
 function update_density!(solver::AutoBZCore.IntegralSolver; β, μ=zero(inv(oneunit(β))))
     fdom = solver.p[1]
-    if β != solver.p.β
+    if β != solver.p[2].β
         solver.dom = get_safe_fermi_function_limits(β, fdom...)
         # TODO rescale inner tolerance based on domain length
     end
