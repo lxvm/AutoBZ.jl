@@ -1,12 +1,28 @@
 function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), kws...) where {F}
-    inner_kws = _rescale_abstol(inv(max(Ω, inv(β))); kws...)
+    dom = get_safe_fermi_window_limits(Ω, β, fdom...)
+    s = 1 # inv((dom[2]-dom[1])*fermi_window_maximum(β, Ω)) # or area under the window function
+    # the right choice depends on whether worst-case point-wise error or average is
+    # important close to 1) important and could eventually let the user decide
+    # And to be rigorous, the scaling should be 1/(dom[2]-dom[1])/fermi_window(β, ω, Ω),
+    # although in the tails of the window this uniform error could be dangerous
+    inner_kws = _rescale_abstol(s; kws...)
     p = (; β, μ, Ω, n)
-    up = (solver, ω, (_, (; β, μ, Ω, n))) -> (update_td!(solver; ω₁=ω, ω₂=ω+Ω, μ) ; return)
+    up = (solver, ω, (_, (; β, μ, Ω, n))) -> begin
+        update_td!(solver; ω₁=ω, ω₂=ω+Ω, μ)
+        # TODO rescale inner tolerance based on discussion above
+        # if β != p.β || Ω != p.Ω # not ideal, should remember params in solver
+        # if haskey(solver.kwargs, :abstol)
+        #     _dom = get_safe_fermi_window_limits(Ω, β, fdom...) # not ideal - don't want to
+        #     emit warning
+        #     solver.kwargs = _rescale_abstol(inv((_dom[2]-_dom[1])*fermi_window_maximum(β, Ω)); kws...)
+        # end
+        return
+    end
     post = (sol, ω, (_, (; β, μ, Ω, n))) -> (ω*β)^n * fermi_window(β, ω, Ω) * sol.value
     td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, inner_kws...)
     proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype
     f = CommonSolveIntegralFunction(td_prob, _heuristic_bzalg(bzalg, Σ, hv), up, post, proto)
-    prob = IntegralProblem(f, get_safe_fermi_window_limits(Ω, β, fdom...), (fdom, p); kws...)
+    prob = IntegralProblem(f, dom, (fdom, p); kws...)
     return init(prob, falg)
 end
 
@@ -14,7 +30,6 @@ function update_kc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω))
     fdom = solver.p[1]
     if solver.p[2].Ω != Ω || solver.p[2].β != β
         solver.dom = get_safe_fermi_window_limits(Ω, β, fdom...)
-        # TODO rescale inner tolerance based on domain length
     end
     solver.p = (fdom, (; β, μ, Ω, n))
     return
@@ -50,7 +65,6 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
         _fdom, _Σ, = solver.p
         if solver.p[4].Ω != p.Ω || solver.p[4].β != p.β
             solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, _fdom...)
-            # TODO rescale inner tolerance based on domain length
         end
         solver.p = (_fdom, _Σ, hv, p)
         return

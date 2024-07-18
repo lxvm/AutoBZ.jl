@@ -22,7 +22,7 @@ function update_density!(solver::AutoBZCore.IntegralSolver; β, μ=zero(inv(oneu
     fdom = solver.p[1]
     if β != solver.p[2].β
         solver.dom = get_safe_fermi_function_limits(β, fdom...)
-        # TODO rescale inner tolerance based on domain length
+        # TODO rethink if inner tolerance needs to be rescaled if changing mu changes bandwidth
     end
     solver.p = (fdom, (; β, μ))
     return
@@ -68,7 +68,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         _fdom, _Σ, = solver.p
         if solver.p[4].β != p.β
             solver.dom = get_safe_fermi_function_limits(p.β, _fdom...)
-            # TODO rescale inner tolerance based on domain length
+            # TODO rethink if inner tolerance needs to be rescaled if changing mu changes bandwidth
         end
         solver.p = (_fdom, _Σ, h, p)
         return
