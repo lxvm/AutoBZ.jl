@@ -40,7 +40,7 @@ function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianIn
 end
 function _GreensSolver(fun::F, Σ, h, bz, bzalg, linalg; kws...) where {F}
     prob = _GreensProblem(fun, Σ, h, bz, linalg; kws...)
-    return init(prob, bzalg)
+    return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end
 
 """

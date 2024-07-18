@@ -8,7 +8,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, fa
     # WARN: Σ evaluation in update_greens! may not be threadsafe so need another prob type
     up = (solver, ω, (_, (; β, μ))) -> (update_greens!(solver; ω, μ); return)
     post = (sol, ω, (_, (; β, μ))) -> sol.value*fermi(β, ω)
-    f = CommonSolveIntegralFunction(dos_prob, bzalg, up, post, proto)
+    f = CommonSolveIntegralFunction(dos_prob, _heuristic_bzalg(bzalg, Σ, h), up, post, proto)
     prob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), (fdom, p); kws...)
     return init(prob, falg)
 end
@@ -76,7 +76,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     post = (sol, k, h, p) -> sol.value
     g = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
     prob = AutoBZProblem(rep, g, bz, p; kws...)
-    return init(prob, bzalg)
+    return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end
 
 function update_density!(solver::AutoBZCore.AutoBZCache; β, μ=zero(inv(oneunit(β))))
