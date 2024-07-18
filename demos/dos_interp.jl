@@ -33,7 +33,7 @@ fast_order = 15
 solver = DOSSolver(Σ, h, bz, IAI(); ω = (ω_lo+ω_hi)/2, abstol=atol, reltol=rtol)
 DOS = let solver=solver
     ω -> begin
-        AutoBZ.update_gloc!(solver; ω)
+        AutoBZ.update_dos!(solver; ω)
         solve!(solver).value
     end
 end
