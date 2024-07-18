@@ -57,14 +57,15 @@ coefficients under the given relative tolerance. Possible values of `compact` ar
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
 """
-function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision))
+function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision), herm=true)
     (; nkpt) = parse_wout(seed * ".wout", precision)
     (; num_wann, degen, irvec, H) = parse_hamiltonian(seed * "_hr.dat", precision)
     check_degen(degen, nkpt)
     (C, origin), = load_coefficients(Val{compact}(), droptol, num_wann, irvec, degen, H)
-    f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
+    _f = FourierSeries(C; period=freq2rad(one(precision)), offset=Tuple(-origin))
+    f = herm ? HermitianFourierSeries(_f) : _f
     if soc === nothing
-        return HamiltonianInterp(Freq2RadSeries(f); gauge)
+        return HamiltonianInterp(Freq2RadSeries(f), EigenProblem(first(C)), LAPACKEigenH(); gauge)
     else
         return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
     end
@@ -192,6 +193,7 @@ function load_interp(::Type{<:BerryConnectionInterp}, seed; precision=Float64, c
     F1 = FourierSeries(A1; period=one(precision), offset=Tuple(-o1))
     F2 = FourierSeries(A2; period=one(precision), offset=Tuple(-o2))
     F3 = FourierSeries(A3; period=one(precision), offset=Tuple(-o3))
+    # TODO implement herm for BerryConnectionInterp. Often coefficients don't have exact symmetry
     Fs = (F1, F2, F3)
     Ms = soc === nothing ? Fs : map(f -> WrapperFourierSeries(wrap_soc, f), Fs)
     BerryConnectionInterp{coord}(ManyFourierSeries(Ms...; period=one(precision)), irot; coord)
@@ -208,12 +210,12 @@ Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
 certain transitions. Note these velocities are not gauge-covariant.
 """
 function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,
     gauge=GaugeDefault(GradientVelocityInterp),
     coord=CoordDefault(GradientVelocityInterp),
     vcomp=VcompDefault(GradientVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision, compact, soc)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc, herm)
     return GradientVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
@@ -228,12 +230,12 @@ interpolates `(h, v)`. Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or
 [`Inter`](@ref) to use certain transitions. These velocities are gauge-covariant.
 """
 function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,
     gauge=GaugeDefault(CovariantVelocityInterp),
     coord=CoordDefault(CovariantVelocityInterp),
     vcomp=VcompDefault(CovariantVelocityInterp))
     # for hv require the default gauge and vcomp
-    hv = load_interp(GradientVelocityInterp, seed, A; precision, coord, compact, soc)
+    hv = load_interp(GradientVelocityInterp, seed, A; precision, coord, compact, soc, herm)
     a = load_interp(BerryConnectionInterp, seed; precision, coord, compact, soc)
     return CovariantVelocityInterp(hv, a; coord, vcomp, gauge)
 end
@@ -249,12 +251,12 @@ Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
 certain transitions. Note these operators are not gauge-covariant.
 """
 function load_interp(::Type{<:MassVelocityInterp}, seed, A;
-    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision),
+    precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,
     gauge=GaugeDefault(MassVelocityInterp),
     coord=CoordDefault(MassVelocityInterp),
     vcomp=VcompDefault(MassVelocityInterp))
     # for h require the default gauge
-    h = load_interp(HamiltonianInterp, seed; precision, compact, soc, droptol)
+    h = load_interp(HamiltonianInterp, seed; precision, compact, soc, droptol, herm)
     return MassVelocityInterp(h, A; coord, vcomp, gauge)
 end
 
@@ -390,6 +392,7 @@ referenced for Brillouin zone details. For a list of possible keywords, see
 function load_wannier90_data(seedname::String; precision=Float64, load_interp=load_interp, load_autobz=load_autobz, bz=FBZ(), interp=HamiltonianInterp, kwargs...)
     bz = load_autobz(bz, seedname; precision)
     wi = if interp <: AbstractVelocityInterp
+        interp <: CovariantVelocityInterp || @warn "integration of current correlations is incorrect without a CovariantVelocityInterp"
         load_interp(interp, seedname, bz.A; precision, kwargs...)
     else
         load_interp(interp, seedname; precision, kwargs...)
@@ -419,15 +422,17 @@ end
 # have the orbital representation of the symmetry operators available.
 # this is because H(k) and H(pg*k) are identical up to a gauge transformation
 # The velocities are also tough to compare because the point-group operator should be applied
-function calc_interp_error_(g::AbstractGauge, val, err)
-    wval = g isa Hamiltonian ? val : to_gauge(Hamiltonian(), val)
-    werr = g isa Hamiltonian ? err : to_gauge(Hamiltonian(), err)
+function calc_interp_error_(solver, g::AbstractGauge, val, err)
+    wval = g isa Hamiltonian ? val : to_gauge!(solver, Hamiltonian(), val)
+    werr = g isa Hamiltonian ? err : to_gauge!(solver, Hamiltonian(), err)
     return norm(wval.values - werr.values)
 end
 function calc_interp_error(h::AbstractHamiltonianInterp, val, err)
-    return calc_interp_error_(gauge(h), val, err)
+    return calc_interp_error_(init(h.prob, h.alg), gauge(h), val, err)
 end
 function calc_interp_error(hv::AbstractVelocityInterp, val, err)
+    # TODO test the symmetry on the velocity with a trace over the orbital indices, rotation
+    # on coordinate indices
     return calc_interp_error_(gauge(hv), val[1], err[1])
 end
 calc_interp_error(::BerryConnectionInterp, val, err) = NaN

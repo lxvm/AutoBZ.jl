@@ -5,7 +5,6 @@ using StaticArrays
 
 using OffsetArrays
 using AutoBZ
-using AutoBZ: Freq2RadSeries
 
 using Aqua
 
@@ -14,14 +13,41 @@ function integer_lattice(n)
     for i in 1:n, j in (-1, 1)
         C[CartesianIndex(ntuple(k -> k ≈ i ? j : 0, n))] = [1/2n;;]
     end
-    return Freq2RadSeries(FourierSeries(C, period=2pi))
+    return C
 end
+function coeffs2FourierHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(C; period=2pi)), prob, alg; gauge)
+end
+function coeffs2HermitianHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
+end
+#=
+function coeffs2RealSymmetricHamiltonian(C; gauge=Wannier(), eigalg=JLEigen())
+    prob = gauge isa Wannier ? nothing : EigenProblem(zero(eltype(C)))
+    alg = gauge isa Wannier ? nothing : eigalg
+    return HamiltonianInterp(AutoBZ.Freq2RadSeries(RealSymmetricFourierSeries(FourierSeries(C; period=2pi))), prob, alg; gauge)
+end
+=#
 
 # run these tests with multiple threads to check multithreading works
 @testset "AutoBZ" begin
     @testset "aqua" Aqua.test_all(AutoBZ)
     @testset "utils" include("utils.jl")
-    @testset "apps" include("apps.jl")
+    @testset "linearsystem" include("linearsystem.jl")
+    @testset "eigen" include("eigen.jl")
+    @testset "trinv" include("trinv.jl")
+    @testset "GlocSolver,TrGlocSolver,DOSSolver" include("GreensSolver.jl")
+    @testset "TransportFunctionSolver" include("TransportFunctionSolver.jl")
+    @testset "TransportDistributionSolver" include("TransportDistributionSolver.jl")
+    @testset "AuxTransportDistributionSolver" include("AuxTransportDistributionSolver.jl")
+    @testset "ElectronDensitySolver" include("ElectronDensitySolver.jl")
+    @testset "KineticCoefficientSolver" include("KineticCoefficientSolver.jl")
+    @testset "AuxKineticCoefficientSolver" include("AuxKineticCoefficientSolver.jl")
+    # TODO: validate linalg, soc, interpolation, fermi functions, self energies, io
 end
 
 # @testset "BrillouinPlotlyExt" begin
