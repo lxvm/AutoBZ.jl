@@ -34,19 +34,19 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     hk = h(k)
     g = gauge(h)
     M = evalM(; Σ, ω=(fdom[1]+fdom[2])/2, μ)
-    A = g isa Hamiltonian ? M - Diagonal(hk.values) : M -hk
+    A = g isa Hamiltonian ? M - Diagonal(hk.values) : M - hk
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     p = (; β, μ)
     p_k = (fdom, deepcopy(Σ), hk, p)
     up_k = (solver, ω, (_, Σ, hk, (; β, μ))) -> begin
-        M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
+        _M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
-            solver.A .= M .- _hk
+            solver.A .= _M .- _hk
         else
-            solver.A = M - _hk
+            solver.A = _M - _hk
         end
         return
     end
@@ -65,12 +65,12 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     up = (solver, k, h, p) -> begin
-        fdom, Σ, = solver.p
+        _fdom, _Σ, = solver.p
         if solver.p[4].β != p.β
-            solver.dom = get_safe_fermi_function_limits(p.β, fdom...)
+            solver.dom = get_safe_fermi_function_limits(p.β, _fdom...)
             # TODO rescale inner tolerance based on domain length
         end
-        solver.p = (fdom, Σ, h, p)
+        solver.p = (_fdom, _Σ, h, p)
         return
     end
     post = (sol, k, h, p) -> sol.value

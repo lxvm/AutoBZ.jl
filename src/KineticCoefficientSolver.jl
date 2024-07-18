@@ -47,12 +47,12 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
         #     # function, and also this prevents (0*β)^n from giving NaN when n!=0
         #     return Ω * f.f(Ω, MixedParameters(; Σ, n, β=4*oneunit(β), Ω, μ, hv_k))
         # end
-        fdom, Σ, = solver.p
+        _fdom, _Σ, = solver.p
         if solver.p[4].Ω != p.Ω || solver.p[4].β != p.β
-            solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, fdom...)
+            solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, _fdom...)
             # TODO rescale inner tolerance based on domain length
         end
-        solver.p = (fdom, Σ, hv, p)
+        solver.p = (_fdom, _Σ, hv, p)
         return
     end
     post = (sol, k, h, p) -> sol.value
