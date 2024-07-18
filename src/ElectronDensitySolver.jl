@@ -1,7 +1,8 @@
-function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHamiltonianInterp, bz, bzalg, linalg; β, μ=zero(inv(oneunit(β))), bandwidth=one(μ), kws...) where {F}
+function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHamiltonianInterp, bz, bzalg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
     # TODO better estimate the bandwidth since the Fermi function is a semi-infinite window
+    bandwidth = oneunit(μ)
     V = abs(det(bz.B))
-    inner_kws = _rescale_abstol(inv(bandwidth); kws...)
+    inner_kws = _rescale_abstol(something(scale_inner, inv(bandwidth)); kws...)
     dos_prob = _GreensProblem(fun, Σ, h, bz, linalg; ω=(fdom[1]+fdom[2])/2, μ, inner_kws...)
     p = (; β, μ)
     proto = dos_prob.f.prototype * V * fermi(β, (fdom[1]+fdom[2])/2)
@@ -28,7 +29,7 @@ function update_density!(solver::AutoBZCore.IntegralSolver; β, μ=zero(inv(oneu
     return
 end
 
-function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, μ=zero(inv(oneunit(β))), kws...) where {F}
+function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
     V = abs(det(bz.B))
     k = period(h)
     hk = h(k)
@@ -57,10 +58,10 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     else
         error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
     end |> fun |> x -> x*fermi(β, ω)
-    inner_kws = _rescale_abstol(inv(V*nsyms(bz)); kws...)
+    inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
     proto = post_k(solve(linprob, linalg), (fdom[1]+fdom[2])/2, p_k)
-    f = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
-    fprob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
+    f_k = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
+    fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
@@ -74,8 +75,8 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         return
     end
     post = (sol, k, h, p) -> sol.value
-    g = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
-    prob = AutoBZProblem(rep, g, bz, p; kws...)
+    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
+    prob = AutoBZProblem(rep, f, bz, p; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end
 
@@ -85,16 +86,16 @@ function update_density!(solver::AutoBZCore.AutoBZCache; β, μ=zero(inv(oneunit
 end
 
 """
-    ElectronDensitySolver(h, bz, bzalg, Σ, [fdom,] falg, [trinvalg=JLTrInv()]; β, μ=0, kws...)
-    ElectronDensitySolver(Σ, [fdom,] falg, h, bz, bzalg, [trinvalg=JLTrInv()]; β, μ=0, bandwidth=1, kws...)
+    ElectronDensitySolver(h, bz, bzalg, Σ, [fdom,] falg, [trinvalg=JLTrInv()]; β, μ=0, scale_inner=inv(abs(det(bz.B))*nsyms(bz)), kws...)
+    ElectronDensitySolver(Σ, [fdom,] falg, h, bz, bzalg, [trinvalg=JLTrInv()]; β, μ=0, scale_inner=inv(oneunit(μ)), kws...)
 
 A solver for the electron density.
 The two orderings of arguments correspond to orders of integration.
 (The outer integral appears first in the argument list.)
 Use `AutoBZ.update_density!(solver; β, μ=0)`.
 If `fdom` is not specified the default is `(AutoBZ.lb(Σ), AutoBZ.ub(Σ))`.
-The `bandwidth` keyword is used to rescale inner tolerances and should be estimated to
-reduce effort.
+The `scale_inner` keyword is used to rescale inner integration tolerances and can be
+estimated to reduce computational effort, although the default will be robust.
 `trinvalg` may be specified as an algorithm for the inverse trace calculation.
 
 Mathematically, this computes the electron density:
