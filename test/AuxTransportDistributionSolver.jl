@@ -5,7 +5,7 @@ for d in 1:3
     C = integer_lattice(d)
     bz = load_bz(CubicSymIBZ(d))
     for hv in [
-        let h=coeffs2FourierHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), LAPACKEigen(); gauge=Hamiltonian()); end,
+        let h=coeffs2FourierHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), LAPACKEigen(); gauge=Wannier()); end,
         let h=coeffs2HermitianHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), JLEigen(); gauge=Hamiltonian()); end,
         # let h=coeffs2RealSymmetricHamiltonian(C); GradientVelocityInterp(h, bz.A, EigenProblem(h(rand(d))), JLEigen(); gauge=Hamiltonian()); end,
     ]
