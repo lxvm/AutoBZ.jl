@@ -3,7 +3,11 @@
 The [density of states (DOS)](https://en.wikipedia.org/wiki/Density_of_states)
 is a standard electronic structure calculation. Here we show how to calculate it
 using a finite scattering rate, i.e. at finite temperature, using AutoBZ.jl by
-working through a few examples.
+working through a few examples. After walking through these tutorials, continue
+with the
+[`demos/dos_test.jl`](https://github.com/lxvm/AutoBZ.jl/blob/main/demos/dos_test.jl)
+script that compares several algorithms for the calculation of the DOS of a
+Wannier90 Hamiltonian using the [`load_wannier90_data`](@ref) interface.
 
 ## DOS of the integer lattice tight-binding model
 
@@ -86,9 +90,6 @@ savefig("dos_z.png"); nothing # hide
 
 ![dos integer lattice](dos_z.png)
 
-
-You will find a working example of this model in the `DOS_example.jl` demo that
-computes DOS over a range of frequencies for this model.
 
 ## DOS interpolation for Graphene
 

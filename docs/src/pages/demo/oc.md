@@ -4,7 +4,10 @@ The [optical conductivity](https://en.wikipedia.org/wiki/Optical_conductivity)
 is a response function that describes the electrical current response of a
 material to an incident electromagnetic field. AutoBZ.jl currently implements
 the longitudinal conductivity, which is the symmetric part of the conductivity
-tensor.
+tensor. After walking through these tutorials, continue with the
+[`demos/oc_test.jl`](https://github.com/lxvm/AutoBZ.jl/blob/main/demos/oc_test.jl)
+script that compares several algorithms for the calculation of the conductivity
+of a Wannier90 Hamiltonian using the [`load_wannier90_data`](@ref) interface.
 
 ## Model conductivity
 
