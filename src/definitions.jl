@@ -149,9 +149,10 @@ function shift!(f::FourierSeries, λ::Number)
     return f
 end
 function shift!(f::HermitianFourierSeries, λ::Number)
-    _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n) + (n == 1 ? 0 : div(size(f.c, n), 2)), Val(ndims(f.c)))), λ)
+    _shift!(f.c, CartesianIndex(_origin(f)), λ)
     return f
 end
+_origin(f::HermitianFourierSeries) = ntuple(n -> firstindex(f.c, n) + (n == 1 ? 0 : div(size(f.c, n), 2)), Val(ndims(f.c)))
 #=
 function shift!(f::RealSymmetricFourierSeries, λ::Number)
     _shift!(f.c, CartesianIndex(ntuple(n -> firstindex(f.c, n), Val(ndims(f.c)))), λ)
@@ -456,7 +457,12 @@ abstract type AbstractInverseMassInterp{C,B,G,N,T,iip} <: AbstractVelocityInterp
 choose_autoptr_step(alg, _...) = alg
 
 function choose_autoptr_step(alg::AutoPTR, a::Real)
-    return a == alg.a ? alg : AutoPTR(a=Float64(a), norm=alg.norm, nmin=alg.nmin, nmax=alg.nmax, n₀=alg.n₀, Δn=alg.Δn, keepmost=alg.keepmost, nthreads=alg.nthreads)
+    if a == alg.a
+        return alg
+    else
+        @info "AutoPTR heuristic for nearest pole to real axis updated" old=alg.a new=a
+        return AutoPTR(a=Float64(a), norm=alg.norm, nmin=alg.nmin, nmax=alg.nmax, n₀=alg.n₀, Δn=alg.Δn, keepmost=alg.keepmost, nthreads=alg.nthreads)
+    end
 end
 # estimate a value of eta that should suffice for most parameters
 # ideally we would have some upper bound on the gradient of the Hamiltonian, v,
@@ -491,5 +497,15 @@ function velocity_bound(f::FourierSeries)
     # rigorously, we should care about the maximal band velocity, but that is more elaborate
     return sqrt(sum(i -> (hypot(map(*, map(+, i.I, f.o), f.t)...)*norm(f.c[i]))^2, CartesianIndices(f.c)))
 end
+function velocity_bound(f::HermitianFourierSeries)
+    # use Parseval's theorem to compute ||v||₂ = √ ∫dk/V |v|^2 from v_R and volume V
+    # rigorously, we should care about the maximal band velocity, but that is more elaborate
+    o = _origin(f)
+    return sqrt(sum(i -> (i[1]==firstindex(f.c,1) ? 1 : 2)*(hypot(map(*, map(-, i.I, o), f.t)...)*norm(f.c[i]))^2, CartesianIndices(f.c)))
+end
 
 velocity_bound(h::AbstractHamiltonianInterp) = velocity_bound(parentseries(h))
+
+_heuristic_bzalg(alg::AutoBZAlgorithm, η, h) = alg
+_heuristic_bzalg(alg::AutoPTR, η::Number, h) = choose_autoptr_step(alg, η, h)
+_heuristic_bzalg(alg::AutoPTR, Σ::AbstractSelfEnergy, h) = _heuristic_bzalg(alg, sigma_to_eta(Σ), h)

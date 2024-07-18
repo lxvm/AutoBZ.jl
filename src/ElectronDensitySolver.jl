@@ -8,7 +8,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, fa
     # WARN: Σ evaluation in update_greens! may not be threadsafe so need another prob type
     up = (solver, ω, (_, (; β, μ))) -> (update_greens!(solver; ω, μ); return)
     post = (sol, ω, (_, (; β, μ))) -> sol.value*fermi(β, ω)
-    f = CommonSolveIntegralFunction(dos_prob, bzalg, up, post, proto)
+    f = CommonSolveIntegralFunction(dos_prob, _heuristic_bzalg(bzalg, Σ, h), up, post, proto)
     prob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), (fdom, p); kws...)
     return init(prob, falg)
 end
@@ -22,7 +22,7 @@ function update_density!(solver::AutoBZCore.IntegralSolver; β, μ=zero(inv(oneu
     fdom = solver.p[1]
     if β != solver.p[2].β
         solver.dom = get_safe_fermi_function_limits(β, fdom...)
-        # TODO rescale inner tolerance based on domain length
+        # TODO rethink if inner tolerance needs to be rescaled if changing mu changes bandwidth
     end
     solver.p = (fdom, (; β, μ))
     return
@@ -34,19 +34,19 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     hk = h(k)
     g = gauge(h)
     M = evalM(; Σ, ω=(fdom[1]+fdom[2])/2, μ)
-    A = g isa Hamiltonian ? M - Diagonal(hk.values) : M -hk
+    A = g isa Hamiltonian ? M - Diagonal(hk.values) : M - hk
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     p = (; β, μ)
     p_k = (fdom, deepcopy(Σ), hk, p)
     up_k = (solver, ω, (_, Σ, hk, (; β, μ))) -> begin
-        M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
+        _M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
-            solver.A .= M .- _hk
+            solver.A .= _M .- _hk
         else
-            solver.A = M - _hk
+            solver.A = _M - _hk
         end
         return
     end
@@ -65,18 +65,18 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     up = (solver, k, h, p) -> begin
-        fdom, Σ, = solver.p
+        _fdom, _Σ, = solver.p
         if solver.p[4].β != p.β
-            solver.dom = get_safe_fermi_function_limits(p.β, fdom...)
-            # TODO rescale inner tolerance based on domain length
+            solver.dom = get_safe_fermi_function_limits(p.β, _fdom...)
+            # TODO rethink if inner tolerance needs to be rescaled if changing mu changes bandwidth
         end
-        solver.p = (fdom, Σ, h, p)
+        solver.p = (_fdom, _Σ, h, p)
         return
     end
     post = (sol, k, h, p) -> sol.value
     g = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
     prob = AutoBZProblem(rep, g, bz, p; kws...)
-    return init(prob, bzalg)
+    return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end
 
 function update_density!(solver::AutoBZCore.AutoBZCache; β, μ=zero(inv(oneunit(β))))

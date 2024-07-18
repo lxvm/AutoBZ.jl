@@ -3,7 +3,11 @@
 The [density of states (DOS)](https://en.wikipedia.org/wiki/Density_of_states)
 is a standard electronic structure calculation. Here we show how to calculate it
 using a finite scattering rate, i.e. at finite temperature, using AutoBZ.jl by
-working through a few examples.
+working through a few examples. After walking through these tutorials, continue
+with the
+[`demos/dos_test.jl`](https://github.com/lxvm/AutoBZ.jl/blob/main/demos/dos_test.jl)
+script that compares several algorithms for the calculation of the DOS of a
+Wannier90 Hamiltonian using the [`load_wannier90_data`](@ref) interface.
 
 ## DOS of the integer lattice tight-binding model
 
@@ -57,21 +61,23 @@ integral
 ```
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
-rate. We implement our own user-defined integrand with the
-`AutoBZCore.FourierIntegralFunction`:
+rate. For pedagogical purposes, we implement our own integrand with the
+`AutoBZCore.FourierIntegralFunction`, although in the next example we show an
+equivalent calculation using a built-in [`DOSSolver`](@ref)
 ```@example dos_z
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi # integrand evaluator
-D = FourierIntegralFunction(dos_integrand, H, (; η, ω)) # user-defined integrand with partial arguments
+dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi
+D = FourierIntegralFunction(dos_integrand, H)
 ```
 To compute the integral, we also need to provide the limits of integration, to
 specify an error tolerance, and to call one of the integration routines
 ```@example dos_z
 using LinearAlgebra
 bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
-solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50))
+solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50));
+nothing # hide
 ```
 We can calculate and plot the DOS as a function of frequency
 ```@example dos_z
@@ -84,9 +90,6 @@ savefig("dos_z.png"); nothing # hide
 
 ![dos integer lattice](dos_z.png)
 
-
-You will find a working example of this model in the `DOS_example.jl` demo that
-computes DOS over a range of frequencies for this model.
 
 ## DOS interpolation for Graphene
 
@@ -165,7 +168,8 @@ using LinearAlgebra
 η = 0.1 # eV
 Σ = EtaSelfEnergy(η)
 bz = load_bz(FBZ(2), Diagonal(collect(AutoBZ.period(H))))
-solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=100); ω)
+solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=100); ω);
+nothing # hide
 ```
 Using this integral solver, we can compute a fast-to-evaluate, adaptive
 interpolant for the DOS using
@@ -174,7 +178,7 @@ interpolant for the DOS using
 ENV["GKSwstype"] = "100" # hide
 using HChebInterp
 using Plots
-DOS = hchebinterp(ω -> (AutoBZ.update_gloc!(solver; ω); solve!(solver).value), -ω, ω; atol=1e-3)
+DOS = hchebinterp(ω -> (AutoBZ.update_dos!(solver; ω); solve!(solver).value), -ω, ω; atol=1e-3)
 plot(range(-ω, ω, length=1000), DOS, title="Graphene", xguide="ħω", yguide="DOS", label="η=$η")
 savefig("dos_g.png"); nothing # hide
 ```

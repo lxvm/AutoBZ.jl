@@ -5,6 +5,9 @@ function transport_function_integrand((h, vs)::Tuple{Eigen,SVector}; β, μ)
 end
 transport_function_integrand(k, hv, p) = transport_function_integrand(hv; p...)
 function update_tf!(solver; β, μ=zero(inv(oneunit(β))))
+    β != solver.p.β && solver.alg isa AutoPTR && @warn "changing β does not update AutoPTR heuristics"
+    # solver.alg = _heuristic_bzalg(solver.alg, π/β, solver.f.s)
+    # TODO also reinit the AutoPTR cache?
     solver.p = (; β, μ)
     return
 end
@@ -29,5 +32,5 @@ function TransportFunctionSolver(hv::AbstractVelocityInterp, bz, bzalg; β, μ=z
     proto = transport_function_integrand(k, hvk, p)
     f = FourierIntegralFunction(transport_function_integrand, hv, proto)
     prob = AutoBZProblem(coord_to_rep(coord(hv)), f, bz, p; kws...)
-    return init(prob, bzalg)
+    return init(prob, _heuristic_bzalg(bzalg, π/β, hv))
 end

@@ -4,7 +4,10 @@ The [optical conductivity](https://en.wikipedia.org/wiki/Optical_conductivity)
 is a response function that describes the electrical current response of a
 material to an incident electromagnetic field. AutoBZ.jl currently implements
 the longitudinal conductivity, which is the symmetric part of the conductivity
-tensor.
+tensor. After walking through these tutorials, continue with the
+[`demos/oc_test.jl`](https://github.com/lxvm/AutoBZ.jl/blob/main/demos/oc_test.jl)
+script that compares several algorithms for the calculation of the conductivity
+of a Wannier90 Hamiltonian using the [`load_wannier90_data`](@ref) interface.
 
 ## Model conductivity
 
@@ -46,7 +49,8 @@ the BZ integral
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); β, Ω=0.0, μ, abstol=atol/nsyms(bz), reltol=rtol)
+solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); β, Ω=0.0, μ, abstol=atol/nsyms(bz), reltol=rtol);
+nothing # hide
 ```
 Then we can evaluate the frequency dependence of the conductivity and plot
 particular matrix elements.
@@ -65,15 +69,20 @@ savefig("conductivity.png"); nothing # hide
 
 A generalization of the optical conductivity is the
 [`AutoBZ.KineticCoefficientSolver`](@ref), which enables the calculation of
-additional transport properties. For example, we can compute the Seebeck
-coefficient as a function of temperature
+additional transport properties. In fact, and
+[`AutoBZ.OpticalConductivitySolver`](@ref) is implemented as a
+[`AutoBZ.KineticCoefficientSolver`](@ref) and so we can use them interchangeably.
+For example, we can compute the [Seebeck
+coefficient](https://en.wikipedia.org/wiki/Seebeck_coefficient) as a function of
+temperature
 ```@example oc
-solver_1 = KineticCoefficientSolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); n=1, Ω=0.0, β, μ, abstol=atol/nsyms(bz), reltol=rtol)
 temps = range(100, 300, length=10)
 f = T -> begin
-    AutoBZ.update_oc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ)
-    AutoBZ.update_kc!(solver_1; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=1)
-    -real(solve!(solver_1).value[1,1]) / real(solve!(solver).value[1,1])
+    AutoBZ.update_kc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=0)
+    kc_0 = solve!(solver).value
+    AutoBZ.update_kc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=1)
+    kc_1 = solve!(solver).value
+    -real(kc_1[1,1]) / real(kc_0[1,1])
 end
 plot(temps, f, title="Two hopping model", xguide="T", yguide="κₓₓ (a.u.)", label="η=$η")
 savefig("seebeck.png"); nothing # hide
