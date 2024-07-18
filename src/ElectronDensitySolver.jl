@@ -59,8 +59,8 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     end |> fun |> x -> x*fermi(β, ω)
     inner_kws = _rescale_abstol(inv(V*nsyms(bz)); kws...)
     proto = post_k(solve(linprob, linalg), (fdom[1]+fdom[2])/2, p_k)
-    f = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
-    fprob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
+    f_k = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
+    fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
@@ -74,8 +74,8 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         return
     end
     post = (sol, k, h, p) -> sol.value
-    g = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
-    prob = AutoBZProblem(rep, g, bz, p; kws...)
+    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
+    prob = AutoBZProblem(rep, f, bz, p; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end
 
