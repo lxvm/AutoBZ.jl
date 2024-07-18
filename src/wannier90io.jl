@@ -433,7 +433,8 @@ end
 function calc_interp_error(hv::AbstractVelocityInterp, val, err)
     # TODO test the symmetry on the velocity with a trace over the orbital indices, rotation
     # on coordinate indices
-    return calc_interp_error_(gauge(hv), val[1], err[1])
+    h = parentseries(hv)
+    return calc_interp_error_(init(h.prob, h.alg), gauge(hv), val[1], err[1])
 end
 calc_interp_error(::BerryConnectionInterp, val, err) = NaN
 
