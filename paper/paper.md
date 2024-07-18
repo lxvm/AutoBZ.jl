@@ -38,7 +38,7 @@ bibliography: paper.bib
 AutoBZ.jl is a modular Julia package implementing efficient algorithms for Brillouin zone (BZ) integration, a fundamental step in the calculation of physical observables such as the density of states or the optical conductivity.
 Our BZ integration methods, described in Refs. [@kayeAutomaticHighorderAdaptive2023] and [@VanMunoz_et_al:2024], are high-order accurate, automatically convergent to a user-specified error tolerance, and if needed, adaptive in momentum space.
 This allows to resolve low temperature properties of strongly interacting systems, using many-body methods such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a] where frequency-dependent electronic self-energies may attain scattering rates in the sub-meV regime. The corresponding low temperature regions in phase diagrams are less explored as they are typically out of reach using traditional integration algorithms, which struggle to resolve localized features in momentum space.
-AutoBZ.jl can also be used to compute ground state (i.e. T=0K) properties of tight-binding models, typically derived from localized Wannier functions, with a given artificial broadening.
+AutoBZ.jl can also be used to compute ground state (i.e. $T=0$ K) properties of tight-binding models, typically derived from localized Wannier functions, with a given artificial broadening.
 Designed using open-source software principles [@bezansonJuliaFreshApproach2017], AutoBZ.jl serves as an extensible framework for research into computational materials properties, and a flexible toolbox with which to compute a broad range of quantities using Wannier interpolation and BZ integration [@mostofiWannier90ToolObtaining2008].
 We expect it to become a widely used tool in the electronic structure community, providing accurate comparisons with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of materials properties.
 
@@ -86,14 +86,11 @@ AutoBZ.jl can be called from MATLAB and Python, and includes file-based interfac
 The modular design of AutoBZ.jl simplifies the addition of new algorithms and problem types, and its interoperatibility and well-documented API enables its use as a scripting tool for many research problems.
 
 
-![An optical conductivity calculation for a 3-band model of $t_{2g}$ orbitals in
-the cubic perovskite SrVO3 across a geometric
-series of temperatures such that the scattering rate is halved each time the
-temperature is decreased, reaching a minimum value of 0.2 meV. 
-The inset shows the $1/T^2$ scaling of the DC conductivity expected for Fermi liquids.
+![Calculations of various physical observables for a 3-band model of $t_{2g}$ orbitals in
+the cubic perovskite SrVO3 at a temperature of 64 K, using a Fermi liquid scaling for the scattering rate. Panel (a) shows the density of states (DOS) as a function of frequency, panel (b) shows the number of electrons as a function of the chemical potential, and panel (c) shows the optical conductivity as a function of excitation frequency at a chemical potential of 12.5 eV.
 AutoBZ.jl
-was used to compute the conductivity, which was interpolated by HChebinterp.jl
-with parallelization of both the integration and interpolation. \label{fig:oc}](oc_fermiliquid.png)
+was used to compute the observables, which were interpolated by HChebinterp.jl
+with parallelization of the interpolation. \label{fig:observables}](figure.png)
 
 # Acknowledgements
 

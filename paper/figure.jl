@@ -16,7 +16,7 @@ Z = 0.5
 
 bzalg = IAI()
 abstol = 1e-5
-reltol = 1e-3
+reltol = 1e-4
 
 ω = 2.0 # eV
 μ = 12.5 # eV
@@ -58,7 +58,7 @@ dos_dat = -imag(trg_interp.(dos_x))/pi./det(bz.B)
 bzalg = IAI()
 falg = QuadGKJL()
 abstol = 1e-5
-reltol = 1e-3
+reltol = 1e-4
 
 μ = 12.5 # eV
 μmax = 2.0 # eV
@@ -89,10 +89,9 @@ h, bz = load_wannier90_data(seed;
         return out
     end
 end
-atol = abstol*100
+atol = 1e-2
 ρ_interp = hchebinterp(ρ_batch, μ-μmax, μ+μmax; atol)
 
-ρ_axis = Axis(fig[1,2])
 ρ_x = range(μ-μmax, μ+μmax; length=1000)
 ρ_dat = ρ_interp.(ρ_x)./det(bz.B)
 
@@ -100,8 +99,8 @@ atol = abstol*100
 
 bzalg = IAI()
 falg = QuadGKJL()
-abstol = 1e-5
-reltol = 1e-3
+abstol = AutoBZ.AutoBZCore.IteratedIntegration.AuxValue(1e-5, abs(det(bz.B))*1e-2)
+reltol = 1e-4
 
 μ = 12.5 # eV
 Ω = 0.3 # eV
@@ -115,29 +114,29 @@ hv, bz = load_wannier90_data(seed;
 )
 
 a = AutoBZ.freq2rad(η/AutoBZ.velocity_bound(AutoBZ.parentseries(hv)))
-s = inv(a*nsyms(bz)*abs(det(bz.B)))
-σ_solver = OpticalConductivitySolver(hv, bz, bzalg, Σ, falg; β, μ, Ω, abstol, reltol, scale_inner=s)
+s = AutoBZ.AutoBZCore.IteratedIntegration.AuxValue(inv(a*nsyms(bz)*abs(det(bz.B))), 0.1)
+σ_solver = AuxOpticalConductivitySolver(hv, bz, bzalg, Σ, falg; β, μ, Ω, abstol, reltol, scale_inner=s)
 
 σ_batch = let μ=μ, β=β, s=s, N=Threads.nthreads(), σ_chnl = Channel{typeof(σ_solver)}(N)
     for _ in 1:N
-        put!(σ_chnl, OpticalConductivitySolver(hv, bz, bzalg, Σ, falg; β, μ, Ω, abstol, reltol, scale_inner=s))
+        put!(σ_chnl, AuxOpticalConductivitySolver(hv, bz, bzalg, Σ, falg; β, μ, Ω, abstol, reltol, scale_inner=s))
     end
     BatchFunction() do Ωs
         out = Vector{AutoBZ.SMatrix{3,3,ComplexF64,9}}(undef, length(Ωs))
         Threads.@threads for n in 1:N
             _solver = take!(σ_chnl)
             for i in n:N:length(out)
-                AutoBZ.update_oc!(_solver; β, μ, Ω=Ωs[i])
+                AutoBZ.update_auxoc!(_solver; β, μ, Ω=Ωs[i])
                 sol = solve!(_solver)
-                out[i] = sol.value
+                out[i] = sol.value.val
             end
             put!(σ_chnl, _solver)
         end
         return out
     end
 end
-atol = abstol*100
-rtol = reltol*10
+atol = 1e-2
+rtol = 1e-3
 σ_interp = hchebinterp(σ_batch, zero(Ω), Ω; atol, rtol)
 
 σ_x = range(zero(Ω), Ω; length=1000)
