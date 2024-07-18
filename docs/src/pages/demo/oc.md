@@ -78,7 +78,7 @@ temperature
 ```@example oc
 temps = range(100, 300, length=10)
 f = T -> begin
-    AutoBZ.update_oc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=0)
+    AutoBZ.update_kc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=0)
     kc_0 = solve!(solver).value
     AutoBZ.update_kc!(solver; β=inv(8.617333262e-5*T), Ω=0.0, μ, n=1)
     kc_1 = solve!(solver).value
