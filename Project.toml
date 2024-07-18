@@ -1,7 +1,7 @@
 name = "AutoBZ"
 uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
 authors = ["lxvm <lorenzo@vanmunoz.com> and contributors"]
-version = "0.5.1"
+version = "0.5.2"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"
@@ -41,7 +41,7 @@ FourierSeriesEvaluators = "1.1"
 HChebInterp = "1"
 LinearAlgebra = "1.9"
 Logging = "1.9"
-Makie = "0.19"
+Makie = "0.19,0.20,0.21"
 OffsetArrays = "1"
 PlotlyJS = "0.18"
 Reexport = "1"
