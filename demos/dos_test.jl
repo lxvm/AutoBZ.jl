@@ -30,6 +30,5 @@ for alg in algs
     @show nameof(typeof(alg))
     solver = DOSSolver(Σ, h, bz, alg; ω, abstol=atol, reltol=rtol)
     sol = @time solve!(solver)
-    @show sol.value
-    println()
+    @show sol.value sol.stats
 end

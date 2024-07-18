@@ -36,12 +36,14 @@ kalgs = (IAI(), TAI(), PTR(; npt=npt), AutoPTR()) # BZ algorithms
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = OpticalConductivitySolver(hv, bz, kalg, Σ, falg; Ω, β, abstol=atol, reltol=rtol)
-    @time @show solve!(solver).value
+    @time sol = solve!(solver)
+    @show sol.value sol.stats
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = OpticalConductivitySolver(Σ, falg, hv, bz, kalg; Ω, β, abstol=atol, reltol=rtol)
-    @time @show solve!(solver).value
+    @time sol = solve!(solver)
+    @show sol.value sol.stats
 end

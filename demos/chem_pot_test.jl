@@ -35,12 +35,14 @@ falg = QuadGKJL()
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = ElectronDensitySolver(h, bz, kalg, Σ, falg; β, μ, abstol=atol, reltol=rtol)
-    @time @show solve!(solver).value
+    @time sol = solve!(solver)
+    @show sol.value sol.stats
 end
 
 # loop to test various routines with the frequency integral on the outside
 for kalg in kalgs
     @show nameof(typeof(kalg))
     solver = ElectronDensitySolver(Σ, falg, h, bz, kalg; β, μ, abstol=atol, reltol=rtol)
-    @time @show solve!(solver).value
+    @time sol = solve!(solver)
+    @show sol.value sol.stats
 end
