@@ -8,7 +8,7 @@ for d in 1:3
     V = abs(det(bz.B))
     for h in [
         coeffs2FourierHamiltonian(C),
-        coeffs2HermitianHamiltonian(C),
+        coeffs2HermitianHamiltonian(C; gauge=Hamiltonian()),
         # coeffs2RealSymmetricHamiltonian(C),
     ]
         η = 1.0
