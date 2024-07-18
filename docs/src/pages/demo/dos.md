@@ -57,8 +57,9 @@ integral
 ```
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
-rate. We implement our own user-defined integrand with the
-`AutoBZCore.FourierIntegralFunction`:
+rate. For pedagogical purposes, we implement our own integrand with the
+`AutoBZCore.FourierIntegralFunction`, although in the next example we show an
+equivalent calculation using a built-in [`DOSSolver`](@ref)
 ```@example dos_z
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
