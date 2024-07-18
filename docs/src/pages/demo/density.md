@@ -3,7 +3,13 @@
 The [electron density](https://en.wikipedia.org/wiki/Electron_density) describes
 the number of electrons in a system. It can be calculated by integrating the DOS
 times a Fermi distribution over all frequencies. Often calculations of the
-density are needed to ensure charge self-consistency.
+density are needed to ensure charge self-consistency. After walking through
+these tutorials, continue with the
+[`demos/chem_pot_test.jl`](https://github.com/lxvm/AutoBZ.jl/blob/main/demos/chem_pot_test.jl)
+script that compares several algorithms for the calculation of the electron
+density of a Wannier90 Hamiltonian using the [`load_wannier90_data`](@ref)
+interface and a frequency-dependent self energy using the
+[`load_self_energy`](@ref) interface.
 
 ## Model calculation
 
@@ -41,7 +47,8 @@ bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H))))
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol)
+solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol);
+nothing # hide
 ```
 Here, we have chosen to the order of integration to compute a frequency integral
 for each ``\bm{k}`` point. We can compute the density over a range of chemical
