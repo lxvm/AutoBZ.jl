@@ -1,11 +1,11 @@
-function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), kws...) where {F}
+function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), scale_inner=nothing, kws...) where {F}
     dom = get_safe_fermi_window_limits(Ω, β, fdom...)
     s = 1 # inv((dom[2]-dom[1])*fermi_window_maximum(β, Ω)) # or area under the window function
     # the right choice depends on whether worst-case point-wise error or average is
     # important close to 1) important and could eventually let the user decide
     # And to be rigorous, the scaling should be 1/(dom[2]-dom[1])/fermi_window(β, ω, Ω),
     # although in the tails of the window this uniform error could be dangerous
-    inner_kws = _rescale_abstol(s; kws...)
+    inner_kws = _rescale_abstol(something(scale_inner, s); kws...)
     p = (; β, μ, Ω, n)
     up = (solver, ω, (_, (; β, μ, Ω, n))) -> begin
         update_td!(solver; ω₁=ω, ω₂=ω+Ω, μ)
@@ -35,7 +35,7 @@ function update_kc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω))
     return
 end
 
-function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, Ω, n, μ=zero(inv(oneunit(β))), kws...) where {F}
+function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, Ω, n, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
     M = evalM2(; Σ, ω₁=float(zero(Ω)), ω₂=float(Ω), μ)
     k = SVector(period(hv))
     hvk = hv(k)
@@ -54,7 +54,7 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
     proto = post_k(solve(prob_k, alg), (fdom[1]+fdom[2])/2, p_k)
     f_k = CommonSolveIntegralFunction(prob_k, alg, up_k, post_k, proto)
     V = abs(det(bz.B))
-    inner_kws = _rescale_abstol(inv(V*nsyms(bz)); kws...)
+    inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
     fprob = IntegralProblem(f_k, get_safe_fermi_window_limits(Ω, β, fdom...), p_k; inner_kws...)
     up = (solver, k, hv, p) -> begin
         # if iszero(Ω) && isinf(β)
@@ -106,8 +106,8 @@ function get_safe_fermi_window_limits(Ω, β, lb, ub; kwargs...)
 end
 
 """
-    KineticCoefficientSolver(hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; n, β, Ω, μ=0, kws...)
-    KineticCoefficientSolver(Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; n, β, Ω, μ=0, kws...)
+    KineticCoefficientSolver(hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; n, β, Ω, μ=0, scale_inner=inv(abs(det(bz.B))*nsyms(bz)), kws...)
+    KineticCoefficientSolver(Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; n, β, Ω, μ=0, scale_inner=1, kws...)
 
 A solver for kinetic coefficients.
 The two orderings of arguments correspond to orders of integration.
@@ -137,8 +137,8 @@ function KineticCoefficientSolver(hv::AbstractVelocityInterp, bz, bzalg, Σ::Abs
 end
 
 """
-    OpticalConductivitySolver(hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; β, Ω, μ=0, kws...)
-    OpticalConductivitySolver(Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; β, Ω, μ=0, kws...)
+    OpticalConductivitySolver(hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; β, Ω, μ=0, scale_inner=inv(abs(det(bz.B))*nsyms(bz)), kws...)
+    OpticalConductivitySolver(Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; β, Ω, μ=0, scale_inner=1, kws...)
 
 A solver for the optical conductivity. For details see [`KineticCoefficientSolver`](@ref)
 and note that by default the parameter `n=0`. Use `AutoBZ.update_oc!(solver; β, Ω, μ)` to
@@ -149,8 +149,8 @@ update_oc!(solver; kws...) = update_kc!(solver; kws..., n=0)
 
 
 """
-    AuxKineticCoefficientSolver([auxfun], hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; n, β, Ω, μ=0, kws...)
-    AuxKineticCoefficientSolver([auxfun], Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; n, β, Ω, μ=0, kws...)
+    AuxKineticCoefficientSolver([auxfun], hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; n, β, Ω, μ=0, scale_inner=inv(abs(det(bz.B))*nsyms(bz)), kws...)
+    AuxKineticCoefficientSolver([auxfun], Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; n, β, Ω, μ=0, scale_inner=1, kws...)
 
 A solver for kinetic coefficients using an auxiliary integrand.
 The two orderings of arguments correspond to orders of integration.
@@ -188,8 +188,8 @@ update_auxkc!(args...; kws...) = update_kc!(args...; kws...)
 
 
 """
-    AuxOpticalConductivitySolver([auxfun], hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; β, Ω, μ=0, kws...)
-    AuxOpticalConductivitySolver([auxfun], Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; β, Ω, μ=0, kws...)
+    AuxOpticalConductivitySolver([auxfun], hv, bz, bzalg, Σ, [fdom,] falg, [linalg=JLInv()]; β, Ω, μ=0, scale_inner=inv(abs(det(bz.B))*nsyms(bz)), kws...)
+    AuxOpticalConductivitySolver([auxfun], Σ, [fdom,] falg, hv, bz, bzalg, [linalg=JLInv()]; β, Ω, μ=0, scale_inner=1, kws...)
 
 A solver for the optical conductivity. For details see [`AuxKineticCoefficientSolver`](@ref)
 and note that by default the parameter `n=0`. Use `AutoBZ.update_auxoc!(solver; β, Ω, μ)` to
