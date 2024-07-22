@@ -87,7 +87,7 @@ The modular design of AutoBZ.jl simplifies the addition of new algorithms and pr
 
 
 ![Calculations of various physical observables for a 3-band model of $t_{2g}$ orbitals in
-the cubic perovskite SrVO3 at a temperature of 64 K, using a Fermi liquid scaling for the scattering rate. Panel (a) shows the density of states (DOS) as a function of frequency, panel (b) shows the number of electrons as a function of the chemical potential, and panel (c) shows the optical conductivity as a function of excitation frequency at a chemical potential of 12.5 eV.
+the cubic perovskite SrVO3 at a temperature of 24 K, using a Fermi liquid scaling for the scattering rate, which is 1 meV. Panel (a) shows the density of states (DOS) as a function of frequency and panel (b) shows the optical conductivity as a function of excitation frequency at a chemical potential of 12.5 eV.
 AutoBZ.jl
 was used to compute the observables, which were interpolated by HChebinterp.jl
 with parallelization of the interpolation. \label{fig:observables}](figure.png)
