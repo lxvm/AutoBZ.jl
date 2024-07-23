@@ -12,9 +12,10 @@ Julia's package manager as follows:
 ```julia
 using Pkg
 Pkg.activate()
-Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git")
+Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", version="main")
 ```
-Or to download the repository with SSH use the git link:
+The `version` keyword can also be set to a tagged version, e.g. "v0.5.3".
+To download the repository with SSH use the git link:
 `git@github.com:lxvm/AutoBZ.jl.git`
 
 The motivation for keeping AutoBZ.jl an unregistered package is that its
@@ -27,7 +28,7 @@ contact the developers with their request.
 
 ## Running jobs
 
-Potential users of `AutoBZ` will find scripts in the `demos` to use as templates
+Potential users of `AutoBZ` will find scripts in the [`demos`](https://github.com/lxvm/AutoBZ.jl/tree/main/demos) to use as templates
 for calculations and jobs. From the project environment configured above, the scripts from
 the `demos` folder can be copied with,
 ```bash

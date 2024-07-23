@@ -362,8 +362,8 @@ load_interp(seedname::String; kwargs...) =
 """
     load_autobz(::AbstractBZ, seedname; kws...)
 
-Automatically load a BZ using data from a "seedname.wout" file with the `load_bz` interface
-from AutoBZCore.
+Automatically load a BZ using data from a "seedname.wout" file with the
+[`AutoBZCore.load_bz`](@extref) interface
 """
 function load_autobz(bz::AbstractBZ, seedname::String; precision=Float64, atol=1e-5)
     (; A, B) = parse_wout(seedname * ".wout", precision)

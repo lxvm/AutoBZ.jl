@@ -61,35 +61,39 @@ integral
 ```
 where ``\omega`` is a frequency variable, ``\bm{k}`` is the reciprocal space
 vector, ``\mu`` is the chemical potential and ``\eta`` is a constant scattering
-rate. For pedagogical purposes, we implement our own integrand with the
-`AutoBZCore.FourierIntegralFunction`, although in the next example we show an
-equivalent calculation using a built-in [`DOSSolver`](@ref)
+rate. We assemble this problem using the built-in [`DOSSolver`](@ref)
 ```@example dos_z
+using LinearAlgebra
 ω = t*n # frequency at the band edge/Van-Hove singularity
 ħ = 1.0 # reduced Planck's constant
 η = 0.1 # broadening
-dos_integrand(k, H_k, (; η, ω)) = -imag(inv(ħ*ω - H_k + im*η))/pi
-D = FourierIntegralFunction(dos_integrand, H)
-```
-To compute the integral, we also need to provide the limits of integration, to
-specify an error tolerance, and to call one of the integration routines
-```@example dos_z
-using LinearAlgebra
-bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H)))) # Irreducible BZ for cubic symmetries is tetrahedron
-solver = init(AutoBZProblem(TrivialRep(), D, bz, (; η, ω)), PTR(npt=50));
+Σ = EtaSelfEnergy(η)
+bz = load_bz(FBZ(3), Diagonal(collect(AutoBZ.period(H))))
+solver = DOSSolver(Σ, HamiltonianInterp(AutoBZ.Freq2RadSeries(H)), bz, PTR(npt=50); ω);
 nothing # hide
 ```
-We can calculate and plot the DOS as a function of frequency
+To compute the integral, we defined a Brillouin zone as a domain
+of integration using [`AutoBZCore.load_bz`](@extref) with the
+integrand and domain, and chose and algorithm, in this case
+[`AutoBZCore.PTR`](@extref). (Other automatic algorithms, such as
+[`AutoBZCore.AutoPTR`](@extref) and [`AutoBZCore.IAI`](@extref) also allow
+passing keywords `abstol` and `reltol` to the solver, which should provide
+convergence to the requested tolerance.)
+We can now calculate and plot the DOS as a function of frequency
 ```@example dos_z
 ENV["GKSwstype"] = "100" # hide
 using Plots
 freqs = range(-ω, ω, length=100) * 1.1
-plot(freqs, ω -> (solver.p = (; solver.p..., ω); solve!(solver).value), title="Cubic lattice", xguide="ħω", yguide="DOS", label="η=$η")
+plot(freqs, ω -> (AutoBZ.update_dos!(solver; ω); solve!(solver).value), title="Cubic lattice", xguide="ħω", yguide="DOS", label="η=$η")
 savefig("dos_z.png"); nothing # hide
 ```
 
 ![dos integer lattice](dos_z.png)
 
+Here we used a built-in helper function, `AutoBZ.update_dos!`, to update the
+parameters of the solver, and [`CommonSolve.solve!`](@extref) to perform the
+calculation. Each observable defined in AutoBZ.jl comes with an associated
+solver and parameter updating function intended to be used this way.
 
 ## DOS interpolation for Graphene
 
@@ -159,9 +163,7 @@ C[1,1]   = C[1,-2] = C[-2,1] = [0 -t; 0 0] # Define C[R] = H_R
 C[-1,-1] = C[-1,2] = C[2,-1] = [0 0; -t 0]
 H = FourierSeries(C, period = 2*pi/a)
 ```
-The DOS integrand can be formulated as before, except it must also compute the
-trace since this Hamiltonian is matrix-valued. Another option would be to use
-the pre-defined [`AutoBZ.DOSSolver`](@ref).
+The DOS integrand can be formulated as before using a [`DOSSolver`](@ref).
 ```@example dos_g
 using LinearAlgebra
 ω = 4.0 # eV

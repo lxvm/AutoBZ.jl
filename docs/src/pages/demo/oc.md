@@ -37,11 +37,10 @@ H[ 1,-1, 0] = H[-1, 1, 0] = -[ 0;t′; 0;;t′; 0; 0;; 0; 0; 0]
 hv = GradientVelocityInterp(HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(H, period=2pi))), bz.A)
 ```
 The optical conductivity requires the velocity operators in addition to the
-Hamiltonian in order to compute the current-current correlations. To load a
-Hamiltonian and velocities from Wannier90 data, see
-[`AutoBZ.load_wannier90_data`](@ref). For integrating the optical conductivity,
-we construct an [`AutoBZ.OpticalConductivitySolver`](@ref) and a solver for
-the BZ integral
+Hamiltonian in order to compute the current-current correlations. For integrating the optical conductivity,
+we construct an [`OpticalConductivitySolver`](@ref) that computes the
+optical conductivity at a given chemical potential `μ`, inverse temperature `β`, and excitation
+frequency `Ω`
 ```@example oc
 η = 0.1 # eV
 μ = -0.669607319787773 # eV
@@ -68,10 +67,10 @@ savefig("conductivity.png"); nothing # hide
 ## Kinetic coefficients
 
 A generalization of the optical conductivity is the
-[`AutoBZ.KineticCoefficientSolver`](@ref), which enables the calculation of
-additional transport properties. In fact, and
-[`AutoBZ.OpticalConductivitySolver`](@ref) is implemented as a
-[`AutoBZ.KineticCoefficientSolver`](@ref) and so we can use them interchangeably.
+[`KineticCoefficientSolver`](@ref), which enables the calculation of
+additional transport properties. In fact, an
+[`OpticalConductivitySolver`](@ref) is implemented as a
+[`KineticCoefficientSolver`](@ref) and so we can use them interchangeably.
 For example, we can compute the [Seebeck
 coefficient](https://en.wikipedia.org/wiki/Seebeck_coefficient) as a function of
 temperature
@@ -91,7 +90,7 @@ savefig("seebeck.png"); nothing # hide
 ![model Seebeck](seebeck.png)
 
 The kinetic coefficients calculate the higher moments of the
-[`AutoBZ.TransportDistributionSolver`](@ref) and are especially useful for
+[`TransportDistributionSolver`](@ref) and are especially useful for
 thermal properties of solids.
 
 ## Auxiliary integration
@@ -99,7 +98,7 @@ thermal properties of solids.
 For very small scattering rates, i.e. ``\eta < 10`` meV, adaptive integration
 algorithms are more efficient than uniform integration. However, they may suffer
 from a peak missing problem that we address with a technique called auxiliary
-integration.
+integration using a [`AuxOpticalConductivitySolver`](@ref).
 
 ```@example oc
 using IteratedIntegration: AuxValue
