@@ -68,7 +68,7 @@ such as the dielectric function, the density of states, and the Hall
 conductivity.
 -->
 
-Most open-source software packages in the context of density functional theory plus dynamical mean-field theory, including those compatible with Wannier90 (see e.g. Refs. [@aichhornTRIQSDFTToolsTRIQS2016, @Romero_et_al:2020, @Shinaoka_et_al:2021, Singh_et_al:2021]), employ simple uniform integration grids, despite the fact that BZ integrands may be strongly localized, e.g., near the Fermi surface for a Fermi liquid in the case of the Green's function.
+Most open-source software packages in the context of density functional theory plus dynamical mean-field theory, including those compatible with Wannier90 (see e.g. Refs. [@aichhornTRIQSDFTToolsTRIQS2016, @Romero_et_al:2020, @Shinaoka_et_al:2021, @Singh_et_al:2021]), employ simple uniform integration grids, despite the fact that BZ integrands may be strongly localized, e.g., near the Fermi surface for a Fermi liquid in the case of the Green's function.
 However, these details of electronic structure may sensitively control downstream observables, so it is crucial that BZ integrals be computed in a resolved manner in material-realistic calculations. 
 In practice, this requires using dense uniform integration grids, which become compute or memory-limited in low temperature calculations involving scattering rates approaching the meV scale.
 Furthermore, validating uniform integration methods requires careful convergence testing which is not always prioritized, sometimes leading to under-resolved results with spurious features.
