@@ -158,7 +158,7 @@ begin
     using CairoMakie
     set_theme!(;
         fontsize=80,
-        linewidth=10,
+        linewidth=8,
         Axis = (;
             xgridvisible=false,
             xtickalign = 1,
@@ -173,6 +173,7 @@ begin
         ),
         Series = (;
             color = colors,
+            linewidth=4,
         ),
         Legend = (;
             framewidth=6,
@@ -183,7 +184,7 @@ begin
     dos_axis = Axis(fig[1,1];
         xlabel="ω (eV)",
         ylabel="DOS (1/eV)",
-        limits=((-1.49, 1.49), (0, 7))
+        limits=((-1.2, 1.49), (0, 7))
     )
     dos_dat = [(dos_x, -imag.(trg.(dos_x))./pi./det(bz.B)) for trg in trg_interps]
     series!(dos_axis, dos_dat)
@@ -203,7 +204,7 @@ begin
     )
     series!(dos_axis_inset, dos_dat)
     =#
-    text!(dos_axis, (1-0.9)*2.98-1.49, 0.85*7-0; text="(a)")
+    text!(dos_axis, (1-0.95)*2.69-1.2, 0.85*7-0; text="(a)")
     #=
     ρ_axis = Axis(fig[1,2];
         xlabel="μ (eV)",
