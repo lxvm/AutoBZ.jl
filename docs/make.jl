@@ -1,5 +1,9 @@
-push!(LOAD_PATH, "../src")
 using Documenter, AutoBZ
+using DocumenterInterLinks
+
+links = InterLinks(
+    "AutoBZCore" => "https://lxvm.github.io/AutoBZCore.jl/stable/",
+)
 
 Documenter.HTML(
     mathengine = MathJax3(Dict(
@@ -31,6 +35,7 @@ makedocs(
             "pages/man/internal.md",
         ],
     ],
+    plugins=[links,],
 )
 
 deploydocs(

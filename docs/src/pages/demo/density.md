@@ -36,8 +36,8 @@ H[ 1, 1, 0] = H[-1,-1, 0] =  [ 0;t′; 0;;t′; 0; 0;; 0; 0; 0]
 H[ 1,-1, 0] = H[-1, 1, 0] = -[ 0;t′; 0;;t′; 0; 0;; 0; 0; 0]
 H = HamiltonianInterp(AutoBZ.Freq2RadSeries(FourierSeries(H, period=2pi)))
 ```
-With this Hamiltonian we can define an [`AutoBZ.ElectronDensitySolver`](@ref)
-and a solver that computes the electron density at a given temperature and
+With this Hamiltonian we can define an [`ElectronDensitySolver`](@ref)
+that computes the electron density at a given temperature and
 scattering rate.
 ```@example chempot
 using LinearAlgebra
@@ -47,7 +47,7 @@ bz = load_bz(CubicSymIBZ(), Diagonal(collect(AutoBZ.period(H))))
 Σ = EtaSelfEnergy(η)
 atol=1e-3
 rtol=0.0
-solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, (-Inf, Inf), QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol);
+solver = ElectronDensitySolver(H, bz, PTR(npt=50), Σ, QuadGKJL(); β, abstol=atol/nsyms(bz), reltol=rtol);
 nothing # hide
 ```
 Here, we have chosen to the order of integration to compute a frequency integral
@@ -95,3 +95,5 @@ It is important to note that if you are using a frequency-dependent self energy
 that you should check the total number of electrons in the system is as
 expected. This can be done by integrating the DOS over all frequencies at a
 given chemical potential.
+For example, setting `β=0` in the calculation above would compute half of the
+total number of electrons.
