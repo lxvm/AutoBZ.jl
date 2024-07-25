@@ -35,44 +35,20 @@ bibliography: paper.bib
 # Summary
 
 
-AutoBZ.jl is a modular Julia package implementing efficient algorithms for Brillouin zone (BZ) integration, a fundamental step in the calculation of physical observables such as the density of states or the optical conductivity.
+AutoBZ.jl is a modular Julia package implementing efficient algorithms for Brillouin zone (BZ) integration, a fundamental step in the calculation of physical observables such as the density of states and the optical conductivity.
 Our BZ integration methods, described in Refs. [@kayeAutomaticHighorderAdaptive2023] and [@VanMunoz_et_al:2024], are high-order accurate, automatically convergent to a user-specified error tolerance, and if needed, adaptive in momentum space.
-This allows to resolve low temperature properties of strongly interacting systems, using many-body methods such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a] where frequency-dependent electronic self-energies may attain scattering rates in the sub-meV regime. The corresponding low temperature regions in phase diagrams are less explored as they are typically out of reach using traditional integration algorithms, which struggle to resolve localized features in momentum space.
+This allows the resolution of low temperature properties of strongly interacting systems, using many-body methods such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a] in which frequency-dependent electronic self-energies may produce scattering rates in the sub-meV regime. The corresponding low temperature regions of phase diagrams are typically out of reach using traditional integration algorithms, which struggle to resolve localized features in momentum space.
 AutoBZ.jl can also be used to compute ground state (i.e. $T=0$ K) properties of tight-binding models, typically derived from localized Wannier functions, with a given artificial broadening.
-Designed using open-source software principles [@bezansonJuliaFreshApproach2017], AutoBZ.jl serves as an extensible framework for research into computational materials properties, and a flexible toolbox with which to compute a broad range of quantities using Wannier interpolation and BZ integration [@mostofiWannier90ToolObtaining2008].
-We expect it to become a widely used tool in the electronic structure community, providing accurate comparisons with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of materials properties.
-
-<!---
-and our goal is to use it to study strongly
-interacting systems
-with sufficient energy resolution, i.e. sub-meV, to elucidate the various
-effects of interactions, dispersion, and spin-orbit coupling. In particular, we
-believe the DMFT  community will benefit
-from this package, either as a post-processing tool for experimental
-predictions, such as the calculation presented in \autoref{fig:oc}, or as an
-inner-loop calculation, such as for ensuring charge self-consistency.
--->
+Designed using open-source software principles [@bezansonJuliaFreshApproach2017], AutoBZ.jl serves as an extensible framework for computational research on material properties, and a flexible toolbox with which to compute a broad range of quantities using Wannier interpolation and BZ integration [@mostofiWannier90ToolObtaining2008].
+We expect it to become a widely used tool in the electronic structure community, providing accurate comparisons with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of material properties.
 
 # Statement of need
 
-<!---
-In recent years, DFT codes combined with tools such as Wannier90
-[@mostofiWannier90ToolObtaining2008]
-have enabled high-throughput materials searches by robustly calculating the
-electronic structure of crystalline solids from first principles
-[@vitaleAutomatedHighthroughputWannierisation2020]. To
-compare theory and experiment, the last step in predicting the electronic and
-optical properties of these solids is calculating Brillouin-zone (BZ) integrals
-to obtain quantities
-such as the dielectric function, the density of states, and the Hall
-conductivity.
--->
-
-Most open-source software packages in the context of density functional theory plus dynamical mean-field theory, including those compatible with Wannier90 (see e.g. Refs. [@aichhornTRIQSDFTToolsTRIQS2016; @Romero_et_al:2020; @Shinaoka_et_al:2021; @Singh_et_al:2021]), employ simple uniform integration grids, despite the fact that BZ integrands may be strongly localized, e.g., near the Fermi surface for a Fermi liquid in the case of the Green's function.
+Most open-source software packages used for density functional theory plus dynamical mean-field theory, including those compatible with Wannier90 (see, e.g., Refs. [@aichhornTRIQSDFTToolsTRIQS2016; @Romero_et_al:2020; @Shinaoka_et_al:2021; @Singh_et_al:2021]), employ simple uniform grids for BZ integration, despite the fact that BZ integrands may be highly localized, e.g., near energy isosurfaces for the Green's function.
 However, these details of electronic structure may sensitively control downstream observables, so it is crucial that BZ integrals be computed in a resolved manner in material-realistic calculations. 
 In practice, this requires using dense uniform integration grids, which become compute or memory-limited in low temperature calculations involving scattering rates approaching the meV scale.
 Furthermore, validating uniform integration methods requires careful convergence testing which is not always prioritized, sometimes leading to under-resolved results with spurious features.
-The algorithms in AutoBZ.jl, which include a uniform grid integration scheme for larger scattering rates, automate convergence testing to provide results to a user-specified error tolerance.
+The algorithms in AutoBZ.jl, which include an optimized uniform grid integration scheme for larger scattering rates, automate convergence testing to provide results to a user-specified error tolerance.
 For low temperature calculations, our adaptive integration algorithm has only polylogarithmic computational complexity with respect to the scattering rate, superior to the polynomial rates of alternative tree-based adaptive methods.
 These advancements will be crucial for the development of next-generation quantum impurity solvers and the accurate characterization of spectral features for low-temperature phenomena in condensed matter physics.
 
@@ -89,8 +65,7 @@ The modular design of AutoBZ.jl simplifies the addition of new algorithms and pr
 ![Calculations of various physical observables for a 3-band model of $t_{2g}$ orbitals in
 the cubic perovskite SrVO3 at a temperature of 24 K, using a Fermi liquid scaling for the scattering rate, which is 1 meV. Panel (a) shows the density of states (DOS) as a function of frequency and panel (b) shows the optical conductivity as a function of excitation frequency at a chemical potential of 12.5 eV.
 AutoBZ.jl
-was used to compute the observables, which were interpolated by HChebinterp.jl
-with parallelization of the interpolation. \label{fig:observables}](figure.png)
+was used to compute the observables at automatically-selected interpolation nodes determined by HChebinterp.jl, yielding a result which can be evaluated on the full domain. We compare the resolved results obtained using adaptive integration with the result of uniform grid integration with $N_k$ momentum space points per dimension. \label{fig:observables}](figure.png)
 
 # Acknowledgements
 
