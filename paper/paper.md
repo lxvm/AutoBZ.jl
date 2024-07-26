@@ -1,5 +1,5 @@
 ---
-title: 'AutoBZ.jl: automatic, adaptive Brillouin zone integration of response functions using Wannier interpolation'
+title: 'AutoBZ.jl: automatic, adaptive Brillouin zone integration using Wannier interpolation'
 tags:
   - Julia
   - electronic structure theory
