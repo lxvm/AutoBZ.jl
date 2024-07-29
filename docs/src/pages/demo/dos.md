@@ -48,10 +48,8 @@ t = 1.0 # hopping amplitude
 construct the array of scalar coefficients and use an OffsetArray so that the
 array indices correspond to the R integer multi-index of the Fourier series
 =#
-C = OffsetArray(zeros(ntuple(_ -> 3, n)), ntuple(_ -> -1:1, n)...)
-for i in 1:n, j in (-1, 1)
-    C[CartesianIndex(ntuple(k -> k == i ? j : 0, n))] = -0.5t
-end
+C = OffsetArray(zeros(3, 3, 3), -1:1, -1:1, -1:1)
+C[1,0,0] = C[0,1,0] = C[0,0,1] = C[-1,0,0] = C[0,-1,0] = C[0,0,-1] = -0.5t
 H = FourierSeries(C, period = 2pi/a)
 ```
 Then we can define the integration problem to compute DOS, defined by the
