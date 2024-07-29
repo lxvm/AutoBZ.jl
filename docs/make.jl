@@ -27,6 +27,10 @@ makedocs(
             "pages/demo/density.md",
             "pages/demo/oc.md",
         ],
+        "Visualization" => [
+            "pages/viz/band.md",
+            "pages/viz/bz.md",
+        ],
         "Manual" => [
             "pages/man/fourier.md",
             "pages/app/self_energy.md",
