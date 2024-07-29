@@ -8,6 +8,12 @@ AutoBZ.load_interp
 AutoBZ.load_autobz
 ```
 
+## PythTB
+
+```@docs
+AutoBZ.pythtb2hamiltonian
+```
+
 ## Python
 
 Julia code, including `AutoBZ.jl`, can be called from Python using the package

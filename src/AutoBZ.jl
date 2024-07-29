@@ -42,6 +42,7 @@ please visit the AutoBZCore.jl [documentation](https://lxvm.github.io/AutoBZCore
         * Option to separate intra-band and inter-band contributions
     * [Wannier90](http://www.wannier.org/)-based parsers Hamiltonians
       (`*_hr.dat` files) and position operators (`*_r.dat` files)
+    * [PythTB](@ref) interface for using tight-binding models
     * Automated interpolation for frequency-dependent self-energy data in text files, using
       [EquiBaryInterp.jl](https://github.com/lxvm/EquiBaryInterp.jl) and
       [HChebInterp.jl](https://github.com/lxvm/HChebInterp.jl).
@@ -128,5 +129,7 @@ include("SSymmetricCompact.jl")
 export load_interp, load_autobz, load_wannier90_data
 include("wannier90io.jl")
 
+export pythtb2hamiltonian
+include("pythtb.jl")
 
 end
