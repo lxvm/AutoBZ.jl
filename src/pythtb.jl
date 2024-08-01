@@ -32,14 +32,46 @@ function pythtb2fourier(m)
     return FourierSeries(_C; period=1.0, offset=Tuple(offset))
 end
 
-"""
-    pythtb2hamiltonian(m)
-
-Converts a PythTB model `m` to a [`HamiltonianInterp`](@ref).
-Only supports spinless, fully-periodic systems.
-To call PythTB from Julia see e.g. [PyCall.jl](https://github.com/JuliaPy/PyCall.jl).
-"""
 function pythtb2hamiltonian(m; kws...)
     f = pythtb2fourier(m)
     return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(f)); kws...)
+end
+
+pythtb2interp(::Type{<:HamiltonianInterp}, m; kws...) = pythtb2hamiltonian(m; kws...)
+function pythtb2interp(::Type{<:GradientVelocityInterp}, m; kws...)
+    GradientVelocityInterp(pythtb2hamiltonian(m), m._lat'; kws...)
+end
+function pythtb2interp(::Type{<:CovariantVelocityInterp}, m; kws...)
+    throw(ArgumentError("CovariantVelocityInterp not supported for pythtb since position operator can't be Wannier interpolated"))
+end
+
+function pythtb2bz(bz::AbstractBZ, m, species)
+    A = m._lat'
+    return load_bz(bz, A)
+end
+
+function pythtb2bz(bz::IBZ, m, species)
+    A = m._lat'
+    B = AutoBZCore.canonical_reciprocal_basis(A)
+    positions = m._orb'
+    return load_bz(bz, A, B, species, positions)
+end
+
+"""
+    load_pythtb_data(m, [species]; bz=FBZ(), interp=HamiltonianInterp, kws...)
+
+Converts a PythTB model `m` to a [`HamiltonianInterp`](@ref).
+Only supports spinless, fully-periodic systems.
+Supplying a list of atomic `species` is helpful when chosing a `bz` of [`AutoBZCore.IBZ`](@extref),
+since PythTB loses some information by combining the atomic and orbital indices into a
+multi-index. By default, `species` assigns a different element to orbitals at different positions.
+To call PythTB from Julia see e.g. [PyCall.jl](https://github.com/JuliaPy/PyCall.jl).
+"""
+function load_pythtb_data(m, species=_default_species(m); bz=FBZ(), interp=HamiltonianInterp, kws...)
+    return pythtb2interp(interp, m; kws...), pythtb2bz(bz, m, species)
+end
+
+function _default_species(m)
+    positions = unique(eachrow(m._orb))
+    return [findfirst(isequal(x), positions) for x in eachrow(m._orb)]
 end

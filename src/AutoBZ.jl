@@ -129,7 +129,7 @@ include("SSymmetricCompact.jl")
 export load_interp, load_autobz, load_wannier90_data
 include("wannier90io.jl")
 
-export pythtb2hamiltonian
+export load_pythtb_data
 include("pythtb.jl")
 
 end
