@@ -11,7 +11,7 @@ AutoBZ.load_autobz
 ## PythTB
 
 ```@docs
-AutoBZ.pythtb2hamiltonian
+AutoBZ.load_pythtb_data
 ```
 
 ## Python
