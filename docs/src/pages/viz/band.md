@@ -7,6 +7,9 @@ visualize k-paths.
 
 ## Energy bands
 
+!!! note "In progress"
+    This will be added soon
+
 ## Band velocities
 
 To overlay band velocities on the k-ath 
