@@ -60,7 +60,7 @@ end
 """
     load_pythtb_data(m, [species]; bz=FBZ(), interp=HamiltonianInterp, kws...)
 
-Converts a PythTB model `m` to a [`HamiltonianInterp`](@ref).
+Returns `(interp, bz)` from a PythTB model `m` for use with AutoBZ.jl solvers.
 Only supports spinless, fully-periodic systems.
 Supplying a list of atomic `species` is helpful when chosing a `bz` of [`AutoBZCore.IBZ`](@extref),
 since PythTB loses some information by combining the atomic and orbital indices into a
