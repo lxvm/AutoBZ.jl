@@ -39,7 +39,7 @@ end
 
 pythtb2interp(::Type{<:HamiltonianInterp}, m; kws...) = pythtb2hamiltonian(m; kws...)
 function pythtb2interp(::Type{<:GradientVelocityInterp}, m; kws...)
-    GradientVelocityInterp(pythtb2hamiltonian(m), m._lat'; kws...)
+    GradientVelocityInterp(pythtb2hamiltonian(m), SMatrix{m._dim_r,m._dim_r,eltype(m._lat),m._dim_r^2}(m._lat'); kws...)
 end
 function pythtb2interp(::Type{<:CovariantVelocityInterp}, m; kws...)
     throw(ArgumentError("CovariantVelocityInterp not supported for pythtb since position operator can't be Wannier interpolated"))
