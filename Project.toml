@@ -18,12 +18,14 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [weakdeps]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
+Lehmann = "95bf888a-8996-4655-9f35-1c0506bdfefe"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [extensions]
+AutoBZLehmannExt = "Lehmann"
 AutoBZUnitfulExt = "Unitful"
 AutoBZWannierIOExt = "WannierIO"
 BrillouinMakieExt = ["Brillouin", "Makie"]
