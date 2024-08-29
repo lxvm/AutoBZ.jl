@@ -46,6 +46,10 @@ julia --project kc_benchmark.jl
 This process is similar to running jobs on a cluster, where it will be benefical
 to set the `--threads` flag.
 
+## Contributing
+
+Read the [contributing guidelines](https://github.com/lxvm/AutoBZ.jl/tree/main/CONTRIBUTING.md) for guidance on PRs, issues, and discussions on matters relating to contributing to AutoBZ.jl.
+
 ## Development
 
 Anyone interested in developing AutoBZ.jl will likely benefit from a
