@@ -12,7 +12,7 @@ Julia's package manager as follows:
 ```julia
 using Pkg
 Pkg.activate()
-Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", version="main")
+Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", rev="main")
 ```
 The `version` keyword can also be set to a tagged version, e.g. "v0.5.3".
 To download the repository with SSH use the git link:
