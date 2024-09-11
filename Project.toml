@@ -31,7 +31,7 @@ BrillouinPlotlyJSExt = ["Brillouin", "PlotlyJS"]
 
 [compat]
 Aqua = "0.8"
-AutoBZCore = "0.4"
+AutoBZCore = "0.4.1"
 BaryRational = "0.1,1"
 Brillouin = "0.5"
 CommonSolve = "0.2"
