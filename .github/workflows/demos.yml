@@ -29,5 +29,4 @@ jobs:
       - name: Install dependencies
         run: julia --project=demos/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Run demos
-        env:
         run: julia --project=demos/ demos/rundemos.jl
