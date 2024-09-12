@@ -1,3 +1,4 @@
+cd(@__DIR__)
 include("dos_test.jl")
 include("oc_test.jl")
 include("chem_pot_test.jl")
