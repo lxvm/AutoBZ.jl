@@ -1,7 +1,7 @@
 name = "AutoBZ"
 uuid = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
 authors = ["lxvm <lorenzo@vanmunoz.com> and contributors"]
-version = "0.5.4"
+version = "0.5.5"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"
@@ -31,7 +31,7 @@ BrillouinPlotlyJSExt = ["Brillouin", "PlotlyJS"]
 
 [compat]
 Aqua = "0.8"
-AutoBZCore = "0.4"
+AutoBZCore = "0.4.1"
 BaryRational = "0.1,1"
 Brillouin = "0.5"
 CommonSolve = "0.2"

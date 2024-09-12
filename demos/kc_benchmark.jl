@@ -45,7 +45,7 @@ kalg = PTR(; npt=npt)
 # kalg = IAI()
 
 # create frequency integrand, which evaluates a bz integral at each frequency
-kc_solver = KineticCoefficientSolver(Σ, falg, hv, bz, kalg; n=0, β, Ω=first(Ω), abstol=atol/nsyms(bz), reltol=rtol)
+kc_solver = KineticCoefficientSolver(Σ, falg, hv, bz, kalg; n=0, β, Ω=first(Ωs), abstol=atol/nsyms(bz), reltol=rtol)
 
 # create bz integrand, which evaluates a frequency integral at each kpt
 # kc_solver = KineticCoefficientSolver(hv, bz, kalg, Σ, falg; n=0, β, Ω=first(Ω), abstol=atol/nsyms(bz), reltol=rtol)
