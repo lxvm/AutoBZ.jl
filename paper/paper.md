@@ -35,11 +35,11 @@ bibliography: paper.bib
 # Summary
 
 
-AutoBZ.jl is a modular Julia package implementing efficient algorithms for Brillouin zone (BZ) integration, a fundamental step in the calculation of physical observables such as the density of states and the optical conductivity.
+AutoBZ.jl is a modular Julia package [@bezansonJuliaFreshApproach2017] implementing efficient algorithms for Brillouin zone (BZ) integration, a fundamental step in electronic structure calculations of physical observables in crystals such as the density of states and the optical conductivity.
+These capabilities make AutoBZ.jl an extensible framework for computational research on material properties that can compute a broad range of quantities found in experimental spectra or high-throughput screenings using Wannier interpolation and BZ integration [@mostofiWannier90ToolObtaining2008].
 Our BZ integration methods, described in Refs. [@kayeAutomaticHighorderAdaptive2023] and [@VanMunoz_et_al:2024], are high-order accurate, automatically convergent to a user-specified error tolerance, and if needed, adaptive in momentum space.
 This allows the resolution of low temperature properties of strongly interacting systems, using many-body methods such as dynamical mean-field theory[@georgesDynamicalMeanfieldTheory1996a] in which frequency-dependent electronic self-energies may produce scattering rates in the sub-meV regime. The corresponding low temperature regions of phase diagrams are typically out of reach using traditional integration algorithms, which struggle to resolve localized features in momentum space.
 AutoBZ.jl can also be used to compute ground state (i.e. $T=0$ K) properties of tight-binding models, typically derived from localized Wannier functions, with a given artificial broadening.
-Designed using open-source software principles [@bezansonJuliaFreshApproach2017], AutoBZ.jl serves as an extensible framework for computational research on material properties, and a flexible toolbox with which to compute a broad range of quantities using Wannier interpolation and BZ integration [@mostofiWannier90ToolObtaining2008].
 We expect it to become a widely used tool in the electronic structure community, providing accurate comparisons with experimental spectra, and a robust, automated approach for high-throughput screenings and machine learning of material properties.
 
 # Statement of need
