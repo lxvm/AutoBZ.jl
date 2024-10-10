@@ -14,7 +14,7 @@ using Pkg
 Pkg.activate()
 Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", rev="main")
 ```
-The `version` keyword can also be set to a tagged version, e.g. "v0.5.3".
+The `rev` keyword can also be set to a tagged version, e.g. "v0.5.3".
 To download the repository with SSH use the git link:
 `git@github.com:lxvm/AutoBZ.jl.git`
 
