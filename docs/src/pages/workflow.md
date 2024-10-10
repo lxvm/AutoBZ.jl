@@ -12,7 +12,7 @@ Julia's package manager as follows:
 ```julia
 using Pkg
 Pkg.activate()
-Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", version="main")
+Pkg.add(url="https://github.com/lxvm/AutoBZ.jl.git", rev="main")
 ```
 The `version` keyword can also be set to a tagged version, e.g. "v0.5.3".
 To download the repository with SSH use the git link:
@@ -45,6 +45,10 @@ julia --project kc_benchmark.jl
 ```
 This process is similar to running jobs on a cluster, where it will be benefical
 to set the `--threads` flag.
+
+## Contributing
+
+Read the [contributing guidelines](https://github.com/lxvm/AutoBZ.jl/tree/main/CONTRIBUTING.md) for guidance on PRs, issues, and discussions on matters relating to contributing to AutoBZ.jl.
 
 ## Development
 
