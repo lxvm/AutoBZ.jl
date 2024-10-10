@@ -1,5 +1,7 @@
 # AutoBZ
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13915618.svg)](https://doi.org/10.5281/zenodo.13915618)
+
 | Documentation | Build Status | Coverage |
 | :-: | :-: | :-: |
 | [![][docs-stable-img]][docs-stable-url] | [![][action-img]][action-url] | [![][codecov-img]][codecov-url] |
