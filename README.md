@@ -20,10 +20,13 @@ with reasonable compute times. For further information and tutorials, please see
 If you use AutoBZ.jl in your software or published research works, please
 cite one, or, all of the following. Citations help to encourage the development
 and maintenance of open-source scientific software.
-- Our JOSS paper for this repository: [AutoBZ.jl: Automatic, adaptive Brillouin zone integration of response functions using Wannier interpolation](https://doi.org/10.21105/joss.07080)
+- Our JOSS paper for this repository: [AutoBZ.jl: Automatic, adaptive Brillouin zone integration of response functions using Wannier interpolation](https://doi.org/10.21105/joss.07080).
 - Our preprint on optical conductivity integration: [High-order and adaptive
   optical conductivity calculations using Wannier interpolation. Lorenzo Van
   Muñoz, Jason Kaye, Alex Barnett and Sophie Beck](https://arxiv.org/abs/2406.15466).
+- Our paper on BZ integration: [Automatic, high-order, and adaptive algorithms
+  for Brillouin zone integration. Jason Kaye, Sophie Beck, Alex Barnett, Lorenzo
+  Van Muñoz, Olivier Parcollet. SciPost Phys. 15, 062 (2023)](https://scipost.org/SciPostPhys.15.2.062).
 
 
 ## Author and Copyright
