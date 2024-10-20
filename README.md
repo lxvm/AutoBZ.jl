@@ -1,5 +1,6 @@
 # AutoBZ
 
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.07080/status.svg)](https://doi.org/10.21105/joss.07080)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13915618.svg)](https://doi.org/10.5281/zenodo.13915618)
 
 | Documentation | Build Status | Coverage |
@@ -19,7 +20,7 @@ with reasonable compute times. For further information and tutorials, please see
 If you use AutoBZ.jl in your software or published research works, please
 cite one, or, all of the following. Citations help to encourage the development
 and maintenance of open-source scientific software.
-- This repository: https://github.com/lxvm/AutoBZ.jl
+- Our JOSS paper for this repository: [AutoBZ.jl: Automatic, adaptive Brillouin zone integration of response functions using Wannier interpolation](https://doi.org/10.21105/joss.07080)
 - Our preprint on optical conductivity integration: [High-order and adaptive
   optical conductivity calculations using Wannier interpolation. Lorenzo Van
   Muñoz, Jason Kaye, Alex Barnett and Sophie Beck](https://arxiv.org/abs/2406.15466).
