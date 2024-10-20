@@ -22,11 +22,11 @@ authors:
     orcid: 0000-0001-8045-6179
     affiliation: "2, 3"
 affiliations:
- - name: Department of Physics, Massachusetts Institute of Technology, 77 Massachusetts Avenue, Cambridge, MA 02139, USA
+ - name: Department of Physics, Massachusetts Institute of Technology, 77 Massachusetts Avenue, Cambridge, MA 02139, United States of America
    index: 1
- - name: Center for Computational Quantum Physics, Flatiron Institute, 162 5th Avenue, New York, NY 10010, USA
+ - name: Center for Computational Quantum Physics, Flatiron Institute, 162 5th Avenue, New York, NY 10010, United States of America
    index: 2
- - name: Center for Computational Mathematics, Flatiron Institute, 162 5th Avenue, New York, NY 10010, USA
+ - name: Center for Computational Mathematics, Flatiron Institute, 162 5th Avenue, New York, NY 10010, United States of America
    index: 3
 date: XXX 2024
 bibliography: paper.bib
