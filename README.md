@@ -18,7 +18,7 @@ with reasonable compute times. For further information and tutorials, please see
 ## Research and citation
 
 If you use AutoBZ.jl in your software or published research works, please
-cite one, or, all of the following. Citations help to encourage the development
+cite our JOSS paper in addition to one or both of the following. Citations help to encourage the development
 and maintenance of open-source scientific software.
 - Our JOSS paper for this repository: [AutoBZ.jl: Automatic, adaptive Brillouin zone integration of response functions using Wannier interpolation](https://doi.org/10.21105/joss.07080).
 - Our preprint on optical conductivity integration: [High-order and adaptive
