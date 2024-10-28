@@ -29,7 +29,7 @@ function pythtb2fourier(m)
         _C[i] = view(C, :, :, i)
     end
     _C[-offset] += Diagonal(m._site_energies)
-    return FourierSeries(_C; period=1.0, offset=Tuple(offset))
+    return FourierSeries(_C; period=freq2rad(1.0), offset=Tuple(offset))
 end
 
 function pythtb2hamiltonian(m; kws...)
