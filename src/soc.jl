@@ -146,15 +146,26 @@ wrap_soc(A) = SOCMatrix(A)
 A wrapper for a Fourier series in a given gauge that has spin-orbit coupling represented by
 the matrix `λ`. In particular, this interpolates `[f(k) 0; 0 f(k)] + λ`.
 """
-struct SOCHamiltonianInterp{G,N,T,iip,S<:Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}},L} <: AbstractHamiltonianInterp{G,N,T,iip}
+struct SOCHamiltonianInterp{G,N,T,iip,S<:Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}},L,P,A} <: AbstractHamiltonianInterp{G,N,T,iip}
     s::S
     λ::L
-    SOCHamiltonianInterp{G}(s::Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}}, λ) where {G,N,T,iip} =
-        new{G,N,T,iip,typeof(s),typeof(λ)}(s,λ)
+    prob::P
+    alg::A
+    SOCHamiltonianInterp{G}(s::Freq2RadSeries{N,T,iip,<:WrapperFourierSeries{typeof(wrap_soc)}}, λ, prob, alg) where {G,N,T,iip} =
+        new{G,N,T,iip,typeof(s),typeof(λ),typeof(prob),typeof(alg)}(s,λ,prob,alg)
 end
 
-function SOCHamiltonianInterp(s, λ; gauge=GaugeDefault(SOCHamiltonianInterp))
-    return SOCHamiltonianInterp{gauge}(s, λ)
+function SOCHamiltonianInterp(s, λ, prob, alg; gauge=GaugeDefault(SOCHamiltonianInterp))
+    return SOCHamiltonianInterp{gauge}(s, λ, prob, alg)
+end
+function SOCHamiltonianInterp(s, λ; gauge=GaugeDefault(HamiltonianInterp), eigalg=LAPACKEigenH(), eigvecs=true)
+    if gauge isa Hamiltonian
+        prob = EigenProblem(f(period(f)), eigvecs)
+        alg = eigalg
+    else
+        prob = alg = nothing
+    end
+    SOCHamiltonianInterp(f, λ, prob, alg; gauge)
 end
 
 GaugeDefault(::Type{<:SOCHamiltonianInterp}) = Wannier()
@@ -163,8 +174,17 @@ parentseries(h::SOCHamiltonianInterp) = h.s.s.s
 period(h::SOCHamiltonianInterp) = period(h.s)
 frequency(h::SOCHamiltonianInterp) = frequency(h.s)
 allocate(h::SOCHamiltonianInterp, x, dim) = allocate(h.s, x, dim)
-function contract!(cache, h::SOCHamiltonianInterp, x, dim)
-    return SOCHamiltonianInterp{gauge(h)}(contract!(cache, h.s, x, dim), h.λ)
+function allocate(h::SOCHamiltonianInterp, x, dim::Val{1})
+    cache = allocate(h.s, x, dim)
+    if gauge(h) isa Hamiltonian
+        solver = init(h.prob, h.alg)
+        return cache, solver
+    else
+        return cache, nothing
+    end
 end
-evaluate!(cache, h::SOCHamiltonianInterp, x) = to_gauge(h, evaluate!(cache, h.s, x) + h.λ)
+function contract!(cache, h::SOCHamiltonianInterp, x, dim)
+    return SOCHamiltonianInterp{gauge(h)}(contract!(cache, h.s, x, dim), h.λ, h.prob, h.alg)
+end
+evaluate!(cache, h::SOCHamiltonianInterp, x) = to_gauge!(cache[2], h, evaluate!(cache[1], h.s, x) + h.λ)
 nextderivative(h::SOCHamiltonianInterp, dim) = nextderivative(h.s, dim)

@@ -72,7 +72,7 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), EigenProblem(first(C)), LAPACKEigenH(); gauge)
     else
-        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
+        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), EigenProblem(soc + wrap_soc(first(C))), LAPACKEigenH(), soc; gauge)
     end
 end
 

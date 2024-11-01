@@ -32,14 +32,18 @@ function pythtb2fourier(m)
     return FourierSeries(_C; period=freq2rad(1.0), offset=Tuple(offset))
 end
 
-function pythtb2hamiltonian(m; kws...)
-    f = pythtb2fourier(m)
-    return HamiltonianInterp(AutoBZ.Freq2RadSeries(HermitianFourierSeries(f)); kws...)
+function pythtb2hamiltonian(m; soc=nothing, kws...)
+    hf = HermitianFourierSeries(pythtb2fourier(m))
+    if soc === nothing
+        return HamiltonianInterp(AutoBZ.Freq2RadSeries(hf), EigenProblem(hf(period(hf))), LAPACKEigenH(); kws...)
+    else
+        return SOCHamiltonianInterp(AutoBZ.Freq2RadSeries(WrapperFourierSeries(wrap_soc, hf)), soc, EigenProblem(soc + wrap_soc(hf(period(hf)))), LAPACKEigenH(); kws...)
+    end
 end
 
 pythtb2interp(::Type{<:HamiltonianInterp}, m; kws...) = pythtb2hamiltonian(m; kws...)
-function pythtb2interp(::Type{<:GradientVelocityInterp}, m; kws...)
-    GradientVelocityInterp(pythtb2hamiltonian(m), SMatrix{m._dim_r,m._dim_r,eltype(m._lat),m._dim_r^2}(m._lat'); kws...)
+function pythtb2interp(::Type{<:GradientVelocityInterp}, m; soc=nothing, kws...)
+    GradientVelocityInterp(pythtb2hamiltonian(m; soc), SMatrix{m._dim_r,m._dim_r,eltype(m._lat),m._dim_r^2}(m._lat'); kws...)
 end
 function pythtb2interp(::Type{<:CovariantVelocityInterp}, m; kws...)
     throw(ArgumentError("CovariantVelocityInterp not supported for pythtb since position operator can't be Wannier interpolated"))
