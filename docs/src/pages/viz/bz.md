@@ -77,7 +77,22 @@ save("tf_k.png", v); nothing # hide
 
 ## Conductivity
 
-To plot the conductivity contributions at each k-point, a frequency integral
-needs to be evaluated and AutoBZ.jl does not currently provide an API to
-evaluate that. Since this would require internals, we do not provide an example
-and instead request that you open a Github issue if you would like this feature.
+```@example viz
+Ω = 0.4
+solver = OpticalConductivitySolver(hv, bz, PTR(npt=50), Σ, QuadGKJL(); μ, β, Ω, abstol=1e-3, reltol=1e-3)
+ksolver = init(solver.f.prob, solver.f.alg; solver.f.kwargs...)
+
+kvals = map(Iterators.product(kpts, kpts, kpts[1:26])) do k
+    hvk = hv(k)
+    solver.f.update!(ksolver, k, hvk, solver.p)
+    sol = solve!(ksolver)
+    solver.f.postsolve(sol, k, hvk, solver.p)
+end
+kvals_density = real.(tr.(kvals)) ./ maximum(real.(tr.(kvals)))
+
+v = volume(kvals_density; algorithm=:iso, isovalue=1.0, isorange=0.5,
+colormap=cgrad([:teal, :teal],10))
+save("oc_k.png", v); nothing # hide
+```
+
+![optical conductivity BZ visualization](oc_k.png)
