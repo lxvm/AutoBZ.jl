@@ -111,12 +111,18 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
     if output == :raw
         return omegas, values
     else
-        interpolant = try
-            deg = degree == :default ? 8 : degree
-            construct_lagrange(omegas, values, sigdigits, deg)
-        catch
-            order = degree == :default ? 16 : degree
-            construct_chebyshev(omegas, values, order; tol=tol, mmax=mmax)
+         if output == :interp
+            interpolant = try
+                deg = degree == :default ? 8 : degree
+                construct_lagrange(omegas, values, sigdigits, deg)
+            catch
+                order = degree == :default ? 16 : degree
+                construct_chebyshev(omegas, values, order; tol, mmax)
+            end
+        elseif output == :aaa
+            interpolant = construct_aaa(omegas, values; tol, mmax)
+        else
+            error("output $output not recognized")
         end
         a, b = extrema(omegas)
         return if fmt == :scalar
@@ -133,11 +139,14 @@ function construct_lagrange(omegas, values, sigdigits, degree)
     LocalEquiBaryInterp(round.(omegas; sigdigits=sigdigits), values, degree=degree)
 end
 
-function construct_chebyshev(omegas, values::Vector{<:Number}, order; atol=1e-6, tol=1e-13, mmax=100)
-    interp = aaa(omegas, values; tol=tol, mmax=mmax)
-    hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
+function construct_aaa(omegas, values::Vector{<:Number}; tol=1e-13, mmax=100)
+    return aaa(omegas, values; tol=tol, mmax=mmax)
 end
-function construct_chebyshev(omegas, values::Vector{T}, order; atol=1e-6, tol=1e-13, mmax=100) where {T<:SArray}
+function construct_aaa(omegas, values::Vector{T}; tol=1e-13, mmax=100) where {T<:SArray}
     interp = ntuple(n -> aaa(omegas, getindex.(values, n); tol=tol, mmax=mmax), length(T))
-    hchebinterp(x -> T(map(f -> f(x), interp)), extrema(omegas)...; order=order, atol=atol)
+    return x -> T(map(f -> f(x), interp))
+end
+function construct_chebyshev(omegas, values, order; atol=1e-6, kws...)
+    interp = construct_aaa(omegas, values; kws...)
+    hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
 end
