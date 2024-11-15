@@ -1,0 +1,4 @@
+[deps]
+AutoBZ = "00d1ae05-4f20-4598-b864-bbb2ed8900e6"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+HChebInterp = "78faba9b-a54b-441f-8118-62407cbe4e59"

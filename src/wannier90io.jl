@@ -37,7 +37,7 @@ end
 """
     load_interp(::Type{<:HamiltonianInterp}, seed;
         gauge=Wannier(), soc=nothing,
-        compact=:N, precision=Float64, droptol=eps(precision))
+        compact=:N, precision=Float64, droptol=eps(precision), herm=true)
 
 Load Hamiltonian coefficients from Wannier90 output `"seed_hr.dat"` into an
 [`AbstractHamiltonianInterp`](@ref) that interpolates `h` with unit period. The
@@ -56,6 +56,11 @@ coefficients under the given relative tolerance. Possible values of `compact` ar
 - `:L`: store the lower triangle of the coefficients
 - `:U`: store the upper triangle of the coefficients
 - `:S`: store the lower triangle of the symmetrized coefficients, `(c+c')/2`
+Additionally, the `herm` keyword specifies whether to check if the coefficients
+give a Hermitian matrix-valued Fourier series and if so it returns a special
+Hermitian series evaluator with optimizations for faster evaluation in `AutoBZ`
+workflows. To get a more user-friendly series for experimental usage, use
+`herm=false`.
 """
 function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge=GaugeDefault(HamiltonianInterp), compact=:N, soc=nothing, droptol=eps(precision), herm=true)
     (; nkpt) = parse_wout(seed * ".wout", precision)
@@ -67,7 +72,7 @@ function load_interp(::Type{<:HamiltonianInterp}, seed; precision=Float64, gauge
     if soc === nothing
         return HamiltonianInterp(Freq2RadSeries(f), EigenProblem(first(C)), LAPACKEigenH(); gauge)
     else
-        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), soc; gauge)
+        return SOCHamiltonianInterp(Freq2RadSeries(WrapperFourierSeries(wrap_soc, f)), EigenProblem(soc + wrap_soc(first(C))), LAPACKEigenH(), soc; gauge)
     end
 end
 
@@ -202,12 +207,17 @@ end
 """
     load_interp(::Type{<:GradientVelocityInterp}, seed, A;
         gauge=Wannier(), vcomp=Whole(), coord=Lattice(), soc=nothing,
-        precision=Float64, compact=:N, droptol=eps(precision))
+        precision=Float64, compact=:N, droptol=eps(precision), herm=true)
 
 Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
 `"seed_hr.dat"` into a [`GradientVelocityInterp`](@ref) that interpolates `(h, v)`.
 Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
 certain transitions. Note these velocities are not gauge-covariant.
+Additionally, the `herm` keyword specifies whether to check if the coefficients
+give a Hermitian matrix-valued Fourier series and if so it returns a special
+Hermitian series evaluator with optimizations for faster evaluation in `AutoBZ`
+workflows. To get a more user-friendly series for experimental usage, use
+`herm=false`.
 """
 function load_interp(::Type{<:GradientVelocityInterp}, seed, A;
     precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,
@@ -222,12 +232,17 @@ end
 """
     load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
         gauge=Wannier(), vcomp=whole(), coord=Lattice(), soc=nothing,
-        precision=Float64, compact=:N, droptol=eps(precision))
+        precision=Float64, compact=:N, droptol=eps(precision), herm=true)
 
 Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
 `"seed_hr.dat"` and `"seed_r.dat"` into a [`CovariantVelocityInterp`](@ref) that
 interpolates `(h, v)`. Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or
 [`Inter`](@ref) to use certain transitions. These velocities are gauge-covariant.
+Additionally, the `herm` keyword specifies whether to check if the coefficients
+give a Hermitian matrix-valued Fourier series and if so it returns a special
+Hermitian series evaluator with optimizations for faster evaluation in `AutoBZ`
+workflows. To get a more user-friendly series for experimental usage, use
+`herm=false`.
 """
 function load_interp(::Type{<:CovariantVelocityInterp}, seed, A;
     precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,
@@ -243,12 +258,17 @@ end
 """
     load_interp(::Type{<:MassVelocityInterp}, seed, A;
         gauge=Wannier(), vcomp=Whole(), coord=Lattice(), soc=nothing,
-        precision=Float64, compact=:N, droptol=eps(precision))
+        precision=Float64, compact=:N, droptol=eps(precision), herm=true)
 
 Load coefficients for a Hamiltonian and its derivatives from Wannier90 output
 `"seed_hr.dat"` into a [`MassVelocityInterp`](@ref) that interpolates `(h, v, μ)`.
 Specify `vcomp` as [`Whole`](@ref), [`Intra`](@ref), or [`Inter`](@ref) to use
 certain transitions. Note these operators are not gauge-covariant.
+Additionally, the `herm` keyword specifies whether to check if the coefficients
+give a Hermitian matrix-valued Fourier series and if so it returns a special
+Hermitian series evaluator with optimizations for faster evaluation in `AutoBZ`
+workflows. To get a more user-friendly series for experimental usage, use
+`herm=false`.
 """
 function load_interp(::Type{<:MassVelocityInterp}, seed, A;
     precision=Float64, compact=:N, soc=nothing, droptol=eps(precision), herm=true,

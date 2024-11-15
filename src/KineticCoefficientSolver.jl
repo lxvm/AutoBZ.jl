@@ -51,7 +51,7 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
         return
     end
     post_k = (sol, ω, (_, Σ, hvk, (; β, μ, Ω, n))) -> (ω*β)^n * fermi_window(β, ω, Ω) * fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)
-    proto = post_k(solve(prob_k, alg), (fdom[1]+fdom[2])/2, p_k)
+    proto = post_k(solve(prob_k, alg), zero(fdom[1]+fdom[2])/2, p_k)
     f_k = CommonSolveIntegralFunction(prob_k, alg, up_k, post_k, proto)
     V = abs(det(bz.B))
     inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)

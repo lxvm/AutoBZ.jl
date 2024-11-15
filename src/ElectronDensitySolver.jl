@@ -3,9 +3,9 @@ function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, fa
     bandwidth = oneunit(μ)
     V = abs(det(bz.B))
     inner_kws = _rescale_abstol(something(scale_inner, inv(bandwidth)); kws...)
-    dos_prob = _GreensProblem(fun, Σ, h, bz, linalg; ω=(fdom[1]+fdom[2])/2, μ, inner_kws...)
+    dos_prob = _GreensProblem(fun, Σ, h, bz, linalg; ω=zero(fdom[1]+fdom[2])/2, μ, inner_kws...)
     p = (; β, μ)
-    proto = dos_prob.f.prototype * V * fermi(β, (fdom[1]+fdom[2])/2)
+    proto = dos_prob.f.prototype * V * fermi(β, zero(fdom[1]+fdom[2])/2)
     # WARN: Σ evaluation in update_greens! may not be threadsafe so need another prob type
     up = (solver, ω, (_, (; β, μ))) -> (update_greens!(solver; ω, μ); return)
     post = (sol, ω, (_, (; β, μ))) -> sol.value*fermi(β, ω)
@@ -34,7 +34,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     k = period(h)
     hk = h(k)
     g = gauge(h)
-    M = evalM(; Σ, ω=(fdom[1]+fdom[2])/2, μ)
+    M = evalM(; Σ, ω=zero(fdom[1]+fdom[2])/2, μ)
     A = g isa Hamiltonian ? M - Diagonal(hk.values) : M - hk
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
@@ -59,7 +59,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
     end |> fun |> x -> x*fermi(β, ω)
     inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
-    proto = post_k(solve(linprob, linalg), (fdom[1]+fdom[2])/2, p_k)
+    proto = post_k(solve(linprob, linalg), zero(fdom[1]+fdom[2])/2, p_k)
     f_k = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
     fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
