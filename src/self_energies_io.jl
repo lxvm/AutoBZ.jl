@@ -111,7 +111,18 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
     if output == :raw
         return omegas, values
     else
-         if output == :interp
+        _spectralfunction = v -> if v isa AbstractVector
+            spectral_function.(v)
+        else
+            spectral_function(v)
+        end
+        zv = zero(_spectralfunction(first(values)))
+        # find the frequency support of the data
+        imsupp = (
+            omegas[max(firstindex(omegas), findfirst(v -> _spectralfunction(v) != zv, values))-1],
+            omegas[min(lastindex(omegas),  firstindex(omegas) + length(omegas) - findfirst(v -> _spectralfunction(v) != zv, reverse(values)))+1]
+        )
+        if output == :interp
             interpolant = try
                 deg = degree == :default ? 8 : degree
                 construct_lagrange(omegas, values, sigdigits, deg)
@@ -124,13 +135,19 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
         else
             error("output $output not recognized")
         end
+
+        offset = interpolant(0) - _complex_selfenergy(interpolant, complex(zero(eltype(imsupp))), imsupp, zv; fast=false, abstol=1e-12)
+        function interp(z)
+            return _complex_selfenergy(interpolant, z, imsupp, offset; abstol=1e-12)
+        end
+
         a, b = extrema(omegas)
         return if fmt == :scalar
-            ScalarSelfEnergy(interpolant, a,b)
+            ScalarSelfEnergy(interp, a,b)
         elseif fmt == :diagonal
-            DiagonalSelfEnergy(interpolant, a,b)
+            DiagonalSelfEnergy(interp, a,b)
         elseif fmt == :matrix
-            MatrixSelfEnergy(interpolant, a,b)
+            MatrixSelfEnergy(interp, a,b)
         end
     end
 end
@@ -149,4 +166,29 @@ end
 function construct_chebyshev(omegas, values, order; atol=1e-6, kws...)
     interp = construct_aaa(omegas, values; kws...)
     hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
+end
+
+function _hilbert_transform(ρ, z, a, b; kws...)
+    if isreal(z)
+        ρz =  ρ(z)
+        ρint = a == -b ? zero(ρz) : -ρz*log(abs((b-real(z))/(a-real(z))))/(b-a)
+        prob = IntegralProblem((x, z) -> (ρ(x) - ρz)/(z-x) + ρint, (a, real(z), b), real(z))
+        solve(prob, QuadGKJL(); kws...).value -im*pi*ρz
+    else
+        prob = IntegralProblem((x, z) -> ρ(x)/(z-x), (a, b), z)
+        solve(prob, QuadGKJL(); kws...).value
+    end
+end
+
+function _complex_selfenergy(interp, z, imsupp, offset; fast=true, kws...)
+    _spectralfunction = v -> if v isa AbstractVector
+        spectral_function.(v)
+    else
+        spectral_function(v)
+    end
+    if fast && isreal(z)
+        interp(real(z))
+    else
+        offset + _hilbert_transform(x -> _spectralfunction(interp(x)), z, imsupp...; kws...)
+    end
 end
