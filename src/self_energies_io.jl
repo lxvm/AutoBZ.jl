@@ -97,7 +97,7 @@ whose details depend on the distribution of frequency points:
   in order to obtain a fast-to-evaluate representation of default polynomial
   degree 16.
 """
-function load_self_energy(filename; precision=Float64, sigdigits=8, output=:interp, degree=:default, tol=1e-13, mmax=100)
+function load_self_energy(filename; precision=Float64, output=:interp, kws...)
     fmt = get_self_energy_format(filename)
     if fmt == :scalar
         nfpts, omegas, values = parse_self_energy_scalar(filename, precision)
@@ -111,21 +111,31 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
     if output == :raw
         return omegas, values
     else
-        interpolant = try
-            deg = degree == :default ? 8 : degree
-            construct_lagrange(omegas, values, sigdigits, deg)
-        catch
-            order = degree == :default ? 16 : degree
-            construct_chebyshev(omegas, values, order; tol=tol, mmax=mmax)
-        end
-        a, b = extrema(omegas)
-        return if fmt == :scalar
-            ScalarSelfEnergy(interpolant, a,b)
-        elseif fmt == :diagonal
-            DiagonalSelfEnergy(interpolant, a,b)
-        elseif fmt == :matrix
-            MatrixSelfEnergy(interpolant, a,b)
-        end
+        return load_self_energy(omegas, values; kws...)
+    end
+end
+
+"""
+    load_self_energy(omegas, values; sigdigits=8, degree=:default, tol=1e-13, mmax=100)
+
+Load a self energy interpolator from arrays `omegas` and `values` containing the frequencies and corresponding self energies.
+`values` can contain numbers, static vectors, or static matrices for scalar, diagonal, or matrix self energies, respectively.
+"""
+function load_self_energy(omegas, values; sigdigits=8, degree=:default, tol=1e-13, mmax=100)
+    interpolant = try
+        deg = degree == :default ? 8 : degree
+        construct_lagrange(omegas, values, sigdigits, deg)
+    catch
+        order = degree == :default ? 16 : degree
+        construct_chebyshev(omegas, values, order; tol=tol, mmax=mmax)
+    end
+    a, b = extrema(omegas)
+    return if eltype(values) <: Number
+        ScalarSelfEnergy(interpolant, a,b)
+    elseif eltype(values) <: AbstractVector
+        DiagonalSelfEnergy(interpolant, a,b)
+    else
+        MatrixSelfEnergy(interpolant, a,b)
     end
 end
 
