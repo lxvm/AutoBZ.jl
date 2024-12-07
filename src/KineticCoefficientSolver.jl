@@ -1,3 +1,27 @@
+struct MaybeDistributionalIntegralProblem{P<:IntegralProblem,C,D}
+    prob::P
+    cond::C
+    dist::D
+end
+mutable struct MaybeDistributionalIntegralSolver{S,C,D,A}
+    solver::S
+    cond::C
+    dist::D
+    cache::A
+end
+function init(prob::MaybeDistributionalIntegralProblem, alg::IntegralAlgorithm; kws...)
+    solver = init(prob.prob, alg; kws...)
+    cache = prob.prob.f isa CommonSolveIntegralFunction ? init(prob.prob.f.prob, prob.prob.f.alg; prob.prob.f.kwargs...) : nothing
+    return MaybeDistributionalIntegralSolver(solver, prob.cond, prob.dist, cache)
+end
+function solve!(solver::MaybeDistributionalIntegralSolver)
+    if solver.cond(solver.solver)
+        return AutoBZCore.IntegralSolution(solver.dist(solver.solver, solver.cache), AutoBZCore.Success, (;))
+    else
+        return solve!(solver.solver)
+    end
+end
+
 function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), scale_inner=nothing, kws...) where {F}
     dom = get_safe_fermi_window_limits(Ω, β, fdom...)
     s = 1 # inv((dom[2]-dom[1])*fermi_window_maximum(β, Ω)) # or area under the window function
@@ -23,7 +47,16 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
     proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype
     f = CommonSolveIntegralFunction(td_prob, _heuristic_bzalg(bzalg, Σ, hv), up, post, proto)
     prob = IntegralProblem(f, dom, (fdom, p); kws...)
-    return init(prob, falg)
+    cond = solver -> begin
+        isinf(solver.p[2].β) && iszero(solver.p[2].Ω)
+    end
+    dist = (solver, cache) -> begin
+        solver.f.update!(cache, zero(Ω), solver.p)
+        sol = solve!(cache)
+        zero(one(Ω))^solver.p[2].n * sol.value
+    end
+    dprob = MaybeDistributionalIntegralProblem(prob, cond, dist)
+    return init(dprob, falg)
 end
 
 function update_kc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω))
@@ -32,6 +65,10 @@ function update_kc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω))
         solver.dom = get_safe_fermi_window_limits(Ω, β, fdom...)
     end
     solver.p = (fdom, (; β, μ, Ω, n))
+    return
+end
+function update_kc!(solver::MaybeDistributionalIntegralSolver; kws...)
+    update_kc!(solver.solver; kws...)
     return
 end
 
@@ -62,15 +99,24 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
         #     # function, and also this prevents (0*β)^n from giving NaN when n!=0
         #     return Ω * f.f(Ω, MixedParameters(; Σ, n, β=4*oneunit(β), Ω, μ, hv_k))
         # end
-        _fdom, _Σ, = solver.p
-        if solver.p[4].Ω != p.Ω || solver.p[4].β != p.β
-            solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, _fdom...)
+        _fdom, _Σ, = solver.solver.p
+        if solver.solver.p[4].Ω != p.Ω || solver.solver.p[4].β != p.β
+            solver.solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, _fdom...)
         end
-        solver.p = (_fdom, _Σ, hv, p)
+        solver.solver.p = (_fdom, _Σ, hv, p)
         return
     end
     post = (sol, k, h, p) -> sol.value
-    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, hv, proto*Ω)
+    cond = solver -> begin
+        isinf(solver.p[4].β) && iszero(solver.p[4].Ω)
+    end
+    dist = (solver, cache) -> begin
+        solver.f.update!(cache, zero(Ω), solver.p)
+        sol = solve!(cache)
+        zero(one(Ω))^solver.p[4].n * fun(transport_distribution_integrand(solver.p[3][2], sol.G1, sol.G2, sol.isdistinct), solver.p[3]..., sol)
+    end
+    dprob = MaybeDistributionalIntegralProblem(fprob, cond, dist)
+    f = CommonSolveFourierIntegralFunction(dprob, falg, up, post, hv, proto*Ω)
     prob = AutoBZProblem(coord_to_rep(coord(hv)), f, bz, p; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, hv))
 end

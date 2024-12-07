@@ -11,7 +11,7 @@ for d in 1:3
     ]
         η = 1.0
         Σ = EtaSelfEnergy(η)
-        β = 1.0
+        for β in [1.0, Inf]
         μ = 0.1
         Ω = 0.0
         n = 0
@@ -33,6 +33,7 @@ for d in 1:3
             @test sol1.value ≈ sol3.value atol=abstol rtol=reltol
             @test sol2.value ≈ sol4.value atol=abstol rtol=reltol
 
+        end
         end
     end
 end
