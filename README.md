@@ -24,6 +24,7 @@ and maintenance of open-source scientific software.
 - Our preprint on optical conductivity integration: [High-order and adaptive
   optical conductivity calculations using Wannier interpolation. Lorenzo Van
   Muñoz, Jason Kaye, Alex Barnett and Sophie Beck](https://arxiv.org/abs/2406.15466).
+  > Our calculations are reproducible using the code in the following repository: https://github.com/lxvm/AutoBZOC.jl
 - Our paper on BZ integration: [Automatic, high-order, and adaptive algorithms
   for Brillouin zone integration. Jason Kaye, Sophie Beck, Alex Barnett, Lorenzo
   Van Muñoz, Olivier Parcollet. SciPost Phys. 15, 062 (2023)](https://scipost.org/SciPostPhys.15.2.062).
