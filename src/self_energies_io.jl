@@ -97,7 +97,7 @@ whose details depend on the distribution of frequency points:
   in order to obtain a fast-to-evaluate representation of default polynomial
   degree 16.
 """
-function load_self_energy(filename; precision=Float64, output=:interp, kws...)
+function load_self_energy(filename; precision=Float64, output=:interp, degree=:default, sigdigits=8, kws...)
     fmt = get_self_energy_format(filename)
     if fmt == :scalar
         nfpts, omegas, values = parse_self_energy_scalar(filename, precision)
