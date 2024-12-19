@@ -40,7 +40,7 @@ function AutoBZ.ElectronDensitySolver(Σ::AbstractSelfEnergy, falg::LehmannJL, h
     bandwidth = oneunit(μ)
     inner_kws = AutoBZ._rescale_abstol(something(scale_inner, inv(bandwidth)); kws...)
     kprob = AutoBZ._GreensProblem(identity, Σ, h, bz, trinvalg; ω=complex(zero(μ)), μ, inner_kws...)
-    kalg = AutoBZ._heuristic_bzalg(bzalg, Σ, h)
+    kalg = AutoBZ._heuristic_bzalg(bzalg, π/β, h)
     up = (solver, ω, μ) -> AutoBZ.update_greens!(solver; ω, μ)
     post = (sol, ω, μ) -> sol.value
     proto = kprob.f.prototype * det(bz.B)
@@ -100,6 +100,8 @@ function AutoBZ.update_density!(solver::LehmannSolver; β, μ=zero(inv(oneunit(�
     solver.p = μ
     if β != solver.β
         solver.β = β
+        # TODO update kalg (for AutoPTR) when β changes 
+        # kalg = AutoBZ._heuristic_bzalg(bzalg, π/β, h)
     end
     return
 end
