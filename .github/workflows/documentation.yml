@@ -29,7 +29,7 @@ jobs:
       - name: Install documentation dependencies
         run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev
       - name: Install dependencies
-        run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs/ -e 'ENV["PYTHON"]=""; using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("PyCall"); using Conda; print(read(joinpath(dirname(pathof(Conda)), "..", "deps", "deps.jl"),String)); Conda.pip_interop(true); Conda.pip("install", "pythtb")'
+        run: DISPLAY=:0 xvfb-run --auto-servernum --server-num=1 -e /dev/stdout -s '-screen 0 1024x768x24' julia --project=docs/ -e 'ENV["PYTHON"]=""; using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("PyCall"); using Conda; print(read(joinpath(dirname(pathof(Conda)), "..", "deps", "deps.jl"),String)); Conda.pip_interop(true); Conda.pip("install", "pythtb")'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
