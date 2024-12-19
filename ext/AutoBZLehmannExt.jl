@@ -64,7 +64,11 @@ function solve!(solver::LehmannSolver)
         solver.dlrgrid = dlrgrid
         solver.isfresh = false
     end
-    resize!(Gmatdata, length(dlrgrid.ωn))
+    # cannot resize due to https://github.com/numericalEFT/Lehmann.jl/issues/44
+    if length(Gmatdata) != length(dlrgrid.ωn)
+        Gmatdata = similar(Gmatdata, length(dlrgrid.ωn))
+        solver.Gmatdata = Gmatdata
+    end
     _batcheval!(g, Gmatdata, dlrgrid.ωn, p, cacheval)
     dlrcoeff = matfreq2dlr(dlrgrid, Gmatdata)
     Gtaudata = dlr2tau(dlrgrid, dlrcoeff, [β])
