@@ -13,8 +13,8 @@ for d in 1:3
         μ = 0.1
         abstol=1e-2
         reltol=0.0
-        for alg in (PTR(; npt=50), IAI(), AutoPTR(a=inv(β)))
-            solver = TransportFunctionSolver(hv, bz, alg; β, μ, abstol, reltol)
+        for alg in (PTR(; npt=50), IAI(), AutoPTR(a=inv(β))), kernel in (:fermi, :lorentzian)
+            solver = TransportFunctionSolver(hv, bz, alg; β, μ, abstol, reltol, kernel)
             sol1 = solve!(solver)
             AutoBZ.update_tf!(solver; β, μ=-μ)
             sol2 = solve!(solver)
