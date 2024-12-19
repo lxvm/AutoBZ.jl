@@ -119,11 +119,11 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
         zv = zero(_spectralfunction(first(values)))
         # find the frequency support of the data
         imsupp = (
-            omegas[max(firstindex(omegas), findfirst(v -> _spectralfunction(v) != zv, values))-1],
-            omegas[min(lastindex(omegas),  firstindex(omegas) + length(omegas) - findfirst(v -> _spectralfunction(v) != zv, reverse(values)))+1]
+            omegas[max(firstindex(omegas), findfirst(v -> _spectralfunction(v) != zv, values)-1)],
+            omegas[min(lastindex(omegas),  firstindex(omegas) + length(omegas) - findfirst(v -> _spectralfunction(v) != zv, reverse(values))+1)]
         )
-        if output == :interp
-            interpolant = try
+        interpolant = if output == :interp
+            try
                 deg = degree == :default ? 8 : degree
                 construct_lagrange(omegas, values, sigdigits, deg)
             catch
@@ -131,7 +131,7 @@ function load_self_energy(filename; precision=Float64, sigdigits=8, output=:inte
                 construct_chebyshev(omegas, values, order; tol, mmax)
             end
         elseif output == :aaa
-            interpolant = construct_aaa(omegas, values; tol, mmax)
+            construct_aaa(omegas, values; tol, mmax)
         else
             error("output $output not recognized")
         end

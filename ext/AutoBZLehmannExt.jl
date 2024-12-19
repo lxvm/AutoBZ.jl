@@ -67,7 +67,7 @@ function solve!(solver::LehmannSolver)
     resize!(Gmatdata, length(dlrgrid.ωn))
     _batcheval!(g, Gmatdata, dlrgrid.ωn, p, cacheval)
     dlrcoeff = matfreq2dlr(dlrgrid, Gmatdata)
-    Gtaudata = dlr2tau(dlrgrid, dlrcoeff, [1.0])
+    Gtaudata = dlr2tau(dlrgrid, dlrcoeff, [β])
     value = real(-Gtaudata[1])
     retcode = AutoBZCore.Success
     stats = (; )
