@@ -97,7 +97,7 @@ whose details depend on the distribution of frequency points:
   in order to obtain a fast-to-evaluate representation of default polynomial
   degree 16.
 """
-function load_self_energy(filename; precision=Float64, output=:interp, kws...)
+function load_self_energy(filename; precision=Float64, output=:interp, degree=:default, sigdigits=8, kws...)
     fmt = get_self_energy_format(filename)
     if fmt == :scalar
         nfpts, omegas, values = parse_self_energy_scalar(filename, precision)
@@ -111,31 +111,44 @@ function load_self_energy(filename; precision=Float64, output=:interp, kws...)
     if output == :raw
         return omegas, values
     else
-        return load_self_energy(omegas, values; kws...)
-    end
-end
+        _spectralfunction = v -> if v isa AbstractVector
+            spectral_function.(v)
+        else
+            spectral_function(v)
+        end
+        zv = zero(_spectralfunction(first(values)))
+        # find the frequency support of the data
+        imsupp = (
+            omegas[max(firstindex(omegas), findfirst(v -> _spectralfunction(v) != zv, values)-1)],
+            omegas[min(lastindex(omegas),  firstindex(omegas) + length(omegas) - findfirst(v -> _spectralfunction(v) != zv, reverse(values))+1)]
+        )
+        interpolant = if output == :interp
+            try
+                deg = degree == :default ? 8 : degree
+                construct_lagrange(omegas, values, sigdigits, deg)
+            catch
+                order = degree == :default ? 16 : degree
+                construct_chebyshev(omegas, values, order; tol, mmax)
+            end
+        elseif output == :aaa
+            construct_aaa(omegas, values; tol, mmax)
+        else
+            error("output $output not recognized")
+        end
 
-"""
-    load_self_energy(omegas, values; sigdigits=8, degree=:default, tol=1e-13, mmax=100)
+        offset = interpolant(0) - _complex_selfenergy(interpolant, complex(zero(eltype(imsupp))), imsupp, zv; fast=false, abstol=1e-12)
+        function interp(z)
+            return _complex_selfenergy(interpolant, z, imsupp, offset; abstol=1e-12)
+        end
 
-Load a self energy interpolator from arrays `omegas` and `values` containing the frequencies and corresponding self energies.
-`values` can contain numbers, static vectors, or static matrices for scalar, diagonal, or matrix self energies, respectively.
-"""
-function load_self_energy(omegas, values; sigdigits=8, degree=:default, tol=1e-13, mmax=100)
-    interpolant = try
-        deg = degree == :default ? 8 : degree
-        construct_lagrange(omegas, values, sigdigits, deg)
-    catch
-        order = degree == :default ? 16 : degree
-        construct_chebyshev(omegas, values, order; tol=tol, mmax=mmax)
-    end
-    a, b = extrema(omegas)
-    return if eltype(values) <: Number
-        ScalarSelfEnergy(interpolant, a,b)
-    elseif eltype(values) <: AbstractVector
-        DiagonalSelfEnergy(interpolant, a,b)
-    else
-        MatrixSelfEnergy(interpolant, a,b)
+        a, b = extrema(omegas)
+        return if fmt == :scalar
+            ScalarSelfEnergy(interp, a,b)
+        elseif fmt == :diagonal
+            DiagonalSelfEnergy(interp, a,b)
+        elseif fmt == :matrix
+            MatrixSelfEnergy(interp, a,b)
+        end
     end
 end
 
@@ -143,11 +156,39 @@ function construct_lagrange(omegas, values, sigdigits, degree)
     LocalEquiBaryInterp(round.(omegas; sigdigits=sigdigits), values, degree=degree)
 end
 
-function construct_chebyshev(omegas, values::Vector{<:Number}, order; atol=1e-6, tol=1e-13, mmax=100)
-    interp = aaa(omegas, values; tol=tol, mmax=mmax)
+function construct_aaa(omegas, values::Vector{<:Number}; tol=1e-13, mmax=100)
+    return aaa(omegas, values; tol=tol, mmax=mmax)
+end
+function construct_aaa(omegas, values::Vector{T}; tol=1e-13, mmax=100) where {T<:SArray}
+    interp = ntuple(n -> aaa(omegas, getindex.(values, n); tol=tol, mmax=mmax), length(T))
+    return x -> T(map(f -> f(x), interp))
+end
+function construct_chebyshev(omegas, values, order; atol=1e-6, kws...)
+    interp = construct_aaa(omegas, values; kws...)
     hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
 end
-function construct_chebyshev(omegas, values::Vector{T}, order; atol=1e-6, tol=1e-13, mmax=100) where {T<:SArray}
-    interp = ntuple(n -> aaa(omegas, getindex.(values, n); tol=tol, mmax=mmax), length(T))
-    hchebinterp(x -> T(map(f -> f(x), interp)), extrema(omegas)...; order=order, atol=atol)
+
+function _hilbert_transform(ρ, z, a, b; kws...)
+    if isreal(z)
+        ρz =  ρ(z)
+        ρint = a == -b ? zero(ρz) : -ρz*log(abs((b-real(z))/(a-real(z))))/(b-a)
+        prob = IntegralProblem((x, z) -> (ρ(x) - ρz)/(z-x) + ρint, (a, real(z), b), real(z))
+        solve(prob, QuadGKJL(); kws...).value -im*pi*ρz
+    else
+        prob = IntegralProblem((x, z) -> ρ(x)/(z-x), (a, b), z)
+        solve(prob, QuadGKJL(); kws...).value
+    end
+end
+
+function _complex_selfenergy(interp, z, imsupp, offset; fast=true, kws...)
+    _spectralfunction = v -> if v isa AbstractVector
+        spectral_function.(v)
+    else
+        spectral_function(v)
+    end
+    if fast && isreal(z)
+        interp(real(z))
+    else
+        offset + _hilbert_transform(x -> _spectralfunction(interp(x)), z, imsupp...; kws...)
+    end
 end

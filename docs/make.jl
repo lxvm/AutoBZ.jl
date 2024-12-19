@@ -36,6 +36,7 @@ makedocs(
             "pages/app/self_energy.md",
             "pages/app/integrands.md",
             "pages/app/interfaces.md",
+            "pages/man/algorithms.md",
             "pages/man/internal.md",
         ],
     ],

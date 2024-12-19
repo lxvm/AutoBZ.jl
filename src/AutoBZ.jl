@@ -132,4 +132,7 @@ include("wannier90io.jl")
 export load_pythtb_data
 include("pythtb.jl")
 
+export AbstractDLRAlgorithm, LehmannJL
+include("lehmann.jl")
+
 end
