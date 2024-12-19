@@ -48,7 +48,7 @@ end
     @testset "KineticCoefficientSolver" include("KineticCoefficientSolver.jl")
     @testset "AuxKineticCoefficientSolver" include("AuxKineticCoefficientSolver.jl")
     # TODO: validate linalg, soc, interpolation, fermi functions, self energies, io
-    @testset "AutoBZLehmannExt" include("Lehmann.jl")
+    @testset "AutoBZLehmannExt" include("lehmann.jl")
 end
 
 # @testset "BrillouinPlotlyExt" begin
