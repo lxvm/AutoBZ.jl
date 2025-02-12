@@ -22,24 +22,24 @@ function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianIn
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
-    up = (solver, k, hk, (Σ, p)) -> begin
+    _solve! = (solver, k, hk, (Σ, p)) -> begin
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
             solver.A .= _to_gauge(g, hk, p) .- _hk
         else
             solver.A = _to_gauge(g, hk, p) - _hk
         end
-        return
+        sol = solve!(solver)
+        if sol isa LinearSystemSolution
+            inv(sol.value)
+        elseif sol isa TraceInverseSolution
+            sol.value
+        else
+            error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
+        end |> fun
     end
-    post = (sol, k, hk, p) -> if sol isa LinearSystemSolution
-        inv(sol.value)
-    elseif sol isa TraceInverseSolution
-        sol.value
-    else
-        error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
-    end |> fun
-    proto = post(solve(linprob, linalg), k, hk, p)
-    f = CommonSolveFourierIntegralFunction(linprob, linalg, up, post, h, proto)
+    proto = _solve!(init(linprob, linalg), k, hk, p)
+    f = CommonSolveFourierIntegralFunction(_solve!, linprob, linalg, h, proto)
     return AutoBZProblem(rep, f, bz, p; kws...)
 end
 function _GreensSolver(fun::F, Σ, h, bz, bzalg, linalg; kws...) where {F}
