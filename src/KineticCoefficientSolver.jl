@@ -7,7 +7,7 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
     # although in the tails of the window this uniform error could be dangerous
     inner_kws = _rescale_abstol(something(scale_inner, s); kws...)
     p = (; β, μ, Ω, n)
-    up = (solver, ω, (_, (; β, μ, Ω, n))) -> begin
+    _solve! = (solver, ω, (_, (; β, μ, Ω, n))) -> begin
         update_td!(solver; ω₁=ω, ω₂=ω+Ω, μ)
         # TODO rescale inner tolerance based on discussion above
         # if β != p.β || Ω != p.Ω # not ideal, should remember params in solver
@@ -16,12 +16,12 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
         #     emit warning
         #     solver.kwargs = _rescale_abstol(inv((_dom[2]-_dom[1])*fermi_window_maximum(β, Ω)); kws...)
         # end
-        return
+        sol = solve!(solver)
+        return (ω*β)^n * fermi_window(β, ω, Ω) * sol.value
     end
-    post = (sol, ω, (_, (; β, μ, Ω, n))) -> (ω*β)^n * fermi_window(β, ω, Ω) * sol.value
     td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, inner_kws...)
     proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype
-    f = CommonSolveIntegralFunction(td_prob, _heuristic_bzalg(bzalg, Σ, hv), up, post, proto)
+    f = CommonSolveIntegralFunction(_solve!, td_prob, _heuristic_bzalg(bzalg, Σ, hv), proto)
     prob = IntegralProblem(f, dom, (fdom, p); kws...)
     return init(prob, falg)
 end
@@ -45,18 +45,18 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
     alg = TwoGreensFunctionLinearSystem(linalg)
     p = (; β, μ, Ω, n)
     p_k = (fdom, deepcopy(Σ), hvk, p)
-    up_k = (solver, ω, (_, Σ, hvk, (; β, μ, Ω, n))) -> begin
+    _ksolve! = (solver, ω, (_, Σ, hvk, (; β, μ, Ω, n))) -> begin
         solver.M1, solver.M2, solver.isdistinct = _to_gauge_twice(g, hvk[1], evalM2(; Σ, ω₁=ω, ω₂=ω+Ω, μ)...) # WARN: Σ evaluation may not be threadsafe so need another prob type
         solver.h = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
-        return
+        sol = solve!(solver)
+        return (ω*β)^n * fermi_window(β, ω, Ω) * fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)
     end
-    post_k = (sol, ω, (_, Σ, hvk, (; β, μ, Ω, n))) -> (ω*β)^n * fermi_window(β, ω, Ω) * fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)
-    proto = post_k(solve(prob_k, alg), zero(fdom[1]+fdom[2])/2, p_k)
-    f_k = CommonSolveIntegralFunction(prob_k, alg, up_k, post_k, proto)
+    proto = _ksolve!(init(prob_k, alg), zero(fdom[1]+fdom[2])/2, p_k)
+    f_k = CommonSolveIntegralFunction(_ksolve!, prob_k, alg, proto)
     V = abs(det(bz.B))
     inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
     fprob = IntegralProblem(f_k, get_safe_fermi_window_limits(Ω, β, fdom...), p_k; inner_kws...)
-    up = (solver, k, hv, p) -> begin
+    _solve! = (solver, k, hv, p) -> begin
         # if iszero(Ω) && isinf(β)
         #     # we pass in β=4 since fermi_window(4,0,0)=1, the weight of the delta
         #     # function, and also this prevents (0*β)^n from giving NaN when n!=0
@@ -67,10 +67,10 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
             solver.dom = get_safe_fermi_window_limits(p.Ω, p.β, _fdom...)
         end
         solver.p = (_fdom, _Σ, hv, p)
-        return
+        sol = solve!(solver)
+        return sol.value
     end
-    post = (sol, k, h, p) -> sol.value
-    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, hv, proto*Ω)
+    f = CommonSolveFourierIntegralFunction(_solve!, fprob, falg, hv, proto*Ω)
     prob = AutoBZProblem(coord_to_rep(coord(hv)), f, bz, p; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, hv))
 end

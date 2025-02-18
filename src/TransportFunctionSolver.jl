@@ -48,7 +48,7 @@ function TransportFunctionSolver(hv::AbstractVelocityInterp, bz, bzalg; β, μ=z
         A = gauge(hv) isa Hamiltonian ? (μ+im/β)*I - Diagonal(hvk[1].values) : (μ+im/β)*I-hvk[1]
         linprob =  LinearSystemProblem(A)
         linalg = JLInv()
-        up = (solver, k, hvk, (; β, μ)) -> begin
+        _solve! = (solver, k, hvk, (; β, μ)) -> begin
             M = (μ+im/β)*I
             _hk = gauge(hv) isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
             if ismutable(solver.A)
@@ -56,17 +56,15 @@ function TransportFunctionSolver(hv::AbstractVelocityInterp, bz, bzalg; β, μ=z
             else
                 solver.A = M - _hk
             end
-            return
-        end
-        post = (sol, k, hvk, p) -> begin
+            sol = solve!(solver)
             G = inv(sol.value)
             A = spectral_function(G)
             vs = hvk[2]
             Avs = map(v -> A*v, vs)
             return tr_kron(vs, Avs)
         end
-        proto = post(solve(linprob, linalg), k, hvk, p)
-        CommonSolveFourierIntegralFunction(linprob, linalg, up, post, hv, proto)
+        proto = _solve!(init(linprob, linalg), k, hvk, p)
+        CommonSolveFourierIntegralFunction(_solve!, linprob, linalg, hv, proto)
     else
         error("kernel $kernel not recognized")
     end

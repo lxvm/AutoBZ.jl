@@ -7,9 +7,12 @@ function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, fa
     p = (; β, μ)
     proto = dos_prob.f.prototype * V * fermi(β, zero(fdom[1]+fdom[2])/2)
     # WARN: Σ evaluation in update_greens! may not be threadsafe so need another prob type
-    up = (solver, ω, (_, (; β, μ))) -> (update_greens!(solver; ω, μ); return)
-    post = (sol, ω, (_, (; β, μ))) -> sol.value*fermi(β, ω)
-    f = CommonSolveIntegralFunction(dos_prob, _heuristic_bzalg(bzalg, Σ, h), up, post, proto)
+    _solve! = (solver, ω, (_, (; β, μ))) -> begin
+        update_greens!(solver; ω, μ)
+        sol = solve!(solver)
+        return sol.value*fermi(β, ω)
+    end
+    f = CommonSolveIntegralFunction(_solve!, dos_prob, _heuristic_bzalg(bzalg, Σ, h), proto)
     prob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), (fdom, p); kws...)
     return init(prob, falg)
 end
@@ -41,7 +44,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     p = (; β, μ)
     p_k = (fdom, deepcopy(Σ), hk, p)
-    up_k = (solver, ω, (_, Σ, hk, (; β, μ))) -> begin
+    _ksolve! = (solver, ω, (_, Σ, hk, (; β, μ))) -> begin
         _M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
@@ -49,33 +52,33 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         else
             solver.A = _to_gauge(g, hk, _M) - _hk
         end
-        return
+        sol = solve!(solver)
+        if sol isa LinearSystemSolution
+            inv(sol.value)
+        elseif sol isa TraceInverseSolution
+            sol.value
+        else
+            error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
+        end |> fun |> x -> x*fermi(β, ω)
     end
-    post_k = (sol, ω, (_, Σ, hk, (; β, μ))) -> if sol isa LinearSystemSolution
-        inv(sol.value)
-    elseif sol isa TraceInverseSolution
-        sol.value
-    else
-        error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
-    end |> fun |> x -> x*fermi(β, ω)
     inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
-    proto = post_k(solve(linprob, linalg), zero(fdom[1]+fdom[2])/2, p_k)
-    f_k = CommonSolveIntegralFunction(linprob, linalg, up_k, post_k, proto)
+    proto = _ksolve!(init(linprob, linalg), zero(fdom[1]+fdom[2])/2, p_k)
+    f_k = CommonSolveIntegralFunction(_ksolve!, linprob, linalg, proto)
     fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
-    up = (solver, k, h, p) -> begin
+    _solve! = (solver, k, h, p) -> begin
         _fdom, _Σ, = solver.p
         if solver.p[4].β != p.β
             solver.dom = get_safe_fermi_function_limits(p.β, _fdom...)
             # TODO rethink if inner tolerance needs to be rescaled if changing mu changes bandwidth
         end
         solver.p = (_fdom, _Σ, h, p)
-        return
+        sol = solve!(solver)
+        return sol.value
     end
-    post = (sol, k, h, p) -> sol.value
-    f = CommonSolveFourierIntegralFunction(fprob, falg, up, post, h, proto*μ)
+    f = CommonSolveFourierIntegralFunction(_solve!, fprob, falg, h, proto*μ)
     prob = AutoBZProblem(rep, f, bz, p; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, h))
 end

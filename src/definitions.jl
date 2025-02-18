@@ -461,7 +461,7 @@ function choose_autoptr_step(alg::AutoPTR, a::Real)
         return alg
     else
         @info "AutoPTR heuristic for nearest pole to real axis updated" old=alg.a new=a
-        return AutoPTR(a=Float64(a), norm=alg.norm, nmin=alg.nmin, nmax=alg.nmax, n₀=alg.n₀, Δn=alg.Δn, keepmost=alg.keepmost, nthreads=alg.nthreads)
+        return AutoPTR(a=Float64(a), norm=alg.norm, nmin=alg.nmin, nmax=alg.nmax, n₀=alg.n₀, Δn=alg.Δn, keepmost=alg.keepmost)
     end
 end
 # estimate a value of eta that should suffice for most parameters

@@ -41,10 +41,13 @@ function AutoBZ.ElectronDensitySolver(Σ::AbstractSelfEnergy, falg::LehmannJL, h
     inner_kws = AutoBZ._rescale_abstol(something(scale_inner, inv(bandwidth)); kws...)
     kprob = AutoBZ._GreensProblem(identity, Σ, h, bz, trinvalg; ω=complex(zero(μ)), μ, inner_kws...)
     kalg = AutoBZ._heuristic_bzalg(bzalg, π/β, h)
-    up = (solver, ω, μ) -> AutoBZ.update_greens!(solver; ω, μ)
-    post = (sol, ω, μ) -> sol.value
+    _solve! = (solver, ω, μ) -> begin
+        AutoBZ.update_greens!(solver; ω, μ)
+        sol = solve!(solver)
+        return sol.value
+    end
     proto = kprob.f.prototype * det(bz.B)
-    fprob = LehmannProblem(CommonSolveFunction(kprob, kalg, up, post, proto), β, μ)
+    fprob = LehmannProblem(CommonSolveFunction(_solve!, kprob, kalg, proto), β, μ)
     return init(fprob, falg)
 end
 
@@ -78,11 +81,10 @@ function solve!(solver::LehmannSolver)
     return LehmannSolution(value, retcode, stats)
 end
 
-struct CommonSolveFunction{P,A,U,F,T}
+struct CommonSolveFunction{S,P,A,T}
+    solve!::S
     prob::P
     alg::A
-    update!::U
-    post::F
     prototype::T
 end
 
@@ -92,11 +94,7 @@ function _init_cacheval(g::CommonSolveFunction, p)
     return solver, prototype
 end
 function _batcheval!(g::CommonSolveFunction, Gmatdata, ωn, p, solver)
-    f = ω -> begin
-        g.update!(solver, im*ω, p)
-        sol = solve!(solver)
-        return g.post(sol, im*ω, p)
-    end
+    f = ω -> g.solve!(solver, im*ω, p)
     map!(f, Gmatdata, ωn)
     return
 end
@@ -104,7 +102,7 @@ function AutoBZ.update_density!(solver::LehmannSolver; β, μ=zero(inv(oneunit(�
     solver.p = μ
     if β != solver.β
         solver.β = β
-        # TODO update kalg (for AutoPTR) when β changes 
+        # TODO update kalg (for AutoPTR) when β changes
         # kalg = AutoBZ._heuristic_bzalg(bzalg, π/β, h)
     end
     return

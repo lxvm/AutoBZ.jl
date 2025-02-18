@@ -124,14 +124,14 @@ function _TransportDistributionProblem(fun::F, Σ::AbstractSelfEnergy, hv::Abstr
     g = gauge(hv)
     prob = TwoGreensFunctionProblem(g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1], _to_gauge_twice(g, hvk[1], p[2]...)...)
     alg = TwoGreensFunctionLinearSystem(linalg)
-    up = (solver, k, hvk, (Σ, p2)) -> begin
+    _solve! = (solver, k, hvk, (Σ, p2)) -> begin
         solver.h = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
         solver.M1, solver.M2, solver.isdistinct = _to_gauge_twice(g, hvk[1], p2...)
-        return
+        sol = solve!(solver)
+        return fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)
     end
-    post = (sol, k, hvk, p) -> fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)
-    proto = post(solve(prob, alg), k, hvk, p)
-    f = CommonSolveFourierIntegralFunction(prob, alg, up, post, hv, proto)
+    proto = _solve!(init(prob, alg), k, hvk, p)
+    f = CommonSolveFourierIntegralFunction(_solve!, prob, alg, hv, proto)
     return AutoBZProblem(coord_to_rep(coord(hv)), f, bz, p; kws...)
 end
 
