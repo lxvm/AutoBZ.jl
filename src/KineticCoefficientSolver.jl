@@ -20,7 +20,7 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
         return (ω*β)^n * fermi_window(β, ω, Ω) * sol.value
     end
     td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, inner_kws...)
-    proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype
+    proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype * det(bz.B)
     f = CommonSolveIntegralFunction(_solve!, td_prob, _heuristic_bzalg(bzalg, Σ, hv), proto)
     prob = IntegralProblem(f, dom, (fdom, p); kws...)
     return init(prob, falg)
@@ -166,7 +166,7 @@ function AuxKineticCoefficientSolver(Σ::AbstractSelfEnergy, fdom::Tuple, falg, 
     AuxKineticCoefficientSolver(_trG_auxfun, Σ, fdom, falg, hv, bz, bzalg, linalg; kws...)
 end
 function AuxKineticCoefficientSolver(auxfun::F, Σ::AbstractSelfEnergy, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...) where {F}
-    AuxKineticCoefficientSolver(Σ, (lb(Σ), ub(Σ)), falg, hv, bz, bzalg, linalg; kws...)
+    AuxKineticCoefficientSolver(auxfun, Σ, (lb(Σ), ub(Σ)), falg, hv, bz, bzalg, linalg; kws...)
 end
 function AuxKineticCoefficientSolver(Σ::AbstractSelfEnergy, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...)
     AuxKineticCoefficientSolver(_trG_auxfun, Σ, falg, hv, bz, bzalg, linalg; kws...)
