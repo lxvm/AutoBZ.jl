@@ -9,21 +9,25 @@ function update_greens!(solver; ω, μ=zero(ω))
     return
 end
 
+_to_gauge(::Wannier, h, Σ::Union{AbstractMatrix,UniformScaling}) = Σ
+_to_gauge(::Hamiltonian, (E, U)::Eigen, Σ::AbstractMatrix) = U' * Σ * U
+_to_gauge(::Hamiltonian, (E, U)::Eigen, Σ::UniformScaling) = Σ
+
 function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, linalg; ω, μ=zero(ω), kws...) where {F}
     p = (deepcopy(Σ), evalM(; ω, Σ, μ))
     k = SVector(period(h))
     hk= h(k)
     g = gauge(h)
-    A = g isa Hamiltonian ? p[2] - Diagonal(hk.values) : p[2]-hk
+    A = g isa Hamiltonian ? _to_gauge(g, hk, p[2]) - Diagonal(hk.values) : p[2]-hk
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     up = (solver, k, hk, (Σ, p)) -> begin
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
-            solver.A .= p .- _hk
+            solver.A .= _to_gauge(g, hk, p) .- _hk
         else
-            solver.A = p - _hk
+            solver.A = _to_gauge(g, hk, p) - _hk
         end
         return
     end

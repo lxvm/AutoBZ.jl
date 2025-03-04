@@ -109,18 +109,24 @@ function do_twogreenssolve!(h, M1, M2, isdistinct, alg::TwoGreensFunctionLinearS
     return TwoGreensFunctionSolution(G1, G2, isdistinct, retcode, stats)
 end
 
+function _to_gauge_twice(g, h, Σ1, Σ2, isdistinct)
+    if isdistinct
+        (_to_gauge(g, h, Σ1), _to_gauge(g, h, Σ2), isdistinct)
+    else
+        Σ = _to_gauge(g, h, Σ1)
+        (Σ, Σ, isdistinct)
+    end
+end
 function _TransportDistributionProblem(fun::F, Σ::AbstractSelfEnergy, hv::AbstractVelocityInterp, bz, linalg::LinearSystemAlgorithm; ω₁, ω₂, μ=zero(ω₁), kws...) where {F}
     p = (Σ, evalM2(; Σ, ω₁, ω₂, μ))
     k = SVector(period(hv))
     hvk = hv(k)
     g = gauge(hv)
-    prob = TwoGreensFunctionProblem(g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1], p[2]...)
+    prob = TwoGreensFunctionProblem(g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1], _to_gauge_twice(g, hvk[1], p[2]...)...)
     alg = TwoGreensFunctionLinearSystem(linalg)
-    up = (solver, k, hvk, (Σ, (M1, M2, isdistinct))) -> begin
+    up = (solver, k, hvk, (Σ, p2)) -> begin
         solver.h = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
-        solver.M1 = M1
-        solver.M2 = M2
-        solver.isdistinct = isdistinct
+        solver.M1, solver.M2, solver.isdistinct = _to_gauge_twice(g, hvk[1], p2...)
         return
     end
     post = (sol, k, hvk, p) -> fun(transport_distribution_integrand(hvk[2], sol.G1, sol.G2, sol.isdistinct), hvk..., sol)

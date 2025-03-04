@@ -41,12 +41,12 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
     hvk = hv(k)
     g = gauge(hv)
     A = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
-    prob_k = TwoGreensFunctionProblem(A, M...)
+    prob_k = TwoGreensFunctionProblem(A, _to_gauge_twice(g, hvk[1], M...)...)
     alg = TwoGreensFunctionLinearSystem(linalg)
     p = (; β, μ, Ω, n)
     p_k = (fdom, deepcopy(Σ), hvk, p)
     up_k = (solver, ω, (_, Σ, hvk, (; β, μ, Ω, n))) -> begin
-        solver.M1, solver.M2, solver.isdistinct = evalM2(; Σ, ω₁=ω, ω₂=ω+Ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
+        solver.M1, solver.M2, solver.isdistinct = _to_gauge_twice(g, hvk[1], evalM2(; Σ, ω₁=ω, ω₂=ω+Ω, μ)...) # WARN: Σ evaluation may not be threadsafe so need another prob type
         solver.h = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
         return
     end

@@ -1,4 +1,7 @@
 get_self_energy_format(filename) = open(filename) do file
+    get_self_energy_format(file)
+end
+function get_self_energy_format(file::IO)
     col = split(readline(file))
     while length(col) == 1
         col = split(readline(file))
@@ -14,7 +17,10 @@ get_self_energy_format(filename) = open(filename) do file
     end
 end
 
-parse_self_energy_scalar(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+parse_self_energy_scalar(filename, T::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+    parse_self_energy_scalar(file, T)
+end
+function parse_self_energy_scalar(file::IO, ::Type{F}) where {F<:AbstractFloat}
     nfpts = parse(Int, readline(file))
     omegas = Vector{F}(undef, nfpts)
     values = Vector{Complex{F}}(undef, nfpts)
@@ -28,7 +34,10 @@ parse_self_energy_scalar(filename, ::Type{F}) where {F<:AbstractFloat} = open(fi
     return nfpts, omegas, values
 end
 
-parse_self_energy_diagonal(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+parse_self_energy_diagonal(filename, T::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+    parse_self_energy_diagonal(file, T)
+end
+function parse_self_energy_diagonal(file::IO, ::Type{F}) where {F<:AbstractFloat}
     nfpts = parse(Int, readline(file))
     num_wann = parse(Int, readline(file))
     omegas = Vector{F}(undef, nfpts)
@@ -50,7 +59,10 @@ parse_self_energy_diagonal(filename, ::Type{F}) where {F<:AbstractFloat} = open(
     return nfpts, num_wann, omegas, values
 end
 
-parse_self_energy_matrix(filename, ::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+parse_self_energy_matrix(filename, T::Type{F}) where {F<:AbstractFloat} = open(filename) do file
+    parse_self_energy_matrix(file, T)
+end
+function parse_self_energy_matrix(file::IO, ::Type{F}) where {F<:AbstractFloat}
     nfpts = parse(Int, readline(file))
     num_wann = parse(Int, readline(file))
     omegas = Vector{F}(undef, nfpts)
@@ -74,14 +86,14 @@ parse_self_energy_matrix(filename, ::Type{F}) where {F<:AbstractFloat} = open(fi
 end
 
 """
-    load_self_energy(filename; [sigdigits=8, output=:interp, degree=:default])
+    load_self_energy(filename; [sigdigits=nothing, output=:interp, degree=:default])
 
 Read the self energy data in `filename`, which should be in either `:scalar`,
 `:diagonal`, or `:matrix` format, and return a self-energy evaluator. Note that
 the frequency data is assumed to be an equispace grid. The optional argument
 `degree` indicates the degree of barycentric Lagrange interpolation, and that
 `sigdigits` indicates the number of significant digits used to round the
-frequency data so as to avoid rounding errors.
+frequency data so as to avoid rounding errors (default of `nothing` does no rounding).
 
 The keyword `output` may take values of `:interp` (default) or `:raw` which will
 either return the self energy data wrapped with a high-order interpolating
@@ -97,14 +109,15 @@ whose details depend on the distribution of frequency points:
   in order to obtain a fast-to-evaluate representation of default polynomial
   degree 16.
 """
-function load_self_energy(filename; precision=Float64, output=:interp, degree=:default, sigdigits=8, kws...)
-    fmt = get_self_energy_format(filename)
+function load_self_energy(file::IO; precision=Float64, output=:interp, degree=:default, sigdigits=nothing, kws...)
+    fmt = get_self_energy_format(file)
+    seekstart(file)
     if fmt == :scalar
-        nfpts, omegas, values = parse_self_energy_scalar(filename, precision)
+        nfpts, omegas, values = parse_self_energy_scalar(file, precision)
     elseif fmt == :diagonal
-        nfpts, num_wann, omegas, values = parse_self_energy_diagonal(filename, precision)
+        nfpts, num_wann, omegas, values = parse_self_energy_diagonal(file, precision)
     elseif fmt == :matrix
-        nfpts, num_wann, omegas, values = parse_self_energy_matrix(filename, precision)
+        nfpts, num_wann, omegas, values = parse_self_energy_matrix(file, precision)
     else
         throw(ErrorException("self energy format not implemented"))
     end
@@ -128,10 +141,10 @@ function load_self_energy(filename; precision=Float64, output=:interp, degree=:d
                 construct_lagrange(omegas, values, sigdigits, deg)
             catch
                 order = degree == :default ? 16 : degree
-                construct_chebyshev(omegas, values, order; tol, mmax)
+                construct_chebyshev(omegas, values, order; kws...)
             end
         elseif output == :aaa
-            construct_aaa(omegas, values; tol, mmax)
+            construct_aaa(omegas, values; kws...)
         else
             error("output $output not recognized")
         end
@@ -151,9 +164,12 @@ function load_self_energy(filename; precision=Float64, output=:interp, degree=:d
         end
     end
 end
+load_self_energy(filename; kws...) = open(filename) do file
+    load_self_energy(file; kws...)
+end
 
 function construct_lagrange(omegas, values, sigdigits, degree)
-    LocalEquiBaryInterp(round.(omegas; sigdigits=sigdigits), values, degree=degree)
+    LocalEquiBaryInterp(sigdigits === nothing ? omegas : round.(omegas; sigdigits=sigdigits), values, degree=degree)
 end
 
 function construct_aaa(omegas, values::Vector{<:Number}; tol=1e-13, mmax=100)
@@ -164,8 +180,10 @@ function construct_aaa(omegas, values::Vector{T}; tol=1e-13, mmax=100) where {T<
     return x -> T(map(f -> f(x), interp))
 end
 function construct_chebyshev(omegas, values, order; atol=1e-6, kws...)
-    interp = construct_aaa(omegas, values; kws...)
-    hchebinterp(interp, extrema(omegas)...; order=order, atol=atol)
+    _interp = let interp = construct_aaa(omegas, values; kws...)
+    x -> interp(complex(x)) # BaryRational.jl types not promoted automatically
+    end
+    hchebinterp(_interp, extrema(omegas)...; order=order, atol=atol)
 end
 
 function _hilbert_transform(ρ, z, a, b; kws...)
