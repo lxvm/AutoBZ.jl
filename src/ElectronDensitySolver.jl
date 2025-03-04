@@ -35,7 +35,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
     hk = h(k)
     g = gauge(h)
     M = evalM(; Σ, ω=zero(fdom[1]+fdom[2])/2, μ)
-    A = g isa Hamiltonian ? M - Diagonal(hk.values) : M - hk
+    A = g isa Hamiltonian ? _to_gauge(g, hk, M) - Diagonal(hk.values) : M - hk
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
@@ -45,9 +45,9 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         _M = evalM(; Σ, ω, μ) # WARN: Σ evaluation may not be threadsafe so need another prob type
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
         if ismutable(solver.A)
-            solver.A .= _M .- _hk
+            solver.A .= _to_gauge(g, hk, _M) .- _hk
         else
-            solver.A = _M - _hk
+            solver.A = _to_gauge(g, hk, _M) - _hk
         end
         return
     end
