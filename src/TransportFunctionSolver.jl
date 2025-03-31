@@ -14,7 +14,7 @@ end
 function transport_function_integrand_lorentzian((h, vs); β, μ)
     A = spectral_function(_inv((μ-im/β)*I-h))
     Avs = map(v -> A*v, vs)
-    return tr_kron(vs, f′vs)
+    return tr_kron(vs, Avs)
 end
 transport_function_integrand_lorentzian(k, hv, p) = transport_function_integrand_lorentzian(hv; p...)
 
