@@ -135,4 +135,6 @@ include("pythtb.jl")
 export AbstractDLRAlgorithm, LehmannJL
 include("lehmann.jl")
 
+export TwoGreensBZConvolutionSolver
+include("2GreensSolver.jl")
 end

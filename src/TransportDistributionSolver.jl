@@ -45,16 +45,18 @@ end
 abstract type TwoGreensFunctionAlgorithm end
 
 struct TwoGreensFunctionProblem{H,M,K}
-    h::H
+    h1::H
+    h2::H
     M1::M
     M2::M
     isdistinct::Bool
     kwargs::K
 end
-TwoGreensFunctionProblem(h, M1, M2, isdistinct=M1==M2; kws...) = TwoGreensFunctionProblem(h, M1, M2, isdistinct, kws)
+TwoGreensFunctionProblem(h1, h2, M1, M2, isdistinct=(M1!=M2)||(h1!=h2); kws...) = TwoGreensFunctionProblem(h1, h2, M1, M2, isdistinct, kws)
 
 mutable struct TwoGreensFunctionSolver{H,M,K,A,C}
-    h::H
+    h1::H
+    h2::H
     M1::M
     M2::M
     isdistinct::Bool
@@ -74,31 +76,31 @@ end
 function init(prob::TwoGreensFunctionProblem, alg::TwoGreensFunctionAlgorithm; kws...)
     kwargs = (; prob.kwargs..., kws...)
     cacheval = init_cacheval(prob, alg)
-    return TwoGreensFunctionSolver(prob.h, prob.M1, prob.M2, prob.isdistinct, kwargs, alg, cacheval)
+    return TwoGreensFunctionSolver(prob.h1, prob.h2, prob.M1, prob.M2, prob.isdistinct, kwargs, alg, cacheval)
 end
-solve!(solver::TwoGreensFunctionSolver) = do_twogreenssolve!(solver.h, solver.M1, solver.M2, solver.isdistinct, solver.alg, solver.cacheval; solver.kwargs...)
+solve!(solver::TwoGreensFunctionSolver) = do_twogreenssolve!(solver.h1, solver.h2, solver.M1, solver.M2, solver.isdistinct, solver.alg, solver.cacheval; solver.kwargs...)
 
 struct TwoGreensFunctionLinearSystem{A<:LinearSystemAlgorithm} <: TwoGreensFunctionAlgorithm
     linalg::A
 end
 
 function init_cacheval(prob::TwoGreensFunctionProblem, alg::TwoGreensFunctionLinearSystem)
-    linprob = LinearSystemProblem(prob.M1-prob.h)
+    linprob = LinearSystemProblem(prob.M1-prob.h1)
     return init(linprob, alg.linalg)
 end
 
-function do_twogreenssolve!(h, M1, M2, isdistinct, alg::TwoGreensFunctionLinearSystem, cacheval)
+function do_twogreenssolve!(h1, h2, M1, M2, isdistinct, alg::TwoGreensFunctionLinearSystem, cacheval)
     if ismutable(cacheval.A)
-        cacheval.A .= M1 .- h
+        cacheval.A .= M1 .- h1
     else
-        cacheval.A = M1 - h
+        cacheval.A = M1 - h1
     end
     G1 = inv(solve!(cacheval).value)
     if isdistinct
         if ismutable(cacheval.A)
-            cacheval.A .= M2 .- h
+            cacheval.A .= M2 .- h2
         else
-            cacheval.A = M2 - h
+            cacheval.A = M2 - h2
         end
         G2 = inv(solve!(cacheval).value)
     else
@@ -122,10 +124,11 @@ function _TransportDistributionProblem(fun::F, Σ::AbstractSelfEnergy, hv::Abstr
     k = SVector(period(hv))
     hvk = hv(k)
     g = gauge(hv)
-    prob = TwoGreensFunctionProblem(g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1], _to_gauge_twice(g, hvk[1], p[2]...)...)
+    A = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
+    prob = TwoGreensFunctionProblem(A, A, _to_gauge_twice(g, hvk[1], p[2]...)...)
     alg = TwoGreensFunctionLinearSystem(linalg)
     up = (solver, k, hvk, (Σ, p2)) -> begin
-        solver.h = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
+        solver.h1 = solver.h2 = g isa Hamiltonian ? Diagonal(hvk[1].values) : hvk[1]
         solver.M1, solver.M2, solver.isdistinct = _to_gauge_twice(g, hvk[1], p2...)
         return
     end
