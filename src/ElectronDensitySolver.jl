@@ -10,7 +10,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, fa
     _solve! = (solver, ω, (_, (; β, μ))) -> begin
         update_greens!(solver; ω, μ)
         sol = solve!(solver)
-        return sol.value*fermi(β, ω)
+        return AutoBZCore.CommonSolutionStats(sol.value*fermi(β, ω), sol.stats)
     end
     f = CommonSolveIntegralFunction(_solve!, dos_prob, _heuristic_bzalg(bzalg, Σ, h), proto)
     prob = IntegralProblem(f, get_safe_fermi_function_limits(β, fdom...), (fdom, p); kws...)
@@ -76,7 +76,7 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
         end
         solver.p = (_fdom, _Σ, h, p)
         sol = solve!(solver)
-        return sol.value
+        return AutoBZCore.CommonSolutionStats(sol.value, sol.stats)
     end
     f = CommonSolveFourierIntegralFunction(_solve!, fprob, falg, h, proto*μ)
     prob = AutoBZProblem(rep, f, bz, p; kws...)

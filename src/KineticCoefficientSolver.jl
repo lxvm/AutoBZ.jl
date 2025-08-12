@@ -17,7 +17,7 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
         #     solver.kwargs = _rescale_abstol(inv((_dom[2]-_dom[1])*fermi_window_maximum(β, Ω)); kws...)
         # end
         sol = solve!(solver)
-        return (ω*β)^n * fermi_window(β, ω, Ω) * sol.value
+        return AutoBZCore.CommonSolutionStats((ω*β)^n * fermi_window(β, ω, Ω) * sol.value, sol.stats)
     end
     td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, inner_kws...)
     proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype * det(bz.B)
@@ -68,7 +68,7 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
         end
         solver.p = (_fdom, _Σ, hv, p)
         sol = solve!(solver)
-        return sol.value
+        return AutoBZCore.CommonSolutionStats(sol.value, sol.stats)
     end
     f = CommonSolveFourierIntegralFunction(_solve!, fprob, falg, hv, proto*Ω)
     prob = AutoBZProblem(coord_to_rep(coord(hv)), f, bz, p; kws...)
