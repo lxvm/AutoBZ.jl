@@ -250,11 +250,7 @@ function symmetrize_(::CartesianRep, bz::SymmetricBZ, x::AbstractMatrix)
     invB = bz.A'; B = _inv(invB)
     transpose(invB) * symmetrize_(LatticeRep(), bz, transpose(B) * x * B) * invB
 end
-function symmetrize_(rep::AbstractCoordSymRep, bz::SymmetricBZ, x::AutoBZCore.IteratedIntegration.AuxValue)
-    val = symmetrize_(rep, bz, x.val)
-    aux = symmetrize_(rep, bz, x.aux)
-    return AutoBZCore.IteratedIntegration.AuxValue(val, aux)
-end
+
 symmetrize_(::AbstractCoordSymRep, bz::SymmetricBZ, x::Number) = symmetrize_(TrivialRep(), bz, x)
 
 coord_to_rep(::Lattice) = LatticeRep()

@@ -169,13 +169,13 @@ Additional keywords are passed directly to the solver.
 Use `AutoBZ.update_auxtd!(solver; ω₁, ω₂, μ)` to update the parameters.
 """
 function AuxTransportDistributionSolver(auxfun::F, Σ::AbstractSelfEnergy, hv::AbstractVelocityInterp, bz, bzalg, linalg=JLInv(); kws...) where {F}
-    prob = _TransportDistributionProblem((Γ, h, v, sol) -> AutoBZCore.IteratedIntegration.AuxValue(Γ, auxfun(v, sol.G1, sol.G2)), Σ, hv, bz, linalg; kws...)
+    prob = _TransportDistributionProblem((Γ, h, v, sol) -> AuxValue(Γ, auxfun(v, sol.G1, sol.G2)), Σ, hv, bz, linalg; kws...)
     return init(prob, _heuristic_bzalg(bzalg, Σ, hv))
 end
 AuxTransportDistributionSolver(Σ::AbstractSelfEnergy, hv::AbstractVelocityInterp, bz, bzalg, linalg=JLInv(); kws...) = AuxTransportDistributionSolver(_trG_auxfun, Σ, hv, bz, bzalg, linalg; _trG_kws(; kws...)...)
 _trG_auxfun(vs, Gω₁, Gω₂) = tr(Gω₁) + tr(Gω₂)
 function _trG_kws(; kws...)
-    (!haskey(kws, :abstol) || !(kws[:abstol] isa AutoBZCore.IteratedIntegration.AuxValue)) && @warn "pick a sensible default auxiliary tolerance"
+    (!haskey(kws, :abstol) || !(kws[:abstol] isa AuxValue)) && @warn "pick a sensible default auxiliary tolerance"
     return (; kws...)
 end
 update_auxtd!(solver; kws...) = update_td!(solver; kws...)

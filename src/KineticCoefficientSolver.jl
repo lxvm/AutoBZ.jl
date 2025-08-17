@@ -1,11 +1,11 @@
-function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), scale_inner=nothing, kws...) where {F}
+function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, hv::AbstractVelocityInterp, bz, bzalg, linalg; β, Ω, n, μ=zero(Ω), scale_inner=nothing, inner_kws=nothing, kws...) where {F}
     dom = get_safe_fermi_window_limits(Ω, β, fdom...)
     s = 1 # inv((dom[2]-dom[1])*fermi_window_maximum(β, Ω)) # or area under the window function
     # the right choice depends on whether worst-case point-wise error or average is
     # important close to 1) important and could eventually let the user decide
     # And to be rigorous, the scaling should be 1/(dom[2]-dom[1])/fermi_window(β, ω, Ω),
     # although in the tails of the window this uniform error could be dangerous
-    inner_kws = _rescale_abstol(something(scale_inner, s); kws...)
+    _inner_kws = inner_kws === nothing ? _rescale_abstol(something(scale_inner, s); kws...) : inner_kws
     p = (; β, μ, Ω, n)
     _solve! = (solver, ω, (_, (; β, μ, Ω, n))) -> begin
         update_td!(solver; ω₁=ω, ω₂=ω+Ω, μ)
@@ -19,7 +19,7 @@ function _DynamicalTransportDistributionSolver(fun::F, Σ::AbstractSelfEnergy, f
         sol = solve!(solver)
         return AutoBZCore.CommonSolutionStats((ω*β)^n * fermi_window(β, ω, Ω) * sol.value, sol.stats)
     end
-    td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, inner_kws...)
+    td_prob = _TransportDistributionProblem(fun, Σ, hv, bz, linalg; ω₁=zero(Ω), ω₂=Ω, μ, _inner_kws...)
     proto = (float(zero(Ω))*β)^n * fermi_window(β, float(zero(Ω)), Ω) * td_prob.f.prototype * det(bz.B)
     f = CommonSolveIntegralFunction(_solve!, td_prob, _heuristic_bzalg(bzalg, Σ, hv), proto)
     prob = IntegralProblem(f, dom, (fdom, p); kws...)
@@ -35,7 +35,7 @@ function update_kc!(solver::AutoBZCore.IntegralSolver; β, Ω, n, μ=zero(Ω))
     return
 end
 
-function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, Ω, n, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
+function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, Ω, n, μ=zero(inv(oneunit(β))), scale_inner=nothing, inner_kws=nothing, kws...) where {F}
     M = evalM2(; Σ, ω₁=float(zero(Ω)), ω₂=float(Ω), μ)
     k = SVector(period(hv))
     hvk = hv(k)
@@ -54,8 +54,8 @@ function _DynamicalTransportDistributionSolver(fun::F, hv::AbstractVelocityInter
     proto = _ksolve!(init(prob_k, alg), zero(fdom[1]+fdom[2])/2, p_k)
     f_k = CommonSolveIntegralFunction(_ksolve!, prob_k, alg, proto)
     V = abs(det(bz.B))
-    inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
-    fprob = IntegralProblem(f_k, get_safe_fermi_window_limits(Ω, β, fdom...), p_k; inner_kws...)
+    _inner_kws = inner_kws === nothing ? _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...) : inner_kws
+    fprob = IntegralProblem(f_k, get_safe_fermi_window_limits(Ω, β, fdom...), p_k; _inner_kws...)
     _solve! = (solver, k, hv, p) -> begin
         # if iszero(Ω) && isinf(β)
         #     # we pass in β=4 since fermi_window(4,0,0)=1, the weight of the delta
@@ -159,31 +159,8 @@ The default `auxfun` is the sum of the Green's functions.
 Use `AutoBZ.update_auxkc!(solver; β, Ω, μ, n)` to change parameters.
 If `fdom` is not specified the default is `(AutoBZ.lb(Σ), AutoBZ.ub(Σ))`.
 """
-function AuxKineticCoefficientSolver(auxfun::F, Σ::AbstractSelfEnergy, fdom, falg::IntegralAlgorithm, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...) where {F}
-    _DynamicalTransportDistributionSolver((Γ, h, v, sol) -> AutoBZCore.IteratedIntegration.AuxValue(Γ, auxfun(v, sol.G1, sol.G2)), Σ, fdom, falg, hv, bz, bzalg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(Σ::AbstractSelfEnergy, fdom::Tuple, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...)
-    AuxKineticCoefficientSolver(_trG_auxfun, Σ, fdom, falg, hv, bz, bzalg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(auxfun::F, Σ::AbstractSelfEnergy, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...) where {F}
-    AuxKineticCoefficientSolver(auxfun, Σ, (lb(Σ), ub(Σ)), falg, hv, bz, bzalg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(Σ::AbstractSelfEnergy, falg, hv::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, linalg::LinearSystemAlgorithm=JLInv(); kws...)
-    AuxKineticCoefficientSolver(_trG_auxfun, Σ, falg, hv, bz, bzalg, linalg; kws...)
-end
+function AuxKineticCoefficientSolver end
 
-function AuxKineticCoefficientSolver(auxfun::F, h::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, Σ::AbstractSelfEnergy, fdom, falg, linalg::LinearSystemAlgorithm=JLInv(); kws...) where {F}
-    _DynamicalTransportDistributionSolver((Γ, h, v, sol) -> AutoBZCore.IteratedIntegration.AuxValue(Γ, auxfun(v, sol.G1, sol.G2)), h, bz, bzalg, Σ, fdom, falg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(h::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg::LinearSystemAlgorithm=JLInv(); kws...)
-    AuxKineticCoefficientSolver(_trG_auxfun, h, bz, bzalg, Σ, fdom, falg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(auxfun::F, h::AbstractVelocityInterp, bz, bzalg::AutoBZAlgorithm, Σ::AbstractSelfEnergy, falg, linalg::LinearSystemAlgorithm=JLInv(); kws...) where {F}
-    AuxKineticCoefficientSolver(auxfun, h, bz, bzalg, Σ, (lb(Σ), ub(Σ)), falg, linalg; kws...)
-end
-function AuxKineticCoefficientSolver(h::AbstractVelocityInterp, bz, bzalg, Σ::AbstractSelfEnergy, falg, linalg::LinearSystemAlgorithm=JLInv(); kws...)
-    AuxKineticCoefficientSolver(_trG_auxfun, h, bz, bzalg, Σ, falg, linalg; kws...)
-end
 update_auxkc!(args...; kws...) = update_kc!(args...; kws...)
 
 

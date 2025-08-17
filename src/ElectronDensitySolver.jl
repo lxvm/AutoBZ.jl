@@ -1,9 +1,9 @@
-function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHamiltonianInterp, bz, bzalg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
+function _DynamicalOccupiedGreensSolver(fun::F, Σ::AbstractSelfEnergy, fdom, falg, h::AbstractHamiltonianInterp, bz, bzalg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, inner_kws=nothing, kws...) where {F}
     # TODO better estimate the bandwidth since the Fermi function is a semi-infinite window
     bandwidth = oneunit(μ)
     V = abs(det(bz.B))
-    inner_kws = _rescale_abstol(something(scale_inner, inv(bandwidth)); kws...)
-    dos_prob = _GreensProblem(fun, Σ, h, bz, linalg; ω=zero(fdom[1]+fdom[2])/2, μ, inner_kws...)
+    _inner_kws = inner_kws === nothing ? _rescale_abstol(something(scale_inner, inv(bandwidth)); kws...) : inner_kws
+    dos_prob = _GreensProblem(fun, Σ, h, bz, linalg; ω=zero(fdom[1]+fdom[2])/2, μ, _inner_kws...)
     p = (; β, μ)
     proto = dos_prob.f.prototype * V * fermi(β, zero(fdom[1]+fdom[2])/2)
     # WARN: Σ evaluation in update_greens! may not be threadsafe so need another prob type
@@ -32,7 +32,7 @@ function update_density!(solver::AutoBZCore.IntegralSolver; β, μ=zero(inv(oneu
     return
 end
 
-function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, kws...) where {F}
+function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz, bzalg, Σ::AbstractSelfEnergy, fdom, falg, linalg; β, μ=zero(inv(oneunit(β))), scale_inner=nothing, inner_kws=nothing, kws...) where {F}
     V = abs(det(bz.B))
     k = period(h)
     hk = h(k)
@@ -61,10 +61,10 @@ function _DynamicalOccupiedGreensSolver(fun::F, h::AbstractHamiltonianInterp, bz
             error("$sol is neither a LinearSystemSolution nor TraceInverseSolution")
         end |> fun |> x -> x*fermi(β, ω)
     end
-    inner_kws = _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...)
+    _inner_kws = inner_kws === nothing ? _rescale_abstol(something(scale_inner, inv(V*nsyms(bz))); kws...) : inner_kws
     proto = _ksolve!(init(linprob, linalg), zero(fdom[1]+fdom[2])/2, p_k)
     f_k = CommonSolveIntegralFunction(_ksolve!, linprob, linalg, proto)
-    fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; inner_kws...)
+    fprob = IntegralProblem(f_k, get_safe_fermi_function_limits(β, fdom...), p_k; _inner_kws...)
     linprob, rep =  linalg isa LinearSystemAlgorithm ? (LinearSystemProblem(A), UnknownRep()) :
                     linalg isa TraceInverseAlgorithm ? (TraceInverseProblem(A), TrivialRep()) :
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))

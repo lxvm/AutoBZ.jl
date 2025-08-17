@@ -13,7 +13,7 @@ _to_gauge(::Wannier, h, Σ::Union{AbstractMatrix,UniformScaling}) = Σ
 _to_gauge(::Hamiltonian, (E, U)::Eigen, Σ::AbstractMatrix) = U' * Σ * U
 _to_gauge(::Hamiltonian, (E, U)::Eigen, Σ::UniformScaling) = Σ
 
-function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, linalg; ω, μ=zero(ω), kws...) where {F}
+function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianInterp, bz, linalg; ω, μ=zero(ω), specialize=DefaultSpecialize(), executor=SerialExecutor(), kws...) where {F}
     p = (deepcopy(Σ), evalM(; ω, Σ, μ))
     k = SVector(period(h))
     hk= h(k)
@@ -39,7 +39,7 @@ function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianIn
         end |> fun
     end
     proto = _solve!(init(linprob, linalg), k, hk, p)
-    f = CommonSolveFourierIntegralFunction(_solve!, linprob, linalg, h, proto)
+    f = CommonSolveFourierIntegralFunction(_solve!, linprob, linalg, h, proto, specialize, executor)
     return AutoBZProblem(rep, f, bz, p; kws...)
 end
 function _GreensSolver(fun::F, Σ, h, bz, bzalg, linalg; kws...) where {F}

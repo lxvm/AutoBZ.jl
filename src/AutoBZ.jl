@@ -73,6 +73,8 @@ using BaryRational: aaa
 using HChebInterp: hchebinterp
 using FastLapackInterface: LUWs, EigenWs, HermitianEigenWs
 
+using AuxQuadGK: AuxValue
+
 export AbstractSelfEnergy
 export AbstractWannierInterp
 export AbstractGauge, Wannier, Hamiltonian

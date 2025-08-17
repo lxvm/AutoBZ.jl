@@ -5,6 +5,7 @@ version = "0.5.7"
 
 [deps]
 AutoBZCore = "66bd3e16-1600-45cf-8f55-0b550710682b"
+AuxQuadGK = "b59dd6d0-509b-4777-bfd1-cd8479d7b9e5"
 BaryRational = "91aaffc3-5777-4842-85b7-5d3d5d6a3494"
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 EquiBaryInterp = "c5458111-f826-47c0-abe9-f36aa00852ec"
@@ -25,6 +26,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [extensions]
+AutoBZAuxQuadGKExt = "AuxQuadGK"
 AutoBZLehmannExt = "Lehmann"
 AutoBZUnitfulExt = "Unitful"
 AutoBZWannierIOExt = "WannierIO"
