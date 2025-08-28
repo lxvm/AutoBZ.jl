@@ -24,12 +24,25 @@ function _GreensProblem(fun::F, Σ::AbstractSelfEnergy, h::AbstractHamiltonianIn
                     throw(ArgumentError("$linalg is neither a LinearSystemAlgorithm nor TraceInverseAlgorithm"))
     _solve! = (solver, k, hk, (Σ, p)) -> begin
         _hk = g isa Hamiltonian ? Diagonal(hk.values) : hk
-        if ismutable(solver.A)
+        _A = if ismutable(solver.A)
             solver.A .= _to_gauge(g, hk, p) .- _hk
+            solver.A
         else
-            solver.A = _to_gauge(g, hk, p) - _hk
+            _to_gauge(g, hk, p) - _hk
         end
-        sol = solve!(solver)
+        # if ismutable(solver.A)
+        #     solver.A .= _to_gauge(g, hk, p) .- _hk
+        # else
+        #     solver.A = _to_gauge(g, hk, p) - _hk
+        # end
+        # sol = solve!(solver) # out-of-place semantics are faster
+        sol = if linalg isa LinearSystemAlgorithm
+            do_linear_solve!(_A, solver.Pl, solver.Pr, linalg, solver.cacheval; solver.kwargs...)
+        elseif linalg isa TraceInverseAlgorithm
+            do_trinv(_A, linalg, solver.cacheval; solver.kwargs...)
+        else
+            nothing
+        end
         if sol isa LinearSystemSolution
             inv(sol.value)
         elseif sol isa TraceInverseSolution
